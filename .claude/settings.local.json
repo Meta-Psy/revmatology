@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:rheumatolog.ru)",
+      "Bash(npm create:*)",
+      "Bash(npm install)",
+      "Bash(npm install:*)"
+    ]
+  }
+}

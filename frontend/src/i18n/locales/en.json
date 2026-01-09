@@ -1,0 +1,125 @@
+{
+  "nav": {
+    "home": "Home",
+    "rheumatology": "Rheumatology in Uzbekistan",
+    "congress": "Congress",
+    "news": "News",
+    "login": "Login",
+    "register": "Register",
+    "logout": "Logout",
+    "profile": "Profile"
+  },
+  "hero": {
+    "title": "Rheumatology Association of Uzbekistan",
+    "subtitle": "Uniting specialists for the development of rheumatology in Uzbekistan",
+    "learnMore": "Learn More",
+    "joinUs": "Join Us"
+  },
+  "about": {
+    "title": "About Us",
+    "description": "The Rheumatology Association of Uzbekistan is a professional union of rheumatologists aimed at developing rheumatological care in the country, exchanging experience, and implementing modern diagnostic and treatment methods.",
+    "mission": "Our Mission",
+    "missionText": "Improving the quality of rheumatological care for the population of Uzbekistan through uniting specialists, educational programs, and international cooperation."
+  },
+  "members": {
+    "title": "Association Members",
+    "subtitle": "Leading specialists in rheumatology"
+  },
+  "cooperation": {
+    "title": "International Cooperation",
+    "subtitle": "Our partners and international relations"
+  },
+  "charter": {
+    "title": "Charter",
+    "download": "Download Charter",
+    "description": "Read our association's charter"
+  },
+  "rheumatology": {
+    "title": "Rheumatology in Uzbekistan",
+    "centers": {
+      "title": "Specialized Centers",
+      "subtitle": "Leading medical institutions"
+    },
+    "doctors": {
+      "title": "Chief Rheumatologists",
+      "subtitle": "Leading specialists of the country"
+    },
+    "diseases": {
+      "title": "Disease Information",
+      "ra": "Rheumatoid Arthritis",
+      "gout": "Gout",
+      "sle": "Systemic Lupus Erythematosus",
+      "osteoarthritis": "Osteoarthritis",
+      "as": "Ankylosing Spondylitis"
+    },
+    "school": {
+      "rheumatologists": {
+        "title": "Rheumatologists School",
+        "subtitle": "Educational program for doctors",
+        "apply": "Apply"
+      },
+      "patients": {
+        "title": "Patient School",
+        "subtitle": "Educational materials for patients",
+        "login": "Login",
+        "register": "Register"
+      }
+    }
+  },
+  "congress": {
+    "title": "Congress",
+    "upcoming": "Upcoming Congress",
+    "program": "Program",
+    "speakers": "Speakers",
+    "register": "Register",
+    "location": "Location",
+    "date": "Date",
+    "registrationForm": {
+      "title": "Congress Registration",
+      "fullName": "Full Name",
+      "email": "Email",
+      "phone": "Phone",
+      "organization": "Organization",
+      "position": "Position",
+      "submit": "Submit Application"
+    }
+  },
+  "news": {
+    "title": "News",
+    "latest": "Latest News",
+    "readMore": "Read More",
+    "allNews": "All News"
+  },
+  "footer": {
+    "contacts": "Contacts",
+    "address": "Address",
+    "phone": "Phone",
+    "email": "Email",
+    "links": "Useful Links",
+    "copyright": "© 2024 Rheumatology Association of Uzbekistan. All rights reserved."
+  },
+  "auth": {
+    "login": "Login",
+    "register": "Registration",
+    "email": "Email",
+    "password": "Password",
+    "confirmPassword": "Confirm Password",
+    "fullName": "Full Name",
+    "submit": "Submit",
+    "noAccount": "Don't have an account?",
+    "hasAccount": "Already have an account?",
+    "forgotPassword": "Forgot password?"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "success": "Success",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "back": "Back",
+    "next": "Next",
+    "search": "Search"
+  }
+}

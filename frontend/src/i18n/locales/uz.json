@@ -1,0 +1,125 @@
+{
+  "nav": {
+    "home": "Bosh sahifa",
+    "rheumatology": "O'zbekistonda revmatologiya",
+    "congress": "Kongress",
+    "news": "Yangiliklar",
+    "login": "Kirish",
+    "register": "Ro'yxatdan o'tish",
+    "logout": "Chiqish",
+    "profile": "Profil"
+  },
+  "hero": {
+    "title": "O'zbekiston Revmatologlar Assotsiatsiyasi",
+    "subtitle": "O'zbekistonda revmatologiyani rivojlantirish uchun mutaxassislarni birlashtirish",
+    "learnMore": "Batafsil",
+    "joinUs": "Qo'shilish"
+  },
+  "about": {
+    "title": "Biz haqimizda",
+    "description": "O'zbekiston Revmatologlar Assotsiatsiyasi — mamlakatda revmatologik yordamni rivojlantirish, tajriba almashish va zamonaviy tashxis va davolash usullarini joriy etishga qaratilgan shifokorlar-revmatologlarning kasbiy birlashmasi.",
+    "mission": "Bizning vazifamiz",
+    "missionText": "Mutaxassislarni birlashtirish, ta'lim dasturlari va xalqaro hamkorlik orqali O'zbekiston aholisiga revmatologik yordamni sifatini oshirish."
+  },
+  "members": {
+    "title": "Assotsiatsiya a'zolari",
+    "subtitle": "Revmatologiya sohasidagi yetakchi mutaxassislar"
+  },
+  "cooperation": {
+    "title": "Xalqaro hamkorlik",
+    "subtitle": "Bizning hamkorlarimiz va xalqaro aloqalarimiz"
+  },
+  "charter": {
+    "title": "Ustav",
+    "download": "Ustavni yuklab olish",
+    "description": "Assotsiatsiyamiz ustavi bilan tanishing"
+  },
+  "rheumatology": {
+    "title": "O'zbekistonda revmatologiya",
+    "centers": {
+      "title": "Ixtisoslashtirilgan markazlar",
+      "subtitle": "Yetakchi tibbiyot muassasalari"
+    },
+    "doctors": {
+      "title": "Bosh revmatologlar",
+      "subtitle": "Mamlakatning yetakchi mutaxassislari"
+    },
+    "diseases": {
+      "title": "Kasalliklar haqida ma'lumot",
+      "ra": "Revmatoid artrit",
+      "gout": "Podagra",
+      "sle": "Sistemali qizil yugurdak",
+      "osteoarthritis": "Osteoartroz",
+      "as": "Ankilozlovchi spondiloartrit"
+    },
+    "school": {
+      "rheumatologists": {
+        "title": "Revmatologlar maktabi",
+        "subtitle": "Shifokorlar uchun ta'lim dasturi",
+        "apply": "Ariza topshirish"
+      },
+      "patients": {
+        "title": "Bemorlar uchun maktab",
+        "subtitle": "Bemorlar uchun ta'lim materiallari",
+        "login": "Kirish",
+        "register": "Ro'yxatdan o'tish"
+      }
+    }
+  },
+  "congress": {
+    "title": "Kongress",
+    "upcoming": "Kelgusi kongress",
+    "program": "Dastur",
+    "speakers": "Ma'ruzachilar",
+    "register": "Ro'yxatdan o'tish",
+    "location": "O'tkazish joyi",
+    "date": "Sana",
+    "registrationForm": {
+      "title": "Kongressga ro'yxatdan o'tish",
+      "fullName": "F.I.Sh.",
+      "email": "Email",
+      "phone": "Telefon",
+      "organization": "Tashkilot",
+      "position": "Lavozim",
+      "submit": "Ariza yuborish"
+    }
+  },
+  "news": {
+    "title": "Yangiliklar",
+    "latest": "So'nggi yangiliklar",
+    "readMore": "Batafsil o'qish",
+    "allNews": "Barcha yangiliklar"
+  },
+  "footer": {
+    "contacts": "Kontaktlar",
+    "address": "Manzil",
+    "phone": "Telefon",
+    "email": "Email",
+    "links": "Foydali havolalar",
+    "copyright": "© 2024 O'zbekiston Revmatologlar Assotsiatsiyasi. Barcha huquqlar himoyalangan."
+  },
+  "auth": {
+    "login": "Tizimga kirish",
+    "register": "Ro'yxatdan o'tish",
+    "email": "Email",
+    "password": "Parol",
+    "confirmPassword": "Parolni tasdiqlang",
+    "fullName": "To'liq ism",
+    "submit": "Yuborish",
+    "noAccount": "Akkauntingiz yo'qmi?",
+    "hasAccount": "Akkauntingiz bormi?",
+    "forgotPassword": "Parolni unutdingizmi?"
+  },
+  "common": {
+    "loading": "Yuklanmoqda...",
+    "error": "Xatolik yuz berdi",
+    "success": "Muvaffaqiyatli",
+    "cancel": "Bekor qilish",
+    "save": "Saqlash",
+    "delete": "O'chirish",
+    "edit": "Tahrirlash",
+    "back": "Orqaga",
+    "next": "Keyingi",
+    "search": "Qidirish"
+  }
+}
