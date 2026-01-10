@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { newsAPI } from '../../services/api';
+import { contentAPI } from '../../services/api';
 
 const NewsEditor = () => {
   const { id } = useParams();
@@ -30,7 +30,7 @@ const NewsEditor = () => {
   const loadNews = async () => {
     setLoading(true);
     try {
-      const res = await newsAPI.getById(id);
+      const res = await contentAPI.getNewsItem(id);
       setFormData(res.data);
     } catch (err) {
       console.error('Error loading news:', err);
@@ -64,9 +64,9 @@ const NewsEditor = () => {
 
     try {
       if (isEdit) {
-        await newsAPI.update(id, formData);
+        await contentAPI.updateNews(id, formData);
       } else {
-        await newsAPI.create(formData);
+        await contentAPI.createNews(formData);
       }
       navigate('/admin/news');
     } catch (err) {

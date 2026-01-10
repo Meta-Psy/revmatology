@@ -11,28 +11,89 @@
   },
   "hero": {
     "title": "Rheumatology Association of Uzbekistan",
+    "titleHighlight": "Association",
+    "titleMain": "of Rheumatologists of Uzbekistan",
     "subtitle": "Uniting specialists for the development of rheumatology in Uzbekistan",
     "learnMore": "Learn More",
-    "joinUs": "Join Us"
+    "joinUs": "Join Us",
+    "badge": "Official Organization",
+    "welcomeBack": "Welcome back",
+    "whatToDo": "What would you like to do today?",
+    "stats": {
+      "specialists": "Specialists",
+      "centers": "Centers",
+      "partners": "Partners"
+    },
+    "card1": {
+      "title": "Leading Centers",
+      "desc": "Across the country"
+    },
+    "card2": {
+      "title": "Education",
+      "desc": "Schools and conferences"
+    },
+    "card3": {
+      "title": "International Cooperation",
+      "desc": "EULAR, ACR and more"
+    },
+    "actions": {
+      "congress": "Congress 2025",
+      "congressDesc": "Registration and program",
+      "school": "Rheumatologist School",
+      "schoolDesc": "Educational programs",
+      "news": "News",
+      "newsDesc": "Latest updates",
+      "profile": "My Profile",
+      "profileDesc": "Settings and data",
+      "goTo": "Go to"
+    },
+    "event": {
+      "upcoming": "Upcoming Event",
+      "congressTitle": "III Congress of Rheumatologists of Uzbekistan",
+      "congressDate": "March 2025 • Tashkent",
+      "details": "Learn more"
+    },
+    "memberGreeting": "Welcome to the Rheumatology Association of Uzbekistan"
+  },
+  "mission": {
+    "title": "Main Goal",
+    "subtitle": "of the Rheumatology Association of Uzbekistan",
+    "text": "To promote the development of medical science and practice in order to preserve and strengthen public health, to create a system of qualified rheumatological care for the population of our country that meets world standards, to train specialists in this field in the republic, to improve their qualifications, and to contribute to the implementation of scientific and practical research."
   },
   "about": {
     "title": "About Us",
-    "description": "The Rheumatology Association of Uzbekistan is a professional union of rheumatologists aimed at developing rheumatological care in the country, exchanging experience, and implementing modern diagnostic and treatment methods.",
-    "mission": "Our Mission",
-    "missionText": "Improving the quality of rheumatological care for the population of Uzbekistan through uniting specialists, educational programs, and international cooperation."
-  },
-  "members": {
-    "title": "Association Members",
-    "subtitle": "Leading specialists in rheumatology"
-  },
-  "cooperation": {
-    "title": "International Cooperation",
-    "subtitle": "Our partners and international relations"
-  },
-  "charter": {
-    "title": "Charter",
-    "download": "Download Charter",
-    "description": "Read our association's charter"
+    "history": {
+      "title": "About the Association",
+      "text1": "The Rheumatology Association of Uzbekistan is a professional community uniting physicians across the country to combat rheumatic diseases.",
+      "text2": "The organization focuses on disease prevention, promoting healthy lifestyles, protecting the interests of medical professionals, and strengthening international ties in healthcare.",
+      "text3": "As part of developing international cooperation, the association actively collaborates with leading global organizations in rheumatology — EULAR, APLAR, and the Association of Rheumatologists of Russia."
+    },
+    "board": {
+      "title": "Association Board",
+      "subtitle": "Leadership and leading specialists",
+      "member1": {
+        "name": "Mirakhmedova Khilola Tukhtasinovna",
+        "degree": "Doctor of Medical Sciences, Professor",
+        "position": "Chairman of the Association. Chief Consultant in Rheumatology of the Ministry of Health of Uzbekistan. Head of the Department of Propaedeutics of Internal Diseases No.1, TashSMI"
+      },
+      "member2": {
+        "name": "Nabieva Dildorakhon Abdumalikovna",
+        "degree": "Doctor of Medical Sciences, Professor",
+        "position": "Head of the Department of Faculty and Hospital Therapy, Occupational Pathology No.1, TashSMI"
+      }
+    },
+    "partners": {
+      "title": "International Cooperation",
+      "subtitle": "The association actively cooperates with leading international organizations in rheumatology",
+      "eular": "European League Against Rheumatism",
+      "aplar": "Asia Pacific League of Associations for Rheumatology",
+      "arr": "Association of Rheumatologists of Russia"
+    },
+    "charter": {
+      "title": "Association Charter",
+      "description": "The charter defines the goals, objectives and principles of the Rheumatology Association of Uzbekistan, the rights and obligations of members, management structure and decision-making procedures.",
+      "download": "Download Charter (PDF)"
+    }
   },
   "rheumatology": {
     "title": "Rheumatology in Uzbekistan",
@@ -104,7 +165,12 @@
     "email": "Email",
     "password": "Password",
     "confirmPassword": "Confirm Password",
-    "fullName": "Full Name",
+    "lastName": "Last Name",
+    "lastNamePlaceholder": "Smith",
+    "firstName": "First Name",
+    "firstNamePlaceholder": "John",
+    "patronymic": "Middle Name",
+    "patronymicPlaceholder": "William",
     "submit": "Submit",
     "noAccount": "Don't have an account?",
     "hasAccount": "Already have an account?",

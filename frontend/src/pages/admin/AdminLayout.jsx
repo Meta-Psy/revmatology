@@ -21,11 +21,14 @@ const AdminLayout = () => {
 
   const menuItems = [
     { path: '/admin', label: 'Панель управления', icon: 'dashboard' },
-    { path: '/admin/news', label: 'Новости', icon: 'news' },
-    { path: '/admin/congress', label: 'Конгресс', icon: 'congress' },
-    { path: '/admin/members', label: 'Члены ассоциации', icon: 'members' },
-    { path: '/admin/doctors', label: 'Врачи', icon: 'doctors' },
+    { path: '/admin/news', label: 'Новости и события', icon: 'news' },
+    { path: '/admin/board', label: 'Правление', icon: 'members' },
+    { path: '/admin/partners', label: 'Партнёры', icon: 'partners' },
+    { path: '/admin/charter', label: 'Устав', icon: 'charter' },
+    { path: '/admin/chief-rheumatologists', label: 'Главные ревматологи', icon: 'doctors' },
+    { path: '/admin/diseases', label: 'Нормативные документы', icon: 'documents' },
     { path: '/admin/centers', label: 'Центры', icon: 'centers' },
+    { path: '/admin/center-staff', label: 'Сотрудники центров', icon: 'staff' },
     { path: '/admin/users', label: 'Пользователи', icon: 'users' },
   ];
 
@@ -66,9 +69,29 @@ const AdminLayout = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
         </svg>
       ),
+      partners: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+        </svg>
+      ),
+      charter: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      ),
+      documents: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      ),
       users: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+        </svg>
+      ),
+      staff: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
         </svg>
       ),
     };

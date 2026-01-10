@@ -11,28 +11,89 @@
   },
   "hero": {
     "title": "O'zbekiston Revmatologlar Assotsiatsiyasi",
+    "titleHighlight": "Assotsiatsiya",
+    "titleMain": "O'zbekiston Revmatologlar",
     "subtitle": "O'zbekistonda revmatologiyani rivojlantirish uchun mutaxassislarni birlashtirish",
     "learnMore": "Batafsil",
-    "joinUs": "Qo'shilish"
+    "joinUs": "Qo'shilish",
+    "badge": "Rasmiy tashkilot",
+    "welcomeBack": "Xush kelibsiz",
+    "whatToDo": "Bugun nima qilmoqchisiz?",
+    "stats": {
+      "specialists": "Mutaxassis",
+      "centers": "Markaz",
+      "partners": "Hamkor"
+    },
+    "card1": {
+      "title": "Yetakchi markazlar",
+      "desc": "Butun mamlakat bo'ylab"
+    },
+    "card2": {
+      "title": "Ta'lim",
+      "desc": "Maktablar va konferensiyalar"
+    },
+    "card3": {
+      "title": "Xalqaro hamkorlik",
+      "desc": "EULAR, ACR va boshq."
+    },
+    "actions": {
+      "congress": "Kongress 2025",
+      "congressDesc": "Ro'yxatdan o'tish va dastur",
+      "school": "Revmatolog maktabi",
+      "schoolDesc": "Ta'lim dasturlari",
+      "news": "Yangiliklar",
+      "newsDesc": "So'nggi yangilanishlar",
+      "profile": "Mening profilim",
+      "profileDesc": "Sozlamalar va ma'lumotlar",
+      "goTo": "O'tish"
+    },
+    "event": {
+      "upcoming": "Yaqinlashayotgan tadbir",
+      "congressTitle": "III O'zbekiston Revmatologlar Kongressi",
+      "congressDate": "2025 yil mart • Toshkent",
+      "details": "Batafsil"
+    },
+    "memberGreeting": "O'zbekiston Revmatologlar Assotsiatsiyasida sizni ko'rganimizdan xursandmiz"
+  },
+  "mission": {
+    "title": "Asosiy maqsad",
+    "subtitle": "\"O'zbekiston revmatologlar assotsiatsiyasi\" faoliyatining",
+    "text": "Aholi sog'lig'ini saqlash va mustahkamlash maqsadida tibbiyot amaliyotini ilmini rivojlantirishga ko'maklashish, mamlakatimiz aholisiga dunyo standartlariga javob beradigan malakali revmatologiya xizmatini ko'rsatish tizimini yaratish, respublikada ushbu soha mutaxassisligi bo'yicha kadrlar tayyorlash, ularning malakasini oshirish hamda ilmiy-amaliy tadqiqotlarni amalga oshirishda o'z hissasini qo'shishdan iborat."
   },
   "about": {
     "title": "Biz haqimizda",
-    "description": "O'zbekiston Revmatologlar Assotsiatsiyasi — mamlakatda revmatologik yordamni rivojlantirish, tajriba almashish va zamonaviy tashxis va davolash usullarini joriy etishga qaratilgan shifokorlar-revmatologlarning kasbiy birlashmasi.",
-    "mission": "Bizning vazifamiz",
-    "missionText": "Mutaxassislarni birlashtirish, ta'lim dasturlari va xalqaro hamkorlik orqali O'zbekiston aholisiga revmatologik yordamni sifatini oshirish."
-  },
-  "members": {
-    "title": "Assotsiatsiya a'zolari",
-    "subtitle": "Revmatologiya sohasidagi yetakchi mutaxassislar"
-  },
-  "cooperation": {
-    "title": "Xalqaro hamkorlik",
-    "subtitle": "Bizning hamkorlarimiz va xalqaro aloqalarimiz"
-  },
-  "charter": {
-    "title": "Ustav",
-    "download": "Ustavni yuklab olish",
-    "description": "Assotsiatsiyamiz ustavi bilan tanishing"
+    "history": {
+      "title": "Assotsiatsiya haqida",
+      "text1": "«O'zbekiston revmatologlar assotsiatsiyasi» — bu revmatik kasalliklar bilan kurashish uchun butun mamlakat bo'ylab shifokorlarni birlashtiruvchi kasbiy jamiyat.",
+      "text2": "Tashkilot kasalliklarning oldini olish, sog'lom turmush tarzini ommalashtrish, tibbiyot mutaxassislarining manfaatlarini himoya qilish va sog'liqni saqlash sohasida xalqaro aloqalarni mustahkamlashga e'tibor qaratadi.",
+      "text3": "Xalqaro hamkorlikni rivojlantirish doirasida assotsiatsiya revmatologiya sohasidagi yetakchi jahon tashkilotlari — EULAR, APLAR va Rossiya revmatologlar assotsiatsiyasi bilan faol hamkorlik qiladi."
+    },
+    "board": {
+      "title": "Assotsiatsiya rahbariyati",
+      "subtitle": "Rahbariyat va yetakchi mutaxassislar",
+      "member1": {
+        "name": "Miraxmedova Xilola To'xtasinovna",
+        "degree": "Tibbiyot fanlari doktori, professor",
+        "position": "Assotsiatsiya raisi. O'zbekiston Respublikasi SSV bosh revmatolog-maslahatchisi. ToshDavTI 1-son ichki kasalliklar propedevtikasi kafedrasi mudiri"
+      },
+      "member2": {
+        "name": "Nabiyeva Dildoraxon Abdumalikovna",
+        "degree": "Tibbiyot fanlari doktori, professor",
+        "position": "ToshDavTI 1-son fakultet va gospital terapiya, kasb patologiyasi kafedrasi mudiri"
+      }
+    },
+    "partners": {
+      "title": "Xalqaro hamkorlik",
+      "subtitle": "Assotsiatsiya revmatologiya sohasidagi yetakchi xalqaro tashkilotlar bilan faol hamkorlik qiladi",
+      "eular": "Yevropa antirevmatik ligasi",
+      "aplar": "Osiyo-Tinch okeani revmatologlar assotsiatsiyalari ligasi",
+      "arr": "Rossiya revmatologlar assotsiatsiyasi"
+    },
+    "charter": {
+      "title": "Assotsiatsiya ustavi",
+      "description": "Ustav O'zbekiston revmatologlar assotsiatsiyasining maqsadlari, vazifalari va faoliyat tamoyillarini, a'zolarning huquq va majburiyatlarini, boshqaruv tuzilmasini va qarorlar qabul qilish tartibini belgilaydi.",
+      "download": "Ustavni yuklab olish (PDF)"
+    }
   },
   "rheumatology": {
     "title": "O'zbekistonda revmatologiya",
@@ -104,7 +165,12 @@
     "email": "Email",
     "password": "Parol",
     "confirmPassword": "Parolni tasdiqlang",
-    "fullName": "To'liq ism",
+    "lastName": "Familiya",
+    "lastNamePlaceholder": "Karimov",
+    "firstName": "Ism",
+    "firstNamePlaceholder": "Aziz",
+    "patronymic": "Otasining ismi",
+    "patronymicPlaceholder": "Rustam o'g'li",
     "submit": "Yuborish",
     "noAccount": "Akkauntingiz yo'qmi?",
     "hasAccount": "Akkauntingiz bormi?",

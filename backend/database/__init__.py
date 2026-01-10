@@ -1,5 +1,19 @@
 from .connection import engine, async_session, get_db, Base
-from .models import User, News, Congress, RheumatologyCenter, Doctor, Disease, SchoolApplication
+from .models import (
+    User,
+    News,
+    Congress,
+    CongressRegistration,
+    BoardMember,
+    Partner,
+    Charter,
+    ChiefRheumatologist,
+    RheumatologyCenter,
+    CenterStaff,
+    Disease,
+    DiseaseDocument,
+    SchoolApplication,
+)
 
 __all__ = [
     "engine",
@@ -9,8 +23,14 @@ __all__ = [
     "User",
     "News",
     "Congress",
+    "CongressRegistration",
+    "BoardMember",
+    "Partner",
+    "Charter",
+    "ChiefRheumatologist",
     "RheumatologyCenter",
-    "Doctor",
+    "CenterStaff",
     "Disease",
+    "DiseaseDocument",
     "SchoolApplication",
 ]

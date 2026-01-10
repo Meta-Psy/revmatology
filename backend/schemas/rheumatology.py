@@ -84,6 +84,8 @@ class DiseaseCreate(BaseModel):
     treatment_uz: Optional[str] = None
     treatment_en: Optional[str] = None
     image_url: Optional[str] = None
+    recommendation_file_url: Optional[str] = None
+    protocol_file_url: Optional[str] = None
 
 
 class DiseaseResponse(BaseModel):
@@ -102,6 +104,8 @@ class DiseaseResponse(BaseModel):
     treatment_uz: Optional[str]
     treatment_en: Optional[str]
     image_url: Optional[str]
+    recommendation_file_url: Optional[str]
+    protocol_file_url: Optional[str]
 
     class Config:
         from_attributes = True

@@ -5,7 +5,13 @@
       "Bash(npm create:*)",
       "Bash(npm install)",
       "Bash(npm install:*)",
-      "Bash(python -m venv:*)"
+      "Bash(python -m venv:*)",
+      "WebFetch(domain:www.eular.org)",
+      "WebFetch(domain:rheumatology.org)",
+      "Bash(dir /b \"C:\\\\Users\\\\Alex\\\\revmatology\\\\backend\")",
+      "Bash(powershell -Command \"cd ''C:\\\\Users\\\\Alex\\\\revmatology\\\\backend''; & ''.\\\\venv\\\\Scripts\\\\python.exe'' reset_db.py\")",
+      "Bash(powershell:*)",
+      "Bash(python:*)"
     ]
   }
 }

@@ -70,3 +70,7 @@ async def get_current_admin_user(
             detail="Not enough permissions"
         )
     return current_user
+
+
+# Alias для удобства
+get_current_admin = get_current_admin_user

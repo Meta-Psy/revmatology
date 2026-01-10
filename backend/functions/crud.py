@@ -2,8 +2,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 from typing import List, Optional
 
-from database import User, News, Congress, RheumatologyCenter, Doctor, Disease, SchoolApplication
-from database.models import CongressRegistration, AssociationMember, Partner
+from database import User, News, Congress, RheumatologyCenter, ChiefRheumatologist, Disease, SchoolApplication
+from database.models import CongressRegistration, BoardMember, Partner
 from schemas import UserCreate, NewsCreate, NewsUpdate
 
 
@@ -17,7 +17,9 @@ async def create_user(db: AsyncSession, user: UserCreate, hashed_password: str) 
     db_user = User(
         email=user.email,
         hashed_password=hashed_password,
-        full_name=user.full_name
+        last_name=user.last_name,
+        first_name=user.first_name,
+        patronymic=user.patronymic
     )
     db.add(db_user)
     await db.commit()
@@ -108,11 +110,9 @@ async def get_centers(db: AsyncSession) -> List[RheumatologyCenter]:
     return result.scalars().all()
 
 
-# Doctors CRUD
-async def get_doctors(db: AsyncSession, chief_only: bool = False) -> List[Doctor]:
-    query = select(Doctor).order_by(Doctor.order)
-    if chief_only:
-        query = query.where(Doctor.is_chief == True)
+# Chief Rheumatologists CRUD
+async def get_chief_rheumatologists(db: AsyncSession) -> List[ChiefRheumatologist]:
+    query = select(ChiefRheumatologist).where(ChiefRheumatologist.is_active == True).order_by(ChiefRheumatologist.order)
     result = await db.execute(query)
     return result.scalars().all()
 
@@ -137,12 +137,12 @@ async def create_school_application(db: AsyncSession, application_data: dict) ->
     return db_app
 
 
-# Association Members
-async def get_association_members(db: AsyncSession) -> List[AssociationMember]:
+# Board Members
+async def get_board_members(db: AsyncSession) -> List[BoardMember]:
     result = await db.execute(
-        select(AssociationMember)
-        .where(AssociationMember.is_active == True)
-        .order_by(AssociationMember.order)
+        select(BoardMember)
+        .where(BoardMember.is_active == True)
+        .order_by(BoardMember.order)
     )
     return result.scalars().all()
 
