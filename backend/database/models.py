@@ -242,6 +242,9 @@ class ChiefRheumatologist(Base):
     bio_ru = Column(Text)
     bio_uz = Column(Text)
     bio_en = Column(Text)
+    achievements_ru = Column(Text)      # Достижения, награды
+    achievements_uz = Column(Text)
+    achievements_en = Column(Text)
     photo_url = Column(String(500))
     email = Column(String(255))
     phone = Column(String(50))
@@ -358,14 +361,18 @@ class SchoolApplication(Base):
     __tablename__ = "school_applications"
 
     id = Column(Integer, primary_key=True, index=True)
-    school_type = Column(String(50), nullable=False)  # 'rheumatologist' or 'patient'
+    school_type = Column(String(50), default="rheumatologist")  # 'rheumatologist' or 'patient'
+    event_id = Column(Integer, nullable=True)  # ID события/школы (опционально)
     last_name = Column(String(100), nullable=False)
     first_name = Column(String(100), nullable=False)
     patronymic = Column(String(100))
+    phone = Column(String(50), nullable=False)
+    city = Column(String(100), nullable=False)
+    category = Column(String(50), nullable=False)  # highest, first, second, third, none
+    inn = Column(String(50), nullable=False)
     email = Column(String(255), nullable=False)
-    phone = Column(String(50))
-    organization = Column(String(255))
-    specialty = Column(String(255))
+    specialization = Column(String(255), nullable=False)
+    workplace = Column(String(500), nullable=False)
     message = Column(Text)
     status = Column(String(50), default="pending")  # pending, approved, rejected
     created_at = Column(DateTime(timezone=True), server_default=func.now())

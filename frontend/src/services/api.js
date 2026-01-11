@@ -130,6 +130,9 @@ export const contentAPI = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
+
+  // School Applications
+  submitSchoolApplication: (data) => api.post('/content/school-applications', data),
 };
 
 export default api;

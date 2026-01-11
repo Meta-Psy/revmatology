@@ -7,7 +7,13 @@
     "login": "Kirish",
     "register": "Ro'yxatdan o'tish",
     "logout": "Chiqish",
-    "profile": "Profil"
+    "profile": "Profil",
+    "activities": "Faoliyat",
+    "documents": "Normativ hujjatlar",
+    "centers": "Ixtisoslashtirilgan markazlar",
+    "schools": "Maktablar",
+    "chiefRheumatologists": "Bosh revmatologlar",
+    "about": "Biz haqimizda"
   },
   "hero": {
     "title": "O'zbekiston Revmatologlar Assotsiatsiyasi",
@@ -62,6 +68,9 @@
   },
   "about": {
     "title": "Biz haqimizda",
+    "label": "Biz haqimizda",
+    "description": "Revmatologiyani rivojlantirish va bemorlar hayot sifatini yaxshilash uchun mamlakatning yetakchi mutaxassislarini birlashtirish",
+    "mission": "Revmatologiyani rivojlantirish va bemorlar hayot sifatini yaxshilash uchun mamlakatning eng yaxshi mutaxassislarini birlashtirish",
     "history": {
       "title": "Assotsiatsiya haqida",
       "text1": "«O'zbekiston revmatologlar assotsiatsiyasi» — bu revmatik kasalliklar bilan kurashish uchun butun mamlakat bo'ylab shifokorlarni birlashtiruvchi kasbiy jamiyat.",
@@ -69,8 +78,9 @@
       "text3": "Xalqaro hamkorlikni rivojlantirish doirasida assotsiatsiya revmatologiya sohasidagi yetakchi jahon tashkilotlari — EULAR, APLAR va Rossiya revmatologlar assotsiatsiyasi bilan faol hamkorlik qiladi."
     },
     "board": {
+      "label": "Rahbariyat",
       "title": "Assotsiatsiya rahbariyati",
-      "subtitle": "Rahbariyat va yetakchi mutaxassislar",
+      "subtitle": "O'zbekistonda revmatologiyani rivojlantirishga hayotini bag'ishlagan yetakchi mutaxassislar",
       "member1": {
         "name": "Miraxmedova Xilola To'xtasinovna",
         "degree": "Tibbiyot fanlari doktori, professor",
@@ -92,7 +102,19 @@
     "charter": {
       "title": "Assotsiatsiya ustavi",
       "description": "Ustav O'zbekiston revmatologlar assotsiatsiyasining maqsadlari, vazifalari va faoliyat tamoyillarini, a'zolarning huquq va majburiyatlarini, boshqaruv tuzilmasini va qarorlar qabul qilish tartibini belgilaydi.",
-      "download": "Ustavni yuklab olish (PDF)"
+      "download": "Ustavni yuklab olish (PDF)",
+      "button": "Ustav"
+    },
+    "directions": {
+      "education": "Ta'lim",
+      "science": "Ilm-fan",
+      "cooperation": "Hamkorlik",
+      "community": "Jamiyat"
+    },
+    "stats": {
+      "regions": "Viloyat",
+      "doctors": "Shifokor",
+      "years": "Yil"
     }
   },
   "rheumatology": {
@@ -145,19 +167,60 @@
       "submit": "Ariza yuborish"
     }
   },
+  "activities": {
+    "label": "Faoliyat",
+    "title": "Bizning faoliyatimiz",
+    "subtitle": "Assotsiatsiya ishining asosiy yo'nalishlari",
+    "learnMore": "Faoliyat haqida batafsil",
+    "training": {
+      "title": "Malaka oshirish",
+      "desc": "Revmatologlar bilimini kengaytirish va chuqurlashtirish bo'yicha tashkiliy-metodik yordam"
+    },
+    "conferences": {
+      "title": "Konferensiyalar tashkil etish",
+      "desc": "Revmatologlar maktablari, seminarlar, simpoziumlar va kongresslar o'tkazish"
+    },
+    "international": {
+      "title": "Xalqaro hamkorlik",
+      "desc": "Tajriba almashish uchun boshqa mamlakatlardan shifokor va olimlarni taklif qilish"
+    },
+    "research": {
+      "title": "Ilmiy ishlanmalar",
+      "desc": "Diagnostika va terapiyaning innovatsion usullarini ishlab chiqish"
+    },
+    "publishing": {
+      "title": "Nashriyot faoliyati",
+      "desc": "O'quv, ilmiy va metodik materiallarni nashr etish"
+    },
+    "studies": {
+      "title": "Tadqiqotlar o'tkazish",
+      "desc": "Klinik, sotsiologik va marketing tadqiqotlari"
+    }
+  },
   "news": {
     "title": "Yangiliklar",
+    "label": "Yangiliklar",
     "latest": "So'nggi yangiliklar",
     "readMore": "Batafsil o'qish",
-    "allNews": "Barcha yangiliklar"
+    "allNews": "Barcha yangiliklar",
+    "event": "Tadbir",
+    "noNews": "Hozircha yangiliklar yo'q"
   },
   "footer": {
     "contacts": "Kontaktlar",
     "address": "Manzil",
     "phone": "Telefon",
     "email": "Email",
-    "links": "Foydali havolalar",
-    "copyright": "© 2024 O'zbekiston Revmatologlar Assotsiatsiyasi. Barcha huquqlar himoyalangan."
+    "links": "Navigatsiya",
+    "resources": "Resurslar",
+    "social": "Ijtimoiy tarmoqlarda",
+    "city": "Toshkent sh., O'zbekiston",
+    "partners": "Hamkorlar",
+    "copyright": "O'zbekiston Revmatologlar Assotsiatsiyasi. Barcha huquqlar himoyalangan."
+  },
+  "header": {
+    "association": "Assotsiatsiya",
+    "ofRheumatologists": "O'zbekiston Revmatologlar"
   },
   "auth": {
     "login": "Tizimga kirish",
@@ -186,6 +249,8 @@
     "edit": "Tahrirlash",
     "back": "Orqaga",
     "next": "Keyingi",
-    "search": "Qidirish"
+    "search": "Qidirish",
+    "learnMore": "Batafsil",
+    "visitWebsite": "Saytga o'tish"
   }
 }

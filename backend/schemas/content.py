@@ -190,6 +190,9 @@ class ChiefRheumatologistBase(BaseModel):
     bio_ru: Optional[str] = None
     bio_uz: Optional[str] = None
     bio_en: Optional[str] = None
+    achievements_ru: Optional[str] = None
+    achievements_uz: Optional[str] = None
+    achievements_en: Optional[str] = None
     photo_url: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
@@ -226,6 +229,9 @@ class ChiefRheumatologistUpdate(BaseModel):
     bio_ru: Optional[str] = None
     bio_uz: Optional[str] = None
     bio_en: Optional[str] = None
+    achievements_ru: Optional[str] = None
+    achievements_uz: Optional[str] = None
+    achievements_en: Optional[str] = None
     photo_url: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None

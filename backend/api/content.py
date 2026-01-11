@@ -7,7 +7,7 @@ import os
 import uuid
 from datetime import datetime
 
-from database import get_db, BoardMember, Partner, Charter, ChiefRheumatologist, Disease, DiseaseDocument, News, RheumatologyCenter, CenterStaff
+from database import get_db, BoardMember, Partner, Charter, ChiefRheumatologist, Disease, DiseaseDocument, News, RheumatologyCenter, CenterStaff, SchoolApplication
 from sqlalchemy.orm import selectinload
 from schemas import (
     BoardMemberCreate, BoardMemberUpdate, BoardMemberResponse,
@@ -20,6 +20,7 @@ from schemas import (
     RheumatologyCenterCreate, RheumatologyCenterUpdate, RheumatologyCenterResponse, RheumatologyCenterWithStaffResponse,
     CenterStaffCreate, CenterStaffUpdate, CenterStaffResponse,
 )
+from schemas.rheumatology import SchoolApplicationCreate, SchoolApplicationResponse
 from functions.auth import get_current_admin
 
 router = APIRouter()
@@ -765,3 +766,41 @@ async def delete_staff_member(
     await db.delete(staff)
     await db.commit()
     return {"message": "Staff member deleted"}
+
+
+# ==================== РЕГИСТРАЦИЯ НА ШКОЛУ РЕВМАТОЛОГОВ ====================
+@router.post("/school-applications", response_model=SchoolApplicationResponse)
+async def create_school_application(
+    data: SchoolApplicationCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Регистрация на школу ревматологов (публичный эндпоинт)"""
+    # Валидация
+    if data.school_type not in ["rheumatologist", "patient"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid school type"
+        )
+    if data.category not in ["highest", "first", "second", "third", "none"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid category"
+        )
+
+    application = SchoolApplication(**data.model_dump())
+    db.add(application)
+    await db.commit()
+    await db.refresh(application)
+    return application
+
+
+@router.get("/school-applications", response_model=List[SchoolApplicationResponse])
+async def get_school_applications(
+    db: AsyncSession = Depends(get_db),
+    admin = Depends(get_current_admin)
+):
+    """Получить все заявки на школу (только для админа)"""
+    result = await db.execute(
+        select(SchoolApplication).order_by(desc(SchoolApplication.created_at))
+    )
+    return result.scalars().all()

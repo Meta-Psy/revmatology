@@ -17,6 +17,7 @@ const ChiefRheumatologistsAdmin = () => {
     workplace_ru: '', workplace_uz: '', workplace_en: '',
     region_ru: '', region_uz: '', region_en: '',
     bio_ru: '', bio_uz: '', bio_en: '',
+    achievements_ru: '', achievements_uz: '', achievements_en: '',
     photo_url: '', email: '', phone: '',
     order: 0, is_active: true
   };
@@ -413,6 +414,80 @@ const ChiefRheumatologistsAdmin = () => {
                     rows={2}
                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                   />
+                </div>
+              </div>
+
+              {/* Bio */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Биография / Tarjimai hol / Biography</label>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">RU</label>
+                    <textarea
+                      value={editModal.bio_ru || ''}
+                      onChange={(e) => updateField('bio_ru', e.target.value)}
+                      rows={3}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+                      placeholder="Краткая биография..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">UZ</label>
+                    <textarea
+                      value={editModal.bio_uz || ''}
+                      onChange={(e) => updateField('bio_uz', e.target.value)}
+                      rows={3}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+                      placeholder="Qisqa tarjimai hol..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">EN</label>
+                    <textarea
+                      value={editModal.bio_en || ''}
+                      onChange={(e) => updateField('bio_en', e.target.value)}
+                      rows={3}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+                      placeholder="Brief biography..."
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Achievements */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Достижения и награды / Yutuqlar / Achievements</label>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">RU</label>
+                    <textarea
+                      value={editModal.achievements_ru || ''}
+                      onChange={(e) => updateField('achievements_ru', e.target.value)}
+                      rows={3}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+                      placeholder="Достижения, награды, публикации..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">UZ</label>
+                    <textarea
+                      value={editModal.achievements_uz || ''}
+                      onChange={(e) => updateField('achievements_uz', e.target.value)}
+                      rows={3}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+                      placeholder="Yutuqlar, mukofotlar, nashrlar..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">EN</label>
+                    <textarea
+                      value={editModal.achievements_en || ''}
+                      onChange={(e) => updateField('achievements_en', e.target.value)}
+                      rows={3}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+                      placeholder="Achievements, awards, publications..."
+                    />
+                  </div>
                 </div>
               </div>
 

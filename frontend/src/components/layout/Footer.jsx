@@ -39,7 +39,7 @@ const Footer = () => {
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
         {/* Верхняя секция */}
-        <div className="py-16 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-12 lg:gap-8">
+        <div className="py-10 sm:py-16 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8 sm:gap-12 lg:gap-8">
 
           {/* Логотип и описание */}
           <div className="lg:col-span-5">
@@ -57,10 +57,10 @@ const Footer = () => {
               </div>
               <div>
                 <div className="text-white font-medium" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
-                  Ассоциация
+                  {t('header.association', 'Ассоциация')}
                 </div>
                 <div className="text-slate-400 text-sm">
-                  Ревматологов Узбекистана
+                  {t('header.ofRheumatologists', 'Ревматологов Узбекистана')}
                 </div>
               </div>
             </Link>
@@ -70,8 +70,8 @@ const Footer = () => {
             </p>
 
             {/* Социальные сети */}
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-slate-500 uppercase tracking-wider mr-2">Мы в соцсетях</span>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-xs text-slate-500 uppercase tracking-wider mr-2 w-full sm:w-auto mb-2 sm:mb-0">{t('footer.social', 'Мы в соцсетях')}</span>
               {/* Telegram */}
               <a
                 href="https://t.me/rheumatology_uz"
@@ -197,7 +197,7 @@ const Footer = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
                   </span>
-                  <span>г. Ташкент, Узбекистан</span>
+                  <span>{t('footer.city', 'г. Ташкент, Узбекистан')}</span>
                 </li>
               </ul>
             </div>
@@ -221,7 +221,7 @@ const Footer = () => {
 
             {/* Международные партнёры */}
             <div className="flex items-center gap-4">
-              <span className="text-xs text-slate-600">Партнёры:</span>
+              <span className="text-xs text-slate-600">{t('footer.partners', 'Партнёры')}:</span>
               <div className="flex items-center gap-3">
                 <span className="text-slate-500 text-xs font-medium hover:text-slate-400 transition-colors cursor-default">EULAR</span>
                 <span className="w-px h-3 bg-slate-700"></span>

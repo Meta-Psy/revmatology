@@ -7,7 +7,13 @@
     "login": "Login",
     "register": "Register",
     "logout": "Logout",
-    "profile": "Profile"
+    "profile": "Profile",
+    "activities": "Activities",
+    "documents": "Regulatory Documents",
+    "centers": "Specialized Centers",
+    "schools": "Schools",
+    "chiefRheumatologists": "Chief Rheumatologists",
+    "about": "About Us"
   },
   "hero": {
     "title": "Rheumatology Association of Uzbekistan",
@@ -62,6 +68,9 @@
   },
   "about": {
     "title": "About Us",
+    "label": "About Us",
+    "description": "Uniting the country's leading specialists for the development of rheumatology and improving patients' quality of life",
+    "mission": "Uniting the best specialists in the country to develop rheumatology and improve patients' quality of life",
     "history": {
       "title": "About the Association",
       "text1": "The Rheumatology Association of Uzbekistan is a professional community uniting physicians across the country to combat rheumatic diseases.",
@@ -69,8 +78,9 @@
       "text3": "As part of developing international cooperation, the association actively collaborates with leading global organizations in rheumatology — EULAR, APLAR, and the Association of Rheumatologists of Russia."
     },
     "board": {
+      "label": "Leadership",
       "title": "Association Board",
-      "subtitle": "Leadership and leading specialists",
+      "subtitle": "Leading specialists who have dedicated their lives to the development of rheumatology in Uzbekistan",
       "member1": {
         "name": "Mirakhmedova Khilola Tukhtasinovna",
         "degree": "Doctor of Medical Sciences, Professor",
@@ -92,7 +102,19 @@
     "charter": {
       "title": "Association Charter",
       "description": "The charter defines the goals, objectives and principles of the Rheumatology Association of Uzbekistan, the rights and obligations of members, management structure and decision-making procedures.",
-      "download": "Download Charter (PDF)"
+      "download": "Download Charter (PDF)",
+      "button": "Charter"
+    },
+    "directions": {
+      "education": "Education",
+      "science": "Science",
+      "cooperation": "Cooperation",
+      "community": "Community"
+    },
+    "stats": {
+      "regions": "Regions",
+      "doctors": "Doctors",
+      "years": "Years"
     }
   },
   "rheumatology": {
@@ -145,19 +167,60 @@
       "submit": "Submit Application"
     }
   },
+  "activities": {
+    "label": "Activities",
+    "title": "Our Activities",
+    "subtitle": "Main areas of the association's work",
+    "learnMore": "Learn more about activities",
+    "training": {
+      "title": "Professional Development",
+      "desc": "Organizational and methodological assistance in expanding and deepening rheumatologists' knowledge"
+    },
+    "conferences": {
+      "title": "Conference Organization",
+      "desc": "Conducting rheumatology schools, seminars, symposiums and congresses"
+    },
+    "international": {
+      "title": "International Cooperation",
+      "desc": "Inviting doctors and scientists from other countries for experience exchange"
+    },
+    "research": {
+      "title": "Scientific Development",
+      "desc": "Development of innovative diagnostic and therapy methods"
+    },
+    "publishing": {
+      "title": "Publishing Activities",
+      "desc": "Publishing educational, scientific and methodological materials"
+    },
+    "studies": {
+      "title": "Conducting Research",
+      "desc": "Clinical, sociological and marketing research"
+    }
+  },
   "news": {
     "title": "News",
+    "label": "News",
     "latest": "Latest News",
     "readMore": "Read More",
-    "allNews": "All News"
+    "allNews": "All News",
+    "event": "Event",
+    "noNews": "No news yet"
   },
   "footer": {
     "contacts": "Contacts",
     "address": "Address",
     "phone": "Phone",
     "email": "Email",
-    "links": "Useful Links",
-    "copyright": "© 2024 Rheumatology Association of Uzbekistan. All rights reserved."
+    "links": "Navigation",
+    "resources": "Resources",
+    "social": "Follow us",
+    "city": "Tashkent, Uzbekistan",
+    "partners": "Partners",
+    "copyright": "Rheumatology Association of Uzbekistan. All rights reserved."
+  },
+  "header": {
+    "association": "Association",
+    "ofRheumatologists": "of Rheumatologists of Uzbekistan"
   },
   "auth": {
     "login": "Login",
@@ -186,6 +249,8 @@
     "edit": "Edit",
     "back": "Back",
     "next": "Next",
-    "search": "Search"
+    "search": "Search",
+    "learnMore": "Learn more",
+    "visitWebsite": "Visit website"
   }
 }

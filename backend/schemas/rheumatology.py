@@ -113,23 +113,35 @@ class DiseaseResponse(BaseModel):
 
 # School Applications
 class SchoolApplicationCreate(BaseModel):
-    school_type: str  # 'rheumatologist' or 'patient'
-    full_name: str
+    school_type: str = "rheumatologist"  # 'rheumatologist' or 'patient'
+    event_id: Optional[int] = None  # ID события/школы
+    last_name: str
+    first_name: str
+    patronymic: Optional[str] = None
+    phone: str
+    city: str
+    category: str  # highest, first, second, third, none
+    inn: str
     email: EmailStr
-    phone: Optional[str] = None
-    organization: Optional[str] = None
-    specialty: Optional[str] = None
+    specialization: str
+    workplace: str
     message: Optional[str] = None
 
 
 class SchoolApplicationResponse(BaseModel):
     id: int
     school_type: str
-    full_name: str
+    event_id: Optional[int]
+    last_name: str
+    first_name: str
+    patronymic: Optional[str]
+    phone: str
+    city: str
+    category: str
+    inn: str
     email: str
-    phone: Optional[str]
-    organization: Optional[str]
-    specialty: Optional[str]
+    specialization: str
+    workplace: str
     message: Optional[str]
     status: str
     created_at: datetime

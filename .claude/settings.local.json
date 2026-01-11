@@ -11,7 +11,9 @@
       "Bash(dir /b \"C:\\\\Users\\\\Alex\\\\revmatology\\\\backend\")",
       "Bash(powershell -Command \"cd ''C:\\\\Users\\\\Alex\\\\revmatology\\\\backend''; & ''.\\\\venv\\\\Scripts\\\\python.exe'' reset_db.py\")",
       "Bash(powershell:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(dir:*)",
+      "Bash(findstr:*)"
     ]
   }
 }

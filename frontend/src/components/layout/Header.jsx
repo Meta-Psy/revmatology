@@ -13,15 +13,22 @@ const Header = () => {
   const [aboutDropdownOpen, setAboutDropdownOpen] = useState(false);
   const [mobileAboutOpen, setMobileAboutOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [scrollProgress, setScrollProgress] = useState(0);
   const langRef = useRef(null);
   const userRef = useRef(null);
   const aboutRef = useRef(null);
   const aboutTimeoutRef = useRef(null);
 
-  // Отслеживание скролла для эффекта
+  // Отслеживание скролла для эффекта и прогресса
   useEffect(() => {
     const handleScroll = () => {
       setScrolled(window.scrollY > 20);
+
+      // Вычисляем прогресс скролла
+      const scrollTop = window.scrollY;
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      const progress = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
+      setScrollProgress(progress);
     };
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
@@ -147,11 +154,19 @@ const Header = () => {
         scrolled ? 'opacity-100' : 'opacity-60'
       } bg-gradient-to-r from-transparent via-slate-600/60 to-transparent`}></div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-20">
+      {/* Scroll Progress Indicator */}
+      <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-transparent overflow-hidden">
+        <div
+          className="h-full bg-gradient-to-r from-sky-500 via-blue-500 to-sky-400 transition-all duration-150 ease-out"
+          style={{ width: `${scrollProgress}%` }}
+        ></div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-16 sm:h-20">
 
           {/* Логотип */}
-          <Link to="/" className="flex items-center gap-4 group" title="На главную">
+          <Link to="/" className="flex items-center gap-2 sm:gap-4 group flex-shrink-0" title="На главную">
             {/* Контейнер логотипа с элегантной рамкой */}
             <div className="relative">
               <div className="absolute -inset-1 bg-gradient-to-br from-sky-500/20 to-blue-600/20 rounded-lg opacity-0 group-hover:opacity-100 blur transition-opacity duration-500"></div>
@@ -159,17 +174,17 @@ const Header = () => {
                 <img
                   src="/logo assotsatsiya.png"
                   alt="Ассоциация Ревматологов Узбекистана"
-                  className="h-12 w-auto object-contain transition-transform duration-300 group-hover:scale-105"
+                  className="h-10 sm:h-12 w-auto object-contain transition-transform duration-300 group-hover:scale-105"
                 />
               </div>
             </div>
             {/* Название - скрыто на мобильных */}
             <div className="hidden xl:block">
               <div className="text-white text-sm font-medium leading-tight" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
-                Ассоциация
+                {t('header.association', 'Ассоциация')}
               </div>
               <div className="text-slate-400 text-xs tracking-wide">
-                Ревматологов Узбекистана
+                {t('header.ofRheumatologists', 'Ревматологов Узбекистана')}
               </div>
             </div>
           </Link>
@@ -282,16 +297,16 @@ const Header = () => {
             <div className="relative" ref={langRef}>
               <button
                 onClick={() => setLangOpen(!langOpen)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all duration-300 ${
+                className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border active:scale-95 transition-all duration-200 ${
                   langOpen
                     ? 'bg-slate-700/80 border-slate-600'
                     : 'bg-slate-800/50 border-slate-700/50 hover:bg-slate-700/50 hover:border-slate-600'
                 }`}
               >
                 <currentLang.Flag />
-                <span className="text-sm font-medium text-slate-200 hidden sm:block">{currentLang.code.toUpperCase()}</span>
+                <span className="text-xs sm:text-sm font-medium text-slate-200 hidden xs:block">{currentLang.code.toUpperCase()}</span>
                 <svg
-                  className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-300 ${langOpen ? 'rotate-180' : ''}`}
+                  className={`w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 transition-transform duration-300 ${langOpen ? 'rotate-180' : ''}`}
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -300,29 +315,29 @@ const Header = () => {
                 </svg>
               </button>
 
-              {/* Language Dropdown */}
-              <div className={`absolute right-0 mt-2 w-48 transition-all duration-300 ${
+              {/* Language Dropdown - адаптивное позиционирование */}
+              <div className={`absolute mt-2 w-36 sm:w-48 transition-all duration-300 z-50 left-0 sm:left-auto sm:right-0 ${
                 langOpen
                   ? 'opacity-100 visible translate-y-0'
                   : 'opacity-0 invisible -translate-y-2'
               }`}>
                 <div className="relative bg-white rounded-xl shadow-2xl shadow-slate-900/20 border border-slate-200/80 overflow-hidden">
                   <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-sky-400 to-blue-500"></div>
-                  <div className="p-1.5 pt-2.5">
+                  <div className="p-1 sm:p-1.5 pt-2 sm:pt-2.5">
                     {languages.map((lang) => (
                       <button
                         key={lang.code}
                         onClick={() => changeLanguage(lang.code)}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-200 ${
+                        className={`w-full flex items-center gap-2 sm:gap-3 px-2.5 sm:px-3 py-2 sm:py-2.5 rounded-lg text-left active:scale-[0.98] transition-all duration-200 ${
                           lang.code === i18n.language
                             ? 'bg-sky-50 text-sky-700'
-                            : 'text-slate-600 hover:bg-slate-50'
+                            : 'text-slate-600 hover:bg-slate-50 active:bg-slate-100'
                         }`}
                       >
                         <lang.Flag />
-                        <span className="font-medium text-sm">{lang.label}</span>
+                        <span className="font-medium text-xs sm:text-sm">{lang.label}</span>
                         {lang.code === i18n.language && (
-                          <svg className="w-4 h-4 ml-auto text-sky-500" fill="currentColor" viewBox="0 0 20 20">
+                          <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 ml-auto text-sky-500" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                           </svg>
                         )}
@@ -341,12 +356,12 @@ const Header = () => {
               <div className="relative" ref={userRef}>
                 <button
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="flex items-center gap-3 px-2 sm:px-3 py-1.5 rounded-lg hover:bg-white/5 transition-all duration-300"
+                  className="flex items-center gap-2 sm:gap-3 px-1.5 sm:px-3 py-1.5 rounded-lg hover:bg-white/5 active:scale-95 transition-all duration-200"
                 >
                   {/* Аватар с элегантной рамкой */}
-                  <div className="relative">
+                  <div className="relative flex-shrink-0">
                     <div className="absolute -inset-0.5 bg-gradient-to-br from-sky-400 to-blue-600 rounded-full opacity-80"></div>
-                    <div className="relative w-9 h-9 rounded-full bg-slate-800 flex items-center justify-center text-white font-semibold text-sm">
+                    <div className="relative w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-slate-800 flex items-center justify-center text-white font-semibold text-xs sm:text-sm">
                       {user.first_name?.charAt(0)?.toUpperCase() || user.last_name?.charAt(0)?.toUpperCase() || 'U'}
                     </div>
                   </div>
@@ -359,7 +374,7 @@ const Header = () => {
                     </div>
                   </div>
                   <svg
-                    className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-300 hidden sm:block ${userMenuOpen ? 'rotate-180' : ''}`}
+                    className={`w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 transition-transform duration-300 hidden sm:block ${userMenuOpen ? 'rotate-180' : ''}`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -368,8 +383,8 @@ const Header = () => {
                   </svg>
                 </button>
 
-                {/* User Dropdown */}
-                <div className={`absolute right-0 mt-2 w-64 transition-all duration-300 ${
+                {/* User Dropdown - адаптивное позиционирование */}
+                <div className={`absolute mt-2 w-56 sm:w-64 transition-all duration-300 z-50 right-0 ${
                   userMenuOpen
                     ? 'opacity-100 visible translate-y-0'
                     : 'opacity-0 invisible -translate-y-2'
@@ -378,70 +393,70 @@ const Header = () => {
                     <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-sky-400 to-blue-500"></div>
 
                     {/* User info header */}
-                    <div className="p-4 bg-gradient-to-br from-slate-50 to-white border-b border-slate-100">
-                      <div className="font-medium text-slate-800" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
+                    <div className="p-3 sm:p-4 bg-gradient-to-br from-slate-50 to-white border-b border-slate-100">
+                      <div className="font-medium text-slate-800 text-sm sm:text-base truncate" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
                         {user.full_name || `${user.last_name} ${user.first_name}`}
                       </div>
-                      <div className="text-sm text-slate-500 mt-0.5">{user.email}</div>
+                      <div className="text-xs sm:text-sm text-slate-500 mt-0.5 truncate">{user.email}</div>
                     </div>
 
-                    <div className="p-1.5">
+                    <div className="p-1 sm:p-1.5">
                       {isAdmin && (
                         <Link
                           to="/admin"
                           onClick={() => setUserMenuOpen(false)}
-                          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all duration-200"
+                          className="flex items-center gap-2.5 sm:gap-3 px-2.5 sm:px-3 py-2.5 rounded-lg text-slate-600 hover:bg-slate-50 active:bg-slate-100 hover:text-slate-900 active:scale-[0.98] transition-all duration-200"
                         >
-                          <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                           </svg>
-                          <span className="font-medium text-sm">Админ-панель</span>
+                          <span className="font-medium text-xs sm:text-sm">Админ-панель</span>
                         </Link>
                       )}
                       <Link
                         to="/profile"
                         onClick={() => setUserMenuOpen(false)}
-                        className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all duration-200"
+                        className="flex items-center gap-2.5 sm:gap-3 px-2.5 sm:px-3 py-2.5 rounded-lg text-slate-600 hover:bg-slate-50 active:bg-slate-100 hover:text-slate-900 active:scale-[0.98] transition-all duration-200"
                       >
-                        <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                         </svg>
-                        <span className="font-medium text-sm">{t('nav.profile')}</span>
+                        <span className="font-medium text-xs sm:text-sm">{t('nav.profile')}</span>
                       </Link>
 
-                      <div className="my-1.5 mx-3 border-t border-slate-100"></div>
+                      <div className="my-1 sm:my-1.5 mx-2.5 sm:mx-3 border-t border-slate-100"></div>
 
                       <button
                         onClick={() => {
                           logout();
                           setUserMenuOpen(false);
                         }}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-red-600 hover:bg-red-50 transition-all duration-200"
+                        className="w-full flex items-center gap-2.5 sm:gap-3 px-2.5 sm:px-3 py-2.5 rounded-lg text-red-600 hover:bg-red-50 active:bg-red-100 active:scale-[0.98] transition-all duration-200"
                       >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                         </svg>
-                        <span className="font-medium text-sm">{t('nav.logout')}</span>
+                        <span className="font-medium text-xs sm:text-sm">{t('nav.logout')}</span>
                       </button>
                     </div>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 sm:gap-2">
                 <Link
                   to="/login"
-                  className="px-4 py-2 text-sm font-medium text-slate-300 hover:text-white transition-colors duration-300"
+                  className="px-3 sm:px-4 py-2 text-sm font-medium text-slate-300 hover:text-white active:text-sky-400 transition-colors duration-200"
                 >
                   {t('nav.login')}
                 </Link>
                 <Link
                   to="/register"
-                  className="group relative px-5 py-2.5 text-sm font-medium text-white rounded-lg overflow-hidden transition-all duration-300"
+                  className="group relative px-4 sm:px-5 py-2 sm:py-2.5 text-sm font-medium text-white rounded-lg overflow-hidden active:scale-95 transition-all duration-200"
                 >
                   {/* Градиентный фон */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-sky-500 to-blue-600 transition-all duration-300 group-hover:from-sky-400 group-hover:to-blue-500"></div>
+                  <div className="absolute inset-0 bg-gradient-to-r from-sky-500 to-blue-600 transition-all duration-300 group-hover:from-sky-400 group-hover:to-blue-500 group-active:from-sky-600 group-active:to-blue-700"></div>
                   {/* Свечение */}
                   <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-r from-sky-400/50 to-blue-500/50 blur-xl"></div>
                   <span className="relative">{t('nav.register')}</span>
@@ -452,7 +467,8 @@ const Header = () => {
             {/* Mobile menu button */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-2 rounded-lg hover:bg-white/5 transition-colors duration-300"
+              className="lg:hidden p-2.5 -mr-1 rounded-xl hover:bg-white/5 active:bg-white/10 active:scale-95 transition-all duration-200"
+              aria-label={mobileMenuOpen ? 'Закрыть меню' : 'Открыть меню'}
             >
               <svg className="w-6 h-6 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 {mobileMenuOpen ? (
@@ -467,49 +483,51 @@ const Header = () => {
       </div>
 
       {/* Mobile Menu */}
-      <div className={`lg:hidden overflow-hidden transition-all duration-300 ${
-        mobileMenuOpen ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'
+      <div className={`lg:hidden overflow-hidden transition-all duration-300 ease-out ${
+        mobileMenuOpen ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'
       }`}>
-        <div className="bg-slate-800/95 backdrop-blur-xl border-t border-slate-700/50">
-          <nav className="max-w-7xl mx-auto px-4 py-4 space-y-1">
+        <div className="bg-slate-800/98 backdrop-blur-xl border-t border-slate-700/50 safe-bottom">
+          <nav className="max-w-7xl mx-auto px-3 py-3 space-y-1">
             {navLinks.map((link) => (
               link.hasSubmenu ? (
                 <div key={link.path}>
                   <button
                     onClick={() => setMobileAboutOpen(!mobileAboutOpen)}
-                    className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition-all duration-300 ${
+                    className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl text-[15px] font-medium active:scale-[0.98] transition-all duration-200 ${
                       isActive(link.path)
-                        ? 'bg-slate-700/80 text-sky-400'
-                        : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
+                        ? 'bg-gradient-to-r from-slate-700/80 to-slate-700/60 text-sky-400 shadow-sm'
+                        : 'text-slate-300 hover:bg-slate-700/50 active:bg-slate-700/70 hover:text-white'
                     }`}
                   >
                     <span>{link.label}</span>
-                    <svg
-                      className={`w-4 h-4 transition-transform duration-300 ${mobileAboutOpen ? 'rotate-180' : ''}`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
+                    <div className={`w-7 h-7 flex items-center justify-center rounded-lg ${mobileAboutOpen ? 'bg-sky-500/10' : 'bg-slate-700/50'} transition-colors duration-200`}>
+                      <svg
+                        className={`w-4 h-4 transition-transform duration-300 ${mobileAboutOpen ? 'rotate-180 text-sky-400' : 'text-slate-400'}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
                   </button>
-                  <div className={`overflow-hidden transition-all duration-300 ${
-                    mobileAboutOpen ? 'max-h-64 opacity-100' : 'max-h-0 opacity-0'
+                  <div className={`overflow-hidden transition-all duration-300 ease-out ${
+                    mobileAboutOpen ? 'max-h-80 opacity-100 mt-1.5' : 'max-h-0 opacity-0'
                   }`}>
-                    <div className="pl-4 mt-1 space-y-1">
+                    <div className="ml-3 pl-3 border-l-2 border-slate-700/50 space-y-0.5">
                       {aboutSubmenu.map((item) => (
                         <Link
                           key={item.path}
                           to={item.path}
                           onClick={() => setMobileMenuOpen(false)}
-                          className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-300 ${
+                          className={`flex items-center gap-3 px-4 py-3 rounded-xl text-[14px] font-medium active:scale-[0.98] transition-all duration-200 ${
                             isSubmenuActive(item.path)
-                              ? 'bg-slate-700/80 text-sky-400'
-                              : 'text-slate-400 hover:bg-slate-700/50 hover:text-white'
+                              ? 'bg-sky-500/10 text-sky-400'
+                              : 'text-slate-400 hover:bg-slate-700/40 active:bg-slate-700/60 hover:text-white'
                           }`}
                         >
-                          <span className={`w-1.5 h-1.5 rounded-full ${
-                            isSubmenuActive(item.path) ? 'bg-sky-400' : 'bg-slate-500'
+                          <span className={`w-2 h-2 rounded-full transition-colors ${
+                            isSubmenuActive(item.path) ? 'bg-sky-400 shadow-sm shadow-sky-400/50' : 'bg-slate-500'
                           }`}></span>
                           {item.label}
                         </Link>
@@ -522,16 +540,19 @@ const Header = () => {
                   key={link.path}
                   to={link.path}
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`block px-4 py-3 rounded-lg text-sm font-medium transition-all duration-300 ${
+                  className={`block px-4 py-3.5 rounded-xl text-[15px] font-medium active:scale-[0.98] transition-all duration-200 ${
                     isActive(link.path)
-                      ? 'bg-slate-700/80 text-sky-400'
-                      : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
+                      ? 'bg-gradient-to-r from-slate-700/80 to-slate-700/60 text-sky-400 shadow-sm'
+                      : 'text-slate-300 hover:bg-slate-700/50 active:bg-slate-700/70 hover:text-white'
                   }`}
                 >
                   {link.label}
                 </Link>
               )
             ))}
+
+            {/* Дополнительный отступ снизу для safe-area */}
+            <div className="h-2"></div>
           </nav>
         </div>
       </div>
