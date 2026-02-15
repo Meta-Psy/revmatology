@@ -1,5 +1,5 @@
 # Деплой rheumassociation.uz
-
+Да
 **Сервер:** 138.68.59.141
 **Домен:** rheumassociation.uz
 **Стек:** React (Vite) + FastAPI + PostgreSQL + Nginx + Docker
