@@ -14,7 +14,8 @@
       "Bash(python:*)",
       "Bash(dir:*)",
       "Bash(findstr:*)",
-      "Bash(xxd:*)"
+      "Bash(xxd:*)",
+      "WebSearch"
     ]
   }
 }
