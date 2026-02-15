@@ -15,7 +15,16 @@
       "Bash(dir:*)",
       "Bash(findstr:*)",
       "Bash(xxd:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(docker exec:*)",
+      "Bash(docker ps:*)",
+      "Bash(docker compose up:*)",
+      "Bash(docker volume:*)",
+      "Bash(where:*)",
+      "Bash(\"/c/Program Files/PostgreSQL/17/bin/pg_dump\" -U postgres rheumatology_uz)",
+      "Bash(PGPASSWORD=admin \"/c/Program Files/PostgreSQL/17/bin/pg_dump\":*)",
+      "Bash(PGPASSWORD=admin \"/c/Program Files/PostgreSQL/17/bin/psql\":*)",
+      "Bash(scp:*)"
     ]
   }
 }
