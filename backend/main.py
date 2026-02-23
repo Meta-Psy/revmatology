@@ -4,6 +4,8 @@ from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import os
 
+from sqlalchemy import text
+
 from database.connection import engine, Base
 from database.models import *  # Импортируем все модели для создания таблиц
 from api import api_router
@@ -18,6 +20,11 @@ async def lifespan(app: FastAPI):
     # Startup: Create tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Add new columns to existing tables (create_all won't alter existing tables)
+        for col in ('content_ru', 'content_uz', 'content_en'):
+            await conn.execute(text(
+                f"ALTER TABLE diseases ADD COLUMN IF NOT EXISTS {col} TEXT"
+            ))
     yield
     # Shutdown
     await engine.dispose()
