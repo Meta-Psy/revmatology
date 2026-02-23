@@ -161,15 +161,61 @@
   },
   "congress": {
     "title": "Congress",
-    "upcoming": "Upcoming Congress",
-    "program": "Program",
-    "speakers": "Speakers",
+    "subtitle": "Scientific events of the Rheumatology Association of Uzbekistan",
+    "upcoming": "Upcoming Congresses",
+    "past": "Past Congresses",
+    "completed": "Completed",
+    "open": "Registration Open",
+    "details": "Learn More",
+    "noCongresses": "No congresses planned yet",
+    "checkLater": "Stay tuned for updates",
     "register": "Register",
     "location": "Location",
     "date": "Date",
+    "status": "Status",
+    "noContent": "Information will be added later",
+    "registrationSuccess": "Application submitted successfully!",
+    "registrationError": "Error submitting application",
+    "tabs": {
+      "main": "Main",
+      "about": "About Congress",
+      "organizers": "Organizers",
+      "program": "Program",
+      "speakers": "Speakers",
+      "youngScientists": "Young Scientists Competition"
+    },
+    "contacts": {
+      "title": "Contacts",
+      "publications": "Publication inquiries",
+      "registration": "Registration inquiries",
+      "participation": "Participation inquiries"
+    },
+    "infoLetter": {
+      "title": "Information Letter",
+      "view": "View",
+      "read": "Read",
+      "download": "Download PDF",
+      "close": "Close"
+    },
+    "sponsors": {
+      "title": "Sponsors",
+      "empty": "Sponsors will be added later"
+    },
+    "program": {
+      "selectDay": "Select a day",
+      "selectSection": "Select a section",
+      "noSections": "Sections will be added later",
+      "noSpeakers": "Speakers will be added later",
+      "empty": "Program will be published later"
+    },
+    "speakers": {
+      "empty": "Speaker list will be published later"
+    },
     "registrationForm": {
       "title": "Congress Registration",
-      "fullName": "Full Name",
+      "lastName": "Last Name",
+      "firstName": "First Name",
+      "patronymic": "Middle Name",
       "email": "Email",
       "phone": "Phone",
       "organization": "Organization",

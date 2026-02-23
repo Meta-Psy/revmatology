@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, Enum
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Date, ForeignKey, Enum, Time
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .connection import Base
@@ -116,6 +116,43 @@ class Congress(Base):
     registration_open = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+    # Вкладка "О конгрессе"
+    about_ru = Column(Text)
+    about_uz = Column(Text)
+    about_en = Column(Text)
+
+    # Вкладка "Организаторы"
+    organizers_ru = Column(Text)
+    organizers_uz = Column(Text)
+    organizers_en = Column(Text)
+
+    # Вкладка "Конкурс молодых ученых"
+    young_scientists_ru = Column(Text)
+    young_scientists_uz = Column(Text)
+    young_scientists_en = Column(Text)
+
+    # Контакты (3 типа)
+    contact_publications_phone = Column(String(50))
+    contact_publications_email = Column(String(255))
+    contact_registration_phone = Column(String(50))
+    contact_registration_email = Column(String(255))
+    contact_participation_phone = Column(String(50))
+    contact_participation_email = Column(String(255))
+
+    # Информационное письмо
+    info_letter_ru = Column(Text)
+    info_letter_uz = Column(Text)
+    info_letter_en = Column(Text)
+    info_letter_file_ru = Column(String(500))
+    info_letter_file_uz = Column(String(500))
+    info_letter_file_en = Column(String(500))
+
+    # Связи
+    sponsors = relationship("CongressSponsor", back_populates="congress", cascade="all, delete-orphan", order_by="CongressSponsor.order")
+    program_days = relationship("CongressProgramDay", back_populates="congress", cascade="all, delete-orphan", order_by="CongressProgramDay.order")
+    speakers = relationship("CongressSpeaker", back_populates="congress", cascade="all, delete-orphan", order_by="CongressSpeaker.order")
+    registrations = relationship("CongressRegistration", back_populates="congress", cascade="all, delete-orphan")
+
 
 class CongressRegistration(Base):
     __tablename__ = "congress_registrations"
@@ -132,8 +169,103 @@ class CongressRegistration(Base):
     position = Column(String(255))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    congress = relationship("Congress")
+    congress = relationship("Congress", back_populates="registrations")
     user = relationship("User")
+
+
+# ==================== СПОНСОРЫ КОНГРЕССА ====================
+class CongressSponsor(Base):
+    __tablename__ = "congress_sponsors"
+
+    id = Column(Integer, primary_key=True, index=True)
+    congress_id = Column(Integer, ForeignKey("congresses.id"), nullable=False)
+    name_ru = Column(String(255), nullable=False)
+    name_uz = Column(String(255), nullable=False)
+    name_en = Column(String(255), nullable=False)
+    description_ru = Column(Text)
+    description_uz = Column(Text)
+    description_en = Column(Text)
+    logo_url = Column(String(500))
+    website_url = Column(String(500))
+    order = Column(Integer, default=0)
+    is_active = Column(Boolean, default=True)
+
+    congress = relationship("Congress", back_populates="sponsors")
+
+
+# ==================== ПРОГРАММА КОНГРЕССА: ДНИ ====================
+class CongressProgramDay(Base):
+    __tablename__ = "congress_program_days"
+
+    id = Column(Integer, primary_key=True, index=True)
+    congress_id = Column(Integer, ForeignKey("congresses.id"), nullable=False)
+    date = Column(Date, nullable=True)
+    title_ru = Column(String(500), nullable=False)
+    title_uz = Column(String(500), nullable=False)
+    title_en = Column(String(500), nullable=False)
+    description_ru = Column(Text)
+    description_uz = Column(Text)
+    description_en = Column(Text)
+    order = Column(Integer, default=0)
+
+    congress = relationship("Congress", back_populates="program_days")
+    sections = relationship("CongressProgramSection", back_populates="day", cascade="all, delete-orphan", order_by="CongressProgramSection.order")
+
+
+# ==================== ПРОГРАММА КОНГРЕССА: СЕКЦИИ ====================
+class CongressProgramSection(Base):
+    __tablename__ = "congress_program_sections"
+
+    id = Column(Integer, primary_key=True, index=True)
+    day_id = Column(Integer, ForeignKey("congress_program_days.id"), nullable=False)
+    title_ru = Column(String(500), nullable=False)
+    title_uz = Column(String(500), nullable=False)
+    title_en = Column(String(500), nullable=False)
+    description_ru = Column(Text)
+    description_uz = Column(Text)
+    description_en = Column(Text)
+    order = Column(Integer, default=0)
+
+    day = relationship("CongressProgramDay", back_populates="sections")
+    speakers = relationship("CongressSpeaker", back_populates="section", order_by="CongressSpeaker.order")
+
+
+# ==================== СПИКЕРЫ КОНГРЕССА ====================
+class CongressSpeaker(Base):
+    __tablename__ = "congress_speakers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    congress_id = Column(Integer, ForeignKey("congresses.id"), nullable=False)
+    section_id = Column(Integer, ForeignKey("congress_program_sections.id"), nullable=True)
+
+    last_name_ru = Column(String(100), nullable=False)
+    last_name_uz = Column(String(100), nullable=False)
+    last_name_en = Column(String(100), nullable=False)
+    first_name_ru = Column(String(100), nullable=False)
+    first_name_uz = Column(String(100), nullable=False)
+    first_name_en = Column(String(100), nullable=False)
+    patronymic_ru = Column(String(100))
+    patronymic_uz = Column(String(100))
+    patronymic_en = Column(String(100))
+
+    degree_ru = Column(String(255))
+    degree_uz = Column(String(255))
+    degree_en = Column(String(255))
+    workplace_ru = Column(Text)
+    workplace_uz = Column(Text)
+    workplace_en = Column(Text)
+    topic_ru = Column(String(500))
+    topic_uz = Column(String(500))
+    topic_en = Column(String(500))
+
+    time_start = Column(Time, nullable=True)
+    time_end = Column(Time, nullable=True)
+    photo_url = Column(String(500))
+    order = Column(Integer, default=0)
+    is_active = Column(Boolean, default=True)
+
+    congress = relationship("Congress", back_populates="speakers")
+    section = relationship("CongressProgramSection", back_populates="speakers")
 
 
 # ==================== ЧЛЕНЫ ПРАВЛЕНИЯ ====================

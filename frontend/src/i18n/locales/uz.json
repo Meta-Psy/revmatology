@@ -161,15 +161,61 @@
   },
   "congress": {
     "title": "Kongress",
-    "upcoming": "Kelgusi kongress",
-    "program": "Dastur",
-    "speakers": "Ma'ruzachilar",
+    "subtitle": "O'zbekiston revmatologlar assotsiatsiyasining ilmiy-amaliy tadbirlari",
+    "upcoming": "Kelgusi kongresslar",
+    "past": "O'tgan kongresslar",
+    "completed": "Tugallangan",
+    "open": "Ro'yxatdan o'tish ochiq",
+    "details": "Batafsil",
+    "noCongresses": "Kongresslar hali rejalashtirilmagan",
+    "checkLater": "Saytdagi yangilanishlarni kuzatib boring",
     "register": "Ro'yxatdan o'tish",
     "location": "O'tkazish joyi",
     "date": "Sana",
+    "status": "Holat",
+    "noContent": "Ma'lumot keyinroq qo'shiladi",
+    "registrationSuccess": "Ariza muvaffaqiyatli yuborildi!",
+    "registrationError": "Ariza yuborishda xatolik",
+    "tabs": {
+      "main": "Asosiy",
+      "about": "Kongress haqida",
+      "organizers": "Tashkilotchilar",
+      "program": "Dastur",
+      "speakers": "Ma'ruzachilar",
+      "youngScientists": "Yosh olimlar tanlovi"
+    },
+    "contacts": {
+      "title": "Kontaktlar",
+      "publications": "Nashr masalalari bo'yicha",
+      "registration": "Ro'yxatdan o'tish masalalari bo'yicha",
+      "participation": "Ishtirok etish masalalari bo'yicha"
+    },
+    "infoLetter": {
+      "title": "Axborot xati",
+      "view": "Ko'rish",
+      "read": "O'qish",
+      "download": "PDF yuklab olish",
+      "close": "Yopish"
+    },
+    "sponsors": {
+      "title": "Homiylar",
+      "empty": "Homiylar keyinroq qo'shiladi"
+    },
+    "program": {
+      "selectDay": "Kunni tanlang",
+      "selectSection": "Bo'limni tanlang",
+      "noSections": "Bo'limlar keyinroq qo'shiladi",
+      "noSpeakers": "Ma'ruzachilar keyinroq qo'shiladi",
+      "empty": "Dastur keyinroq e'lon qilinadi"
+    },
+    "speakers": {
+      "empty": "Ma'ruzachilar ro'yxati keyinroq e'lon qilinadi"
+    },
     "registrationForm": {
       "title": "Kongressga ro'yxatdan o'tish",
-      "fullName": "F.I.Sh.",
+      "lastName": "Familiya",
+      "firstName": "Ism",
+      "patronymic": "Otasining ismi",
       "email": "Email",
       "phone": "Telefon",
       "organization": "Tashkilot",

@@ -37,6 +37,7 @@ const Home = () => {
   const [partners, setPartners] = useState([]);
   const [news, setNews] = useState([]);
   const [upcomingEvent, setUpcomingEvent] = useState(null);
+  const [charter, setCharter] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // Refs для анимаций секций (только для статичных секций)
@@ -51,15 +52,17 @@ const Home = () => {
 
   const loadData = async () => {
     try {
-      const [partnersRes, newsRes, eventsRes] = await Promise.all([
+      const [partnersRes, newsRes, eventsRes, charterRes] = await Promise.all([
         contentAPI.getPartners().catch(() => ({ data: [] })),
         contentAPI.getNews(null, true, 0, 3).catch(() => ({ data: [] })),
-        contentAPI.getNews('event', true, 0, 1).catch(() => ({ data: [] }))
+        contentAPI.getNews('event', true, 0, 1).catch(() => ({ data: [] })),
+        contentAPI.getCharter().catch(() => ({ data: null }))
       ]);
 
       setPartners(partnersRes.data || []);
       setNews(newsRes.data || []);
       setUpcomingEvent(eventsRes.data?.[0] || null);
+      setCharter(charterRes.data || null);
     } catch (err) {
       console.error('Error loading data:', err);
     } finally {

@@ -1,4 +1,13 @@
 from .user import UserCreate, UserResponse, UserLogin, Token, TokenData
+from .congress import (
+    CongressCreate, CongressUpdate, CongressResponse,
+    CongressSponsorCreate, CongressSponsorUpdate, CongressSponsorResponse,
+    CongressProgramDayCreate, CongressProgramDayUpdate, CongressProgramDayResponse,
+    CongressProgramSectionCreate, CongressProgramSectionUpdate, CongressProgramSectionResponse,
+    CongressSpeakerCreate, CongressSpeakerUpdate, CongressSpeakerResponse,
+    CongressDetailResponse, SectionWithSpeakers, DayWithSections,
+    CongressRegistrationCreate, CongressRegistrationResponse,
+)
 from .content import (
     # News
     NewsCreate, NewsUpdate, NewsResponse,
@@ -29,6 +38,14 @@ from .content import (
 __all__ = [
     # User
     "UserCreate", "UserResponse", "UserLogin", "Token", "TokenData",
+    # Congress
+    "CongressCreate", "CongressUpdate", "CongressResponse",
+    "CongressSponsorCreate", "CongressSponsorUpdate", "CongressSponsorResponse",
+    "CongressProgramDayCreate", "CongressProgramDayUpdate", "CongressProgramDayResponse",
+    "CongressProgramSectionCreate", "CongressProgramSectionUpdate", "CongressProgramSectionResponse",
+    "CongressSpeakerCreate", "CongressSpeakerUpdate", "CongressSpeakerResponse",
+    "CongressDetailResponse", "SectionWithSpeakers", "DayWithSections",
+    "CongressRegistrationCreate", "CongressRegistrationResponse",
     # News
     "NewsCreate", "NewsUpdate", "NewsResponse",
     # Board Members

@@ -25,6 +25,32 @@ async def lifespan(app: FastAPI):
             await conn.execute(text(
                 f"ALTER TABLE diseases ADD COLUMN IF NOT EXISTS {col} TEXT"
             ))
+        # Congress: add new columns to existing congresses table
+        congress_text_cols = [
+            'about_ru', 'about_uz', 'about_en',
+            'organizers_ru', 'organizers_uz', 'organizers_en',
+            'young_scientists_ru', 'young_scientists_uz', 'young_scientists_en',
+            'info_letter_ru', 'info_letter_uz', 'info_letter_en',
+        ]
+        for col in congress_text_cols:
+            await conn.execute(text(
+                f"ALTER TABLE congresses ADD COLUMN IF NOT EXISTS {col} TEXT"
+            ))
+        congress_str_cols = [
+            ('contact_publications_phone', 'VARCHAR(50)'),
+            ('contact_publications_email', 'VARCHAR(255)'),
+            ('contact_registration_phone', 'VARCHAR(50)'),
+            ('contact_registration_email', 'VARCHAR(255)'),
+            ('contact_participation_phone', 'VARCHAR(50)'),
+            ('contact_participation_email', 'VARCHAR(255)'),
+            ('info_letter_file_ru', 'VARCHAR(500)'),
+            ('info_letter_file_uz', 'VARCHAR(500)'),
+            ('info_letter_file_en', 'VARCHAR(500)'),
+        ]
+        for col, dtype in congress_str_cols:
+            await conn.execute(text(
+                f"ALTER TABLE congresses ADD COLUMN IF NOT EXISTS {col} {dtype}"
+            ))
     yield
     # Shutdown
     await engine.dispose()

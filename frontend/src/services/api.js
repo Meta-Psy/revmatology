@@ -160,6 +160,49 @@ export const contentAPI = {
   createHistoryItem: (data) => api.post('/content/history', data),
   updateHistoryItem: (id, data) => api.put(`/content/history/${id}`, data),
   deleteHistoryItem: (id) => api.delete(`/content/history/${id}`),
+
+  // ==================== CONGRESS ====================
+  // Congresses
+  getCongresses: (includeInactive = false) =>
+    api.get('/congress/congresses', { params: { include_inactive: includeInactive } }),
+  getCongress: (id) => api.get(`/congress/congresses/${id}`),
+  getCongressDetail: (id) => api.get(`/congress/congresses/${id}/detail`),
+  createCongress: (data) => api.post('/congress/congresses', data),
+  updateCongress: (id, data) => api.put(`/congress/congresses/${id}`, data),
+  deleteCongress: (id) => api.delete(`/congress/congresses/${id}`),
+
+  // Congress Sponsors
+  getCongressSponsors: (congressId = null, includeInactive = false) =>
+    api.get('/congress/congress-sponsors', { params: { congress_id: congressId, include_inactive: includeInactive } }),
+  createCongressSponsor: (data) => api.post('/congress/congress-sponsors', data),
+  updateCongressSponsor: (id, data) => api.put(`/congress/congress-sponsors/${id}`, data),
+  deleteCongressSponsor: (id) => api.delete(`/congress/congress-sponsors/${id}`),
+
+  // Congress Program Days
+  getCongressProgramDays: (congressId = null) =>
+    api.get('/congress/congress-program-days', { params: { congress_id: congressId } }),
+  createCongressProgramDay: (data) => api.post('/congress/congress-program-days', data),
+  updateCongressProgramDay: (id, data) => api.put(`/congress/congress-program-days/${id}`, data),
+  deleteCongressProgramDay: (id) => api.delete(`/congress/congress-program-days/${id}`),
+
+  // Congress Program Sections
+  getCongressProgramSections: (dayId = null) =>
+    api.get('/congress/congress-program-sections', { params: { day_id: dayId } }),
+  createCongressProgramSection: (data) => api.post('/congress/congress-program-sections', data),
+  updateCongressProgramSection: (id, data) => api.put(`/congress/congress-program-sections/${id}`, data),
+  deleteCongressProgramSection: (id) => api.delete(`/congress/congress-program-sections/${id}`),
+
+  // Congress Speakers
+  getCongressSpeakers: (congressId = null, sectionId = null, includeInactive = false) =>
+    api.get('/congress/congress-speakers', { params: { congress_id: congressId, section_id: sectionId, include_inactive: includeInactive } }),
+  createCongressSpeaker: (data) => api.post('/congress/congress-speakers', data),
+  updateCongressSpeaker: (id, data) => api.put(`/congress/congress-speakers/${id}`, data),
+  deleteCongressSpeaker: (id) => api.delete(`/congress/congress-speakers/${id}`),
+
+  // Congress Registration
+  registerForCongress: (congressId, data) => api.post(`/congress/${congressId}/register`, data),
+  getCongressRegistrations: (congressId = null) =>
+    api.get('/congress/congress-registrations', { params: { congress_id: congressId } }),
 };
 
 export default api;
