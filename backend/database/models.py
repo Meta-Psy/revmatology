@@ -327,6 +327,9 @@ class Disease(Base):
     treatment_ru = Column(Text)
     treatment_uz = Column(Text)
     treatment_en = Column(Text)
+    content_ru = Column(Text)  # Rich text / HTML контент
+    content_uz = Column(Text)
+    content_en = Column(Text)
     image_url = Column(String(500))
     recommendation_file_url = Column(String(500))  # Клинические рекомендации (PDF)
     protocol_file_url = Column(String(500))  # Клинический протокол (PDF)
@@ -378,6 +381,78 @@ class SchoolApplication(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
-# Удаляем старые модели которые заменены
-# Doctor -> ChiefRheumatologist
-# AssociationMember -> BoardMember
+# ==================== ОБРАЗОВАТЕЛЬНЫЕ МЕРОПРИЯТИЯ ====================
+class EducationEvent(Base):
+    __tablename__ = "education_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_type = Column(String(20), nullable=False)  # "masterclass" / "webinar"
+
+    title_ru = Column(String(500), nullable=False)
+    title_uz = Column(String(500), nullable=False)
+    title_en = Column(String(500), nullable=False)
+    description_ru = Column(Text)
+    description_uz = Column(Text)
+    description_en = Column(Text)
+    program_ru = Column(Text)
+    program_uz = Column(Text)
+    program_en = Column(Text)
+    location_ru = Column(String(500))
+    location_uz = Column(String(500))
+    location_en = Column(String(500))
+    speaker_ru = Column(String(500))
+    speaker_uz = Column(String(500))
+    speaker_en = Column(String(500))
+
+    date_start = Column(DateTime(timezone=True))
+    date_end = Column(DateTime(timezone=True))
+    image_url = Column(String(500))
+    registration_url = Column(String(500))
+    registration_open = Column(Boolean, default=True)
+    order = Column(Integer, default=0)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+# ==================== МЕДИАРЕСУРСЫ ====================
+class MediaResource(Base):
+    __tablename__ = "media_resources"
+
+    id = Column(Integer, primary_key=True, index=True)
+    resource_type = Column(String(20), nullable=False)  # "journal" / "article" / "book"
+
+    title_ru = Column(String(500), nullable=False)
+    title_uz = Column(String(500), nullable=False)
+    title_en = Column(String(500), nullable=False)
+    description_ru = Column(Text)
+    description_uz = Column(Text)
+    description_en = Column(Text)
+    author_name_ru = Column(String(255))
+    author_name_uz = Column(String(255))
+    author_name_en = Column(String(255))
+
+    file_url = Column(String(500))
+    external_url = Column(String(500))
+    image_url = Column(String(500))
+    published_date = Column(DateTime(timezone=True))
+    order = Column(Integer, default=0)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+# ==================== ИСТОРИЯ АССОЦИАЦИИ ====================
+class HistoryContent(Base):
+    __tablename__ = "history_content"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title_ru = Column(String(500))
+    title_uz = Column(String(500))
+    title_en = Column(String(500))
+    content_ru = Column(Text)
+    content_uz = Column(Text)
+    content_en = Column(Text)
+    image_url = Column(String(500))
+    year = Column(Integer)
+    order = Column(Integer, default=0)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

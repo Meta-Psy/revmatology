@@ -7,7 +7,7 @@ import os
 import uuid
 from datetime import datetime
 
-from database import get_db, BoardMember, Partner, Charter, ChiefRheumatologist, Disease, DiseaseDocument, News, RheumatologyCenter, CenterStaff, SchoolApplication
+from database import get_db, BoardMember, Partner, Charter, ChiefRheumatologist, Disease, DiseaseDocument, News, RheumatologyCenter, CenterStaff, SchoolApplication, EducationEvent, MediaResource, HistoryContent
 from sqlalchemy.orm import selectinload
 from schemas import (
     BoardMemberCreate, BoardMemberUpdate, BoardMemberResponse,
@@ -19,6 +19,9 @@ from schemas import (
     NewsCreate, NewsUpdate, NewsResponse,
     RheumatologyCenterCreate, RheumatologyCenterUpdate, RheumatologyCenterResponse, RheumatologyCenterWithStaffResponse,
     CenterStaffCreate, CenterStaffUpdate, CenterStaffResponse,
+    EducationEventCreate, EducationEventUpdate, EducationEventResponse,
+    MediaResourceCreate, MediaResourceUpdate, MediaResourceResponse,
+    HistoryContentCreate, HistoryContentUpdate, HistoryContentResponse,
 )
 from schemas.rheumatology import SchoolApplicationCreate, SchoolApplicationResponse
 from functions.auth import get_current_admin
@@ -804,3 +807,235 @@ async def get_school_applications(
         select(SchoolApplication).order_by(desc(SchoolApplication.created_at))
     )
     return result.scalars().all()
+
+
+# ==================== ПУБЛИЧНЫЕ УСТАВЫ ====================
+@router.get("/charters/public", response_model=List[CharterResponse])
+async def get_public_charters(db: AsyncSession = Depends(get_db)):
+    """Получить все активные уставы (публичный эндпоинт)"""
+    result = await db.execute(
+        select(Charter).where(Charter.is_active == True).order_by(desc(Charter.created_at))
+    )
+    return result.scalars().all()
+
+
+# ==================== ОБРАЗОВАТЕЛЬНЫЕ МЕРОПРИЯТИЯ ====================
+@router.get("/education-events", response_model=List[EducationEventResponse])
+async def get_education_events(
+    db: AsyncSession = Depends(get_db),
+    event_type: Optional[str] = None,
+    include_inactive: bool = False
+):
+    query = select(EducationEvent).order_by(EducationEvent.order)
+    if event_type:
+        query = query.where(EducationEvent.event_type == event_type)
+    if not include_inactive:
+        query = query.where(EducationEvent.is_active == True)
+    result = await db.execute(query)
+    return result.scalars().all()
+
+
+@router.get("/education-events/{event_id}", response_model=EducationEventResponse)
+async def get_education_event(event_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(EducationEvent).where(EducationEvent.id == event_id))
+    event = result.scalar_one_or_none()
+    if not event:
+        raise HTTPException(status_code=404, detail="Education event not found")
+    return event
+
+
+@router.post("/education-events", response_model=EducationEventResponse)
+async def create_education_event(
+    data: EducationEventCreate,
+    db: AsyncSession = Depends(get_db),
+    admin = Depends(get_current_admin)
+):
+    event = EducationEvent(**data.model_dump())
+    db.add(event)
+    await db.commit()
+    await db.refresh(event)
+    return event
+
+
+@router.put("/education-events/{event_id}", response_model=EducationEventResponse)
+async def update_education_event(
+    event_id: int,
+    data: EducationEventUpdate,
+    db: AsyncSession = Depends(get_db),
+    admin = Depends(get_current_admin)
+):
+    result = await db.execute(select(EducationEvent).where(EducationEvent.id == event_id))
+    event = result.scalar_one_or_none()
+    if not event:
+        raise HTTPException(status_code=404, detail="Education event not found")
+
+    update_data = data.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(event, key, value)
+
+    await db.commit()
+    await db.refresh(event)
+    return event
+
+
+@router.delete("/education-events/{event_id}")
+async def delete_education_event(
+    event_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin = Depends(get_current_admin)
+):
+    result = await db.execute(select(EducationEvent).where(EducationEvent.id == event_id))
+    event = result.scalar_one_or_none()
+    if not event:
+        raise HTTPException(status_code=404, detail="Education event not found")
+
+    await db.delete(event)
+    await db.commit()
+    return {"message": "Education event deleted"}
+
+
+# ==================== МЕДИАРЕСУРСЫ ====================
+@router.get("/media-resources", response_model=List[MediaResourceResponse])
+async def get_media_resources(
+    db: AsyncSession = Depends(get_db),
+    resource_type: Optional[str] = None,
+    include_inactive: bool = False
+):
+    query = select(MediaResource).order_by(MediaResource.order)
+    if resource_type:
+        query = query.where(MediaResource.resource_type == resource_type)
+    if not include_inactive:
+        query = query.where(MediaResource.is_active == True)
+    result = await db.execute(query)
+    return result.scalars().all()
+
+
+@router.get("/media-resources/{resource_id}", response_model=MediaResourceResponse)
+async def get_media_resource(resource_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(MediaResource).where(MediaResource.id == resource_id))
+    resource = result.scalar_one_or_none()
+    if not resource:
+        raise HTTPException(status_code=404, detail="Media resource not found")
+    return resource
+
+
+@router.post("/media-resources", response_model=MediaResourceResponse)
+async def create_media_resource(
+    data: MediaResourceCreate,
+    db: AsyncSession = Depends(get_db),
+    admin = Depends(get_current_admin)
+):
+    resource = MediaResource(**data.model_dump())
+    db.add(resource)
+    await db.commit()
+    await db.refresh(resource)
+    return resource
+
+
+@router.put("/media-resources/{resource_id}", response_model=MediaResourceResponse)
+async def update_media_resource(
+    resource_id: int,
+    data: MediaResourceUpdate,
+    db: AsyncSession = Depends(get_db),
+    admin = Depends(get_current_admin)
+):
+    result = await db.execute(select(MediaResource).where(MediaResource.id == resource_id))
+    resource = result.scalar_one_or_none()
+    if not resource:
+        raise HTTPException(status_code=404, detail="Media resource not found")
+
+    update_data = data.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(resource, key, value)
+
+    await db.commit()
+    await db.refresh(resource)
+    return resource
+
+
+@router.delete("/media-resources/{resource_id}")
+async def delete_media_resource(
+    resource_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin = Depends(get_current_admin)
+):
+    result = await db.execute(select(MediaResource).where(MediaResource.id == resource_id))
+    resource = result.scalar_one_or_none()
+    if not resource:
+        raise HTTPException(status_code=404, detail="Media resource not found")
+
+    await db.delete(resource)
+    await db.commit()
+    return {"message": "Media resource deleted"}
+
+
+# ==================== ИСТОРИЯ АССОЦИАЦИИ ====================
+@router.get("/history", response_model=List[HistoryContentResponse])
+async def get_history(
+    db: AsyncSession = Depends(get_db),
+    include_inactive: bool = False
+):
+    query = select(HistoryContent).order_by(HistoryContent.order)
+    if not include_inactive:
+        query = query.where(HistoryContent.is_active == True)
+    result = await db.execute(query)
+    return result.scalars().all()
+
+
+@router.get("/history/{item_id}", response_model=HistoryContentResponse)
+async def get_history_item(item_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(HistoryContent).where(HistoryContent.id == item_id))
+    item = result.scalar_one_or_none()
+    if not item:
+        raise HTTPException(status_code=404, detail="History item not found")
+    return item
+
+
+@router.post("/history", response_model=HistoryContentResponse)
+async def create_history_item(
+    data: HistoryContentCreate,
+    db: AsyncSession = Depends(get_db),
+    admin = Depends(get_current_admin)
+):
+    item = HistoryContent(**data.model_dump())
+    db.add(item)
+    await db.commit()
+    await db.refresh(item)
+    return item
+
+
+@router.put("/history/{item_id}", response_model=HistoryContentResponse)
+async def update_history_item(
+    item_id: int,
+    data: HistoryContentUpdate,
+    db: AsyncSession = Depends(get_db),
+    admin = Depends(get_current_admin)
+):
+    result = await db.execute(select(HistoryContent).where(HistoryContent.id == item_id))
+    item = result.scalar_one_or_none()
+    if not item:
+        raise HTTPException(status_code=404, detail="History item not found")
+
+    update_data = data.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(item, key, value)
+
+    await db.commit()
+    await db.refresh(item)
+    return item
+
+
+@router.delete("/history/{item_id}")
+async def delete_history_item(
+    item_id: int,
+    db: AsyncSession = Depends(get_db),
+    admin = Depends(get_current_admin)
+):
+    result = await db.execute(select(HistoryContent).where(HistoryContent.id == item_id))
+    item = result.scalar_one_or_none()
+    if not item:
+        raise HTTPException(status_code=404, detail="History item not found")
+
+    await db.delete(item)
+    await db.commit()
+    return {"message": "History item deleted"}

@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 
@@ -262,6 +262,9 @@ class DiseaseBase(BaseModel):
     treatment_ru: Optional[str] = None
     treatment_uz: Optional[str] = None
     treatment_en: Optional[str] = None
+    content_ru: Optional[str] = None
+    content_uz: Optional[str] = None
+    content_en: Optional[str] = None
     image_url: Optional[str] = None
     order: int = 0
     is_active: bool = True
@@ -285,6 +288,9 @@ class DiseaseUpdate(BaseModel):
     treatment_ru: Optional[str] = None
     treatment_uz: Optional[str] = None
     treatment_en: Optional[str] = None
+    content_ru: Optional[str] = None
+    content_uz: Optional[str] = None
+    content_en: Optional[str] = None
     image_url: Optional[str] = None
     order: Optional[int] = None
     is_active: Optional[bool] = None
@@ -529,6 +535,161 @@ class NewsResponse(NewsBase):
     views_count: int = 0
     created_at: datetime
     updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+# ==================== ОБРАЗОВАТЕЛЬНЫЕ МЕРОПРИЯТИЯ ====================
+class EducationEventBase(BaseModel):
+    event_type: str  # "masterclass" / "webinar"
+    title_ru: str
+    title_uz: str
+    title_en: str
+    description_ru: Optional[str] = None
+    description_uz: Optional[str] = None
+    description_en: Optional[str] = None
+    program_ru: Optional[str] = None
+    program_uz: Optional[str] = None
+    program_en: Optional[str] = None
+    location_ru: Optional[str] = None
+    location_uz: Optional[str] = None
+    location_en: Optional[str] = None
+    speaker_ru: Optional[str] = None
+    speaker_uz: Optional[str] = None
+    speaker_en: Optional[str] = None
+    date_start: Optional[datetime] = None
+    date_end: Optional[datetime] = None
+    image_url: Optional[str] = None
+    registration_url: Optional[str] = None
+    registration_open: bool = True
+    order: int = 0
+    is_active: bool = True
+
+
+class EducationEventCreate(EducationEventBase):
+    pass
+
+
+class EducationEventUpdate(BaseModel):
+    event_type: Optional[str] = None
+    title_ru: Optional[str] = None
+    title_uz: Optional[str] = None
+    title_en: Optional[str] = None
+    description_ru: Optional[str] = None
+    description_uz: Optional[str] = None
+    description_en: Optional[str] = None
+    program_ru: Optional[str] = None
+    program_uz: Optional[str] = None
+    program_en: Optional[str] = None
+    location_ru: Optional[str] = None
+    location_uz: Optional[str] = None
+    location_en: Optional[str] = None
+    speaker_ru: Optional[str] = None
+    speaker_uz: Optional[str] = None
+    speaker_en: Optional[str] = None
+    date_start: Optional[datetime] = None
+    date_end: Optional[datetime] = None
+    image_url: Optional[str] = None
+    registration_url: Optional[str] = None
+    registration_open: Optional[bool] = None
+    order: Optional[int] = None
+    is_active: Optional[bool] = None
+
+
+class EducationEventResponse(EducationEventBase):
+    id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ==================== МЕДИАРЕСУРСЫ ====================
+class MediaResourceBase(BaseModel):
+    resource_type: str  # "journal" / "article" / "book"
+    title_ru: str
+    title_uz: str
+    title_en: str
+    description_ru: Optional[str] = None
+    description_uz: Optional[str] = None
+    description_en: Optional[str] = None
+    author_name_ru: Optional[str] = None
+    author_name_uz: Optional[str] = None
+    author_name_en: Optional[str] = None
+    file_url: Optional[str] = None
+    external_url: Optional[str] = None
+    image_url: Optional[str] = None
+    published_date: Optional[datetime] = None
+    order: int = 0
+    is_active: bool = True
+
+
+class MediaResourceCreate(MediaResourceBase):
+    pass
+
+
+class MediaResourceUpdate(BaseModel):
+    resource_type: Optional[str] = None
+    title_ru: Optional[str] = None
+    title_uz: Optional[str] = None
+    title_en: Optional[str] = None
+    description_ru: Optional[str] = None
+    description_uz: Optional[str] = None
+    description_en: Optional[str] = None
+    author_name_ru: Optional[str] = None
+    author_name_uz: Optional[str] = None
+    author_name_en: Optional[str] = None
+    file_url: Optional[str] = None
+    external_url: Optional[str] = None
+    image_url: Optional[str] = None
+    published_date: Optional[datetime] = None
+    order: Optional[int] = None
+    is_active: Optional[bool] = None
+
+
+class MediaResourceResponse(MediaResourceBase):
+    id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ==================== ИСТОРИЯ АССОЦИАЦИИ ====================
+class HistoryContentBase(BaseModel):
+    title_ru: Optional[str] = None
+    title_uz: Optional[str] = None
+    title_en: Optional[str] = None
+    content_ru: Optional[str] = None
+    content_uz: Optional[str] = None
+    content_en: Optional[str] = None
+    image_url: Optional[str] = None
+    year: Optional[int] = None
+    order: int = 0
+    is_active: bool = True
+
+
+class HistoryContentCreate(HistoryContentBase):
+    pass
+
+
+class HistoryContentUpdate(BaseModel):
+    title_ru: Optional[str] = None
+    title_uz: Optional[str] = None
+    title_en: Optional[str] = None
+    content_ru: Optional[str] = None
+    content_uz: Optional[str] = None
+    content_en: Optional[str] = None
+    image_url: Optional[str] = None
+    year: Optional[int] = None
+    order: Optional[int] = None
+    is_active: Optional[bool] = None
+
+
+class HistoryContentResponse(HistoryContentBase):
+    id: int
+    created_at: datetime
 
     class Config:
         from_attributes = True

@@ -13,6 +13,9 @@ from .models import (
     Disease,
     DiseaseDocument,
     SchoolApplication,
+    EducationEvent,
+    MediaResource,
+    HistoryContent,
 )
 
 __all__ = [
@@ -33,4 +36,7 @@ __all__ = [
     "Disease",
     "DiseaseDocument",
     "SchoolApplication",
+    "EducationEvent",
+    "MediaResource",
+    "HistoryContent",
 ]

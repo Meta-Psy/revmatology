@@ -34,9 +34,7 @@ const Home = () => {
   const { user } = useAuth();
   const lang = i18n.language;
 
-  const [boardMembers, setBoardMembers] = useState([]);
   const [partners, setPartners] = useState([]);
-  const [charter, setCharter] = useState(null);
   const [news, setNews] = useState([]);
   const [upcomingEvent, setUpcomingEvent] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -53,17 +51,13 @@ const Home = () => {
 
   const loadData = async () => {
     try {
-      const [boardRes, partnersRes, charterRes, newsRes, eventsRes] = await Promise.all([
-        contentAPI.getBoardMembers().catch(() => ({ data: [] })),
+      const [partnersRes, newsRes, eventsRes] = await Promise.all([
         contentAPI.getPartners().catch(() => ({ data: [] })),
-        contentAPI.getCharter().catch(() => ({ data: null })),
         contentAPI.getNews(null, true, 0, 3).catch(() => ({ data: [] })),
         contentAPI.getNews('event', true, 0, 1).catch(() => ({ data: [] }))
       ]);
 
-      setBoardMembers(boardRes.data || []);
       setPartners(partnersRes.data || []);
-      setCharter(charterRes.data);
       setNews(newsRes.data || []);
       setUpcomingEvent(eventsRes.data?.[0] || null);
     } catch (err) {
@@ -832,202 +826,6 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Правление */}
-      {boardMembers.length > 0 && (
-        <section className="py-10 sm:py-16 md:py-20 bg-stone-50 relative overflow-hidden">
-          {/* Современные акценты - мягкие свечения */}
-          <div className="absolute top-1/4 left-0 w-[300px] sm:w-[600px] h-[300px] sm:h-[600px] bg-blue-500/[0.02] rounded-full blur-3xl"></div>
-          <div className="absolute bottom-1/4 right-0 w-[250px] sm:w-[500px] h-[250px] sm:h-[500px] bg-sky-500/[0.02] rounded-full blur-3xl"></div>
-
-          {/* Тонкий декоративный паттерн */}
-          <div className="absolute inset-0 opacity-[0.02]" style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
-          }}></div>
-
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-            {/* Заголовок секции */}
-            <div className="text-center mb-8 sm:mb-12">
-              <div className="inline-flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-                <div className="w-8 sm:w-10 h-px bg-gradient-to-r from-transparent to-amber-700/40"></div>
-                <span className="text-amber-800/70 text-xs font-medium tracking-[0.2em] sm:tracking-[0.25em] uppercase">
-                  {t('about.board.label', 'Руководство')}
-                </span>
-                <div className="w-8 sm:w-10 h-px bg-gradient-to-l from-transparent to-amber-700/40"></div>
-              </div>
-              <h2 className="text-2xl sm:text-3xl md:text-4xl text-stone-800 mb-3 sm:mb-4 tracking-tight" style={{ fontFamily: 'Georgia, "Times New Roman", serif', fontWeight: 400 }}>
-                {t('about.board.title', 'Правление ассоциации')}
-              </h2>
-              <div className="flex items-center justify-center gap-2 sm:gap-3">
-                <div className="w-12 sm:w-16 h-px bg-gradient-to-r from-transparent via-stone-300 to-sky-400/20"></div>
-                <div className="w-1.5 h-1.5 bg-gradient-to-br from-amber-700/50 to-blue-600/30 rotate-45"></div>
-                <div className="w-12 sm:w-16 h-px bg-gradient-to-l from-transparent via-stone-300 to-sky-400/20"></div>
-              </div>
-              <p className="text-stone-500 text-xs sm:text-sm mt-3 sm:mt-4 max-w-xl mx-auto leading-relaxed px-2" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
-                <em>{t('about.board.subtitle', 'Ведущие специалисты, посвятившие свою жизнь развитию ревматологии в Узбекистане')}</em>
-              </p>
-            </div>
-
-            {/* Карточки членов правления */}
-            <div className="space-y-12 sm:space-y-16 md:space-y-20">
-              {boardMembers.map((member, index) => {
-                const isEven = index % 2 === 0;
-
-                return (
-                  <article
-                    key={member.id}
-                    className="relative"
-                  >
-                    {/* Тонкий номер - классический стиль */}
-                    <div
-                      className={`absolute -top-2 ${isEven ? 'left-0' : 'right-0'} text-[60px] sm:text-[80px] md:text-[100px] font-light text-stone-200/50 select-none -z-10 leading-none`}
-                      style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
-                    >
-                      {String(index + 1).padStart(2, '0')}
-                    </div>
-
-                    <div className={`flex flex-col ${isEven ? 'md:flex-row' : 'md:flex-row-reverse'} gap-6 sm:gap-10 md:gap-12 items-start`}>
-                      {/* Портрет - классическая рамка с современными акцентами */}
-                      <div className="w-full sm:w-3/4 md:w-5/12 flex-shrink-0 mx-auto md:mx-0">
-                        <div className="relative group/photo max-w-[280px] sm:max-w-none mx-auto">
-                          {/* Внешняя рамка - тонкая, золотистая */}
-                          <div className="absolute -inset-2 sm:-inset-3 border border-amber-700/20 rounded-sm group-hover/photo:border-amber-600/30 transition-colors duration-500"></div>
-                          <div className="absolute -inset-1 sm:-inset-1.5 border border-stone-300/50 rounded-sm"></div>
-
-                          {/* Фото */}
-                          <div className="relative aspect-[3/4] bg-stone-100 shadow-lg group-hover/photo:shadow-xl group-hover/photo:shadow-stone-300/50 transition-shadow duration-500">
-                            {member.photo_url ? (
-                              <img
-                                src={`http://localhost:8000${member.photo_url}`}
-                                alt={`${getField(member, 'last_name')} ${getField(member, 'first_name')}`}
-                                className="w-full h-full object-cover grayscale-[15%] sepia-[5%] group-hover/photo:grayscale-[5%] group-hover/photo:sepia-0 transition-all duration-500"
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center bg-gradient-to-b from-stone-100 to-stone-200">
-                                <svg className="w-16 sm:w-24 h-16 sm:h-24 text-stone-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={0.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                </svg>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Должность - внизу как подпись */}
-                          {getField(member, 'position') && (
-                            <div className="absolute -bottom-5 sm:-bottom-6 left-0 right-0 text-center">
-                              <span className="inline-block px-3 sm:px-4 py-1 sm:py-1.5 bg-stone-800 text-stone-100 text-[10px] sm:text-xs tracking-wider uppercase rounded-sm shadow-md group-hover/photo:shadow-lg group-hover/photo:bg-stone-700 transition-all duration-300" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
-                                {getField(member, 'position')}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Информация */}
-                      <div className="w-full md:w-7/12 pt-4 sm:pt-6 md:pt-0">
-                        {/* Имя - элегантный стиль */}
-                        <h3 className="text-xl sm:text-2xl md:text-3xl text-stone-800 mb-2 leading-snug tracking-tight text-center md:text-left" style={{ fontFamily: 'Georgia, "Times New Roman", serif', fontWeight: 400 }}>
-                          {getField(member, 'last_name')}{' '}
-                          {getField(member, 'first_name')}{' '}
-                          <span className="text-stone-500">{getField(member, 'patronymic')}</span>
-                        </h3>
-
-                        {/* Тонкий разделитель с градиентом */}
-                        <div className="flex items-center gap-2 my-4">
-                          <div className="w-14 h-px bg-gradient-to-r from-amber-700/40 to-blue-500/20"></div>
-                          <div className="w-1.5 h-1.5 bg-amber-700/40 rotate-45"></div>
-                        </div>
-
-                        {/* Ученая степень */}
-                        {getField(member, 'degree') && (
-                          <p className="text-base md:text-lg text-amber-900/70 mb-5" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
-                            <em>{getField(member, 'degree')}</em>
-                          </p>
-                        )}
-
-                        {/* Место работы */}
-                        {getField(member, 'workplace') && (
-                          <div className="mb-6 flex items-start gap-3">
-                            <div className="w-7 h-7 flex items-center justify-center flex-shrink-0 mt-0.5">
-                              <svg className="w-4 h-4 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                              </svg>
-                            </div>
-                            <p className="text-stone-600 text-base leading-relaxed" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
-                              {getField(member, 'workplace')}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Биография */}
-                        {getField(member, 'bio') && (
-                          <div className="relative mb-7">
-                            {/* Декоративная кавычка */}
-                            <div className="absolute -left-1 -top-3 text-5xl text-stone-200/80 leading-none select-none" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
-                              "
-                            </div>
-                            <div className="pl-6 border-l-2 border-stone-200">
-                              <p className="text-stone-600 text-base leading-relaxed" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
-                                <em>{getField(member, 'bio')}</em>
-                              </p>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Достижения - с акцентом */}
-                        {getField(member, 'achievements') && (
-                          <div className="mb-7 relative">
-                            <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-gradient-to-b from-amber-600/60 via-sky-500/30 to-transparent"></div>
-                            <div className="pl-5">
-                              <h4 className="text-xs font-medium text-amber-800/70 uppercase tracking-[0.2em] mb-2" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
-                                Достижения и награды
-                              </h4>
-                              <p className="text-stone-600 text-base leading-relaxed" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
-                                {getField(member, 'achievements')}
-                              </p>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Контакты */}
-                        {(member.email || member.phone) && (
-                          <div className="flex flex-wrap items-center gap-6 pt-5 border-t border-stone-200">
-                            {member.email && (
-                              <a
-                                href={`mailto:${member.email}`}
-                                className="group flex items-center gap-2.5 text-stone-500 hover:text-sky-700 transition-all duration-300"
-                              >
-                                <span className="w-8 h-8 border border-stone-300 rounded-md flex items-center justify-center group-hover:border-sky-400 group-hover:bg-sky-50/50 transition-all duration-300">
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                  </svg>
-                                </span>
-                                <span className="text-sm" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>{member.email}</span>
-                              </a>
-                            )}
-                            {member.phone && (
-                              <a
-                                href={`tel:${member.phone}`}
-                                className="group flex items-center gap-2.5 text-stone-500 hover:text-sky-700 transition-all duration-300"
-                              >
-                                <span className="w-8 h-8 border border-stone-300 rounded-md flex items-center justify-center group-hover:border-sky-400 group-hover:bg-sky-50/50 transition-all duration-300">
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                                  </svg>
-                                </span>
-                                <span className="text-sm" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>{member.phone}</span>
-                              </a>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-      )}
-
       {/* Международное сотрудничество */}
       {partners.length > 0 && (
         <section className="relative py-10 sm:py-12 md:py-16 overflow-hidden">
@@ -1136,70 +934,6 @@ const Home = () => {
               <div className="w-6 h-px bg-slate-700"></div>
               <div className="w-1 h-1 rotate-45 bg-slate-600"></div>
               <div className="w-6 h-px bg-slate-700"></div>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* Устав */}
-      {charter && (
-        <section className="py-12 md:py-16 relative overflow-hidden">
-          {/* Фоновые элементы */}
-          <div className="absolute inset-0 bg-gradient-to-b from-stone-50 via-white to-stone-50"></div>
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[400px] h-[400px] bg-sky-500/[0.02] rounded-full blur-3xl"></div>
-          <div className="absolute bottom-0 right-0 w-64 h-64 bg-blue-500/[0.02] rounded-full blur-3xl"></div>
-          {/* Тонкий паттерн */}
-          <div className="absolute inset-0 opacity-[0.015]" style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0L60 30L30 60L0 30Z' fill='none' stroke='%23000' stroke-width='0.5'/%3E%3C/svg%3E")`,
-            backgroundSize: '60px 60px'
-          }}></div>
-
-          {/* Угловые акценты */}
-          <div className="absolute top-6 left-6 w-14 h-14 border-t border-l border-stone-300/50 hidden lg:block"></div>
-          <div className="absolute top-6 right-6 w-14 h-14 border-t border-r border-stone-300/50 hidden lg:block"></div>
-
-          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="max-w-3xl mx-auto text-center">
-              {/* Декоративный элемент сверху */}
-              <div className="flex items-center justify-center gap-3 mb-4">
-                <div className="w-8 h-px bg-gradient-to-r from-transparent to-amber-700/40"></div>
-                <div className="w-1.5 h-1.5 rotate-45 border border-amber-600/40"></div>
-                <div className="w-8 h-px bg-gradient-to-l from-transparent to-amber-700/40"></div>
-              </div>
-
-              {/* Иконка документа */}
-              <div className="w-12 h-12 mx-auto mb-4 rounded-lg bg-stone-100 border border-stone-200 flex items-center justify-center">
-                <svg className="w-6 h-6 text-stone-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              </div>
-
-              <h2 className="text-2xl md:text-3xl text-stone-800 mb-3" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
-                {getField(charter, 'title') || t('about.charter.title', 'Устав ассоциации')}
-              </h2>
-
-              <div className="flex items-center justify-center gap-2 mb-4">
-                <div className="w-10 h-px bg-gradient-to-r from-stone-300 to-sky-400/30"></div>
-                <div className="w-1 h-1 bg-amber-600/40 rotate-45"></div>
-              </div>
-
-              <p className="text-stone-500 mb-6 leading-relaxed text-sm max-w-xl mx-auto" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
-                <em>{getField(charter, 'description') || t('about.charter.description', 'Устав определяет цели, задачи и принципы деятельности Ассоциации ревматологов Узбекистана.')}</em>
-              </p>
-
-              {charter.file_url && (
-                <a
-                  href={charter.file_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group px-5 py-2.5 border border-stone-300 text-stone-600 rounded-sm hover:border-sky-400/50 hover:text-sky-700 hover:bg-sky-50/30 transition-all duration-300 inline-flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  <span style={{ fontFamily: 'Georgia, serif' }}>{t('about.charter.download', 'Скачать устав (PDF)')}</span>
-                </a>
-              )}
             </div>
           </div>
         </section>

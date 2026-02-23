@@ -13,7 +13,17 @@
     "centers": "Ixtisoslashtirilgan markazlar",
     "schools": "Maktablar",
     "chiefRheumatologists": "Bosh revmatologlar",
-    "about": "Biz haqimizda"
+    "about": "Biz haqimizda",
+    "aboutUs": "Biz haqimizda",
+    "boardMembers": "Boshqaruv a'zolari",
+    "legalDocs": "Huquqiy hujjatlar",
+    "history": "Tarix",
+    "rheumatologyUz": "O'zbekiston revmatologiyasi",
+    "diseaseInfo": "Kasalliklar haqida ma'lumot",
+    "educationTraining": "Ta'lim va o'qitish",
+    "masterclasses": "Masterklasslar",
+    "webinars": "Vebinarlar",
+    "mediaResources": "Media resurslar"
   },
   "hero": {
     "title": "O'zbekiston Revmatologlar Assotsiatsiyasi",
@@ -238,6 +248,56 @@
     "noAccount": "Akkauntingiz yo'qmi?",
     "hasAccount": "Akkauntingiz bormi?",
     "forgotPassword": "Parolni unutdingizmi?"
+  },
+  "boardMembersPage": {
+    "title": "Boshqaruv a'zolari",
+    "subtitle": "O'zbekistonda revmatologiyani rivojlantirishga hayotini bag'ishlagan yetakchi mutaxassislar"
+  },
+  "legalDocsPage": {
+    "title": "Huquqiy hujjatlar",
+    "subtitle": "Assotsiatsiyaning ustav va normativ hujjatlari",
+    "download": "PDF yuklab olish",
+    "version": "Versiya"
+  },
+  "historyPage": {
+    "title": "Assotsiatsiya tarixi",
+    "subtitle": "O'zbekiston revmatologlar assotsiatsiyasi rivojlanishining asosiy bosqichlari",
+    "noData": "Assotsiatsiya tarixi tez orada qo'shiladi"
+  },
+  "masterclassesPage": {
+    "title": "Masterklasslar",
+    "subtitle": "Mutaxassislar uchun amaliy mashg'ulotlar va masterklasslar",
+    "noEvents": "Masterklasslar hali qo'shilmagan",
+    "register": "Ro'yxatdan o'tish",
+    "details": "Batafsil"
+  },
+  "webinarsPage": {
+    "title": "Vebinarlar",
+    "subtitle": "Mutaxassislar uchun onlayn tadbirlar va vebinarlar",
+    "noEvents": "Vebinarlar hali qo'shilmagan",
+    "register": "Ro'yxatdan o'tish",
+    "details": "Batafsil"
+  },
+  "mediaResourcesPage": {
+    "title": "Media resurslar",
+    "subtitle": "Revmatologiya bo'yicha jurnallar, maqolalar va kitoblar",
+    "journals": "Jurnallar",
+    "articles": "Maqolalar",
+    "books": "Kitoblar",
+    "noResources": "Resurslar hali qo'shilmagan",
+    "download": "Yuklab olish",
+    "openLink": "Havolani ochish"
+  },
+  "diseaseInfoPage": {
+    "title": "Kasalliklar haqida ma'lumot",
+    "subtitle": "Revmatik kasalliklar bo'yicha klinik tavsiyalar va protokollar",
+    "selectDisease": "Kasallikni tanlang",
+    "selectDiseaseDesc": "Batafsil ma'lumot ko'rish uchun kasallik nomini bosing",
+    "recommendations": "Klinik tavsiyalar",
+    "protocol": "Klinik protokol",
+    "downloadPdf": "PDF yuklab olish",
+    "notUploaded": "Hujjat yuklanmagan",
+    "availableDocs": "Mavjud hujjatlar"
   },
   "common": {
     "loading": "Yuklanmoqda...",

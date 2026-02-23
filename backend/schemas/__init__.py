@@ -18,6 +18,12 @@ from .content import (
     RheumatologyCenterCreate, RheumatologyCenterUpdate, RheumatologyCenterResponse, RheumatologyCenterWithStaffResponse,
     # Center Staff
     CenterStaffCreate, CenterStaffUpdate, CenterStaffResponse,
+    # Education Events
+    EducationEventCreate, EducationEventUpdate, EducationEventResponse,
+    # Media Resources
+    MediaResourceCreate, MediaResourceUpdate, MediaResourceResponse,
+    # History Content
+    HistoryContentCreate, HistoryContentUpdate, HistoryContentResponse,
 )
 
 __all__ = [
@@ -41,4 +47,10 @@ __all__ = [
     "RheumatologyCenterCreate", "RheumatologyCenterUpdate", "RheumatologyCenterResponse", "RheumatologyCenterWithStaffResponse",
     # Center Staff
     "CenterStaffCreate", "CenterStaffUpdate", "CenterStaffResponse",
+    # Education Events
+    "EducationEventCreate", "EducationEventUpdate", "EducationEventResponse",
+    # Media Resources
+    "MediaResourceCreate", "MediaResourceUpdate", "MediaResourceResponse",
+    # History Content
+    "HistoryContentCreate", "HistoryContentUpdate", "HistoryContentResponse",
 ]

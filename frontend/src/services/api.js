@@ -133,6 +133,33 @@ export const contentAPI = {
 
   // School Applications
   submitSchoolApplication: (data) => api.post('/content/school-applications', data),
+
+  // Public Charters
+  getPublicCharters: () => api.get('/content/charters/public'),
+
+  // Education Events
+  getEducationEvents: (eventType = null, includeInactive = false) =>
+    api.get('/content/education-events', { params: { event_type: eventType, include_inactive: includeInactive } }),
+  getEducationEvent: (id) => api.get(`/content/education-events/${id}`),
+  createEducationEvent: (data) => api.post('/content/education-events', data),
+  updateEducationEvent: (id, data) => api.put(`/content/education-events/${id}`, data),
+  deleteEducationEvent: (id) => api.delete(`/content/education-events/${id}`),
+
+  // Media Resources
+  getMediaResources: (resourceType = null, includeInactive = false) =>
+    api.get('/content/media-resources', { params: { resource_type: resourceType, include_inactive: includeInactive } }),
+  getMediaResource: (id) => api.get(`/content/media-resources/${id}`),
+  createMediaResource: (data) => api.post('/content/media-resources', data),
+  updateMediaResource: (id, data) => api.put(`/content/media-resources/${id}`, data),
+  deleteMediaResource: (id) => api.delete(`/content/media-resources/${id}`),
+
+  // History
+  getHistory: (includeInactive = false) =>
+    api.get('/content/history', { params: { include_inactive: includeInactive } }),
+  getHistoryItem: (id) => api.get(`/content/history/${id}`),
+  createHistoryItem: (data) => api.post('/content/history', data),
+  updateHistoryItem: (id, data) => api.put(`/content/history/${id}`, data),
+  deleteHistoryItem: (id) => api.delete(`/content/history/${id}`),
 };
 
 export default api;

@@ -13,7 +13,17 @@
     "centers": "Specialized Centers",
     "schools": "Schools",
     "chiefRheumatologists": "Chief Rheumatologists",
-    "about": "About Us"
+    "about": "About Us",
+    "aboutUs": "About Us",
+    "boardMembers": "Board Members",
+    "legalDocs": "Legal Documents",
+    "history": "History",
+    "rheumatologyUz": "Rheumatology of Uzbekistan",
+    "diseaseInfo": "Disease Information",
+    "educationTraining": "Education & Training",
+    "masterclasses": "Masterclasses",
+    "webinars": "Webinars",
+    "mediaResources": "Media Resources"
   },
   "hero": {
     "title": "Rheumatology Association of Uzbekistan",
@@ -238,6 +248,56 @@
     "noAccount": "Don't have an account?",
     "hasAccount": "Already have an account?",
     "forgotPassword": "Forgot password?"
+  },
+  "boardMembersPage": {
+    "title": "Board Members",
+    "subtitle": "Leading specialists who have dedicated their lives to the development of rheumatology in Uzbekistan"
+  },
+  "legalDocsPage": {
+    "title": "Legal Documents",
+    "subtitle": "Charter and regulatory documents of the association",
+    "download": "Download PDF",
+    "version": "Version"
+  },
+  "historyPage": {
+    "title": "Association History",
+    "subtitle": "Key milestones in the development of the Rheumatology Association of Uzbekistan",
+    "noData": "Association history will be added soon"
+  },
+  "masterclassesPage": {
+    "title": "Masterclasses",
+    "subtitle": "Practical sessions and masterclasses for specialists",
+    "noEvents": "No masterclasses added yet",
+    "register": "Register",
+    "details": "Details"
+  },
+  "webinarsPage": {
+    "title": "Webinars",
+    "subtitle": "Online events and webinars for specialists",
+    "noEvents": "No webinars added yet",
+    "register": "Register",
+    "details": "Details"
+  },
+  "mediaResourcesPage": {
+    "title": "Media Resources",
+    "subtitle": "Journals, articles and books on rheumatology",
+    "journals": "Journals",
+    "articles": "Articles",
+    "books": "Books",
+    "noResources": "No resources added yet",
+    "download": "Download",
+    "openLink": "Open Link"
+  },
+  "diseaseInfoPage": {
+    "title": "Disease Information",
+    "subtitle": "Clinical recommendations and protocols for rheumatic diseases",
+    "selectDisease": "Select a disease",
+    "selectDiseaseDesc": "Click on a disease name to see detailed information",
+    "recommendations": "Clinical Recommendations",
+    "protocol": "Clinical Protocol",
+    "downloadPdf": "Download PDF",
+    "notUploaded": "Document not uploaded",
+    "availableDocs": "Available Documents"
   },
   "common": {
     "loading": "Loading...",

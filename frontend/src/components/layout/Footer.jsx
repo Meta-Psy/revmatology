@@ -8,15 +8,17 @@ const Footer = () => {
   const quickLinks = [
     { path: '/', label: t('nav.home', 'Главная') },
     { path: '/about/activities', label: t('nav.activities', 'Деятельность') },
+    { path: '/about/board-members', label: t('nav.boardMembers', 'Члены правления') },
     { path: '/congress', label: t('nav.congress', 'Конгресс') },
     { path: '/news', label: t('nav.news', 'Новости') },
   ];
 
   const resourceLinks = [
-    { path: '/documents', label: t('nav.documents', 'Нормативные документы') },
-    { path: '/about/centers', label: t('nav.centers', 'Специализированные центры') },
+    { path: '/rheumatology/centers', label: t('nav.centers', 'Специализированные центры') },
+    { path: '/rheumatology/chief-rheumatologists', label: t('nav.chiefRheumatologists', 'Главные ревматологи') },
+    { path: '/rheumatology/diseases', label: t('nav.diseaseInfo', 'Информация о заболеваниях') },
     { path: '/about/schools', label: t('nav.schools', 'Школы') },
-    { path: '/about/chief-rheumatologists', label: t('nav.chiefRheumatologists', 'Главные ревматологи') },
+    { path: '/media', label: t('nav.mediaResources', 'Медиаресурсы') },
   ];
 
   return (

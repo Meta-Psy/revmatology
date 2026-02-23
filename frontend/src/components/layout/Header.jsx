@@ -10,21 +10,18 @@ const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [aboutDropdownOpen, setAboutDropdownOpen] = useState(false);
-  const [mobileAboutOpen, setMobileAboutOpen] = useState(false);
+  const [activeDropdown, setActiveDropdown] = useState(null);
+  const [mobileOpenMenus, setMobileOpenMenus] = useState({});
   const [scrolled, setScrolled] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
   const langRef = useRef(null);
   const userRef = useRef(null);
-  const aboutRef = useRef(null);
-  const aboutTimeoutRef = useRef(null);
+  const dropdownRefs = useRef({});
+  const dropdownTimeoutRef = useRef(null);
 
-  // Отслеживание скролла для эффекта и прогресса
   useEffect(() => {
     const handleScroll = () => {
       setScrolled(window.scrollY > 20);
-
-      // Вычисляем прогресс скролла
       const scrollTop = window.scrollY;
       const docHeight = document.documentElement.scrollHeight - window.innerHeight;
       const progress = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
@@ -34,22 +31,48 @@ const Header = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Подменю "О центре"
-  const aboutSubmenu = [
-    { path: '/about/activities', label: t('nav.activities', 'Деятельность') },
-    { path: '/about/centers', label: t('nav.centers', 'Специализированные центры') },
-    { path: '/about/chief-rheumatologists', label: t('nav.chiefRheumatologists', 'Главные ревматологи') },
-    { path: '/about/schools', label: t('nav.schools', 'Школы') },
+  // Data-driven navigation structure
+  const dropdownMenus = [
+    {
+      id: 'about',
+      label: t('nav.aboutUs', 'О нас'),
+      items: [
+        { path: '/about/activities', label: t('nav.activities', 'Деятельность') },
+        { path: '/about/board-members', label: t('nav.boardMembers', 'Члены правления') },
+        { path: '/about/legal-docs', label: t('nav.legalDocs', 'Правоустанавливающие документы') },
+        { path: '/about/history', label: t('nav.history', 'История') },
+        { path: '/about/schools', label: t('nav.schools', 'Школы') },
+      ],
+      matchPrefix: '/about',
+    },
+    {
+      id: 'rheumatology',
+      label: t('nav.rheumatologyUz', 'Ревматология Узбекистана'),
+      items: [
+        { path: '/rheumatology/chief-rheumatologists', label: t('nav.chiefRheumatologists', 'Главные ревматологи') },
+        { path: '/rheumatology/centers', label: t('nav.centers', 'Специализированные центры') },
+        { path: '/rheumatology/diseases', label: t('nav.diseaseInfo', 'Информация о заболеваниях') },
+      ],
+      matchPrefix: '/rheumatology',
+    },
+    {
+      id: 'education',
+      label: t('nav.educationTraining', 'Образование и обучение'),
+      items: [
+        { path: '/education/masterclasses', label: t('nav.masterclasses', 'Мастерклассы') },
+        { path: '/education/webinars', label: t('nav.webinars', 'Вебинары') },
+      ],
+      matchPrefix: '/education',
+    },
   ];
 
-  const navLinks = [
-    { path: '/about', label: t('nav.about', 'О центре'), hasSubmenu: true },
-    { path: '/documents', label: t('nav.documents', 'Нормативные документы') },
-    { path: '/congress', label: t('nav.congress') },
-    { path: '/news', label: t('nav.news') },
+  const directLinks = [
+    { path: '/media', label: t('nav.mediaResources', 'Медиаресурсы') },
+    { path: '/congress', label: t('nav.congress', 'Конгресс') },
+    { path: '/news', label: t('nav.news', 'Новости') },
   ];
 
-  // SVG флаги для Windows совместимости
+  // SVG флаги
   const FlagRU = () => (
     <svg className="w-5 h-4 rounded-sm overflow-hidden shadow-sm" viewBox="0 0 640 480">
       <rect width="640" height="160" fill="#fff"/>
@@ -57,7 +80,6 @@ const Header = () => {
       <rect y="320" width="640" height="160" fill="#d52b1e"/>
     </svg>
   );
-
   const FlagUZ = () => (
     <svg className="w-5 h-4 rounded-sm overflow-hidden shadow-sm" viewBox="0 0 640 480">
       <rect width="640" height="160" fill="#0099b5"/>
@@ -69,7 +91,6 @@ const Header = () => {
       <circle cx="148" cy="80" r="32" fill="#0099b5"/>
     </svg>
   );
-
   const FlagEN = () => (
     <svg className="w-5 h-4 rounded-sm overflow-hidden shadow-sm" viewBox="0 0 640 480">
       <rect width="640" height="480" fill="#012169"/>
@@ -88,28 +109,27 @@ const Header = () => {
 
   const currentLang = languages.find(l => l.code === i18n.language) || languages[0];
 
-  const isActive = (path) => {
-    if (path === '/about') {
-      return location.pathname.startsWith('/about') && location.pathname !== '/about/documents';
-    }
-    if (path === '/documents') {
-      return location.pathname === '/documents' || location.pathname === '/about/documents';
-    }
+  const isDropdownActive = (menu) => location.pathname.startsWith(menu.matchPrefix);
+  const isLinkActive = (path) => location.pathname === path;
+  const isDirectLinkActive = (path) => {
+    if (path === '/media') return location.pathname.startsWith('/media');
     return location.pathname === path;
   };
 
-  const isSubmenuActive = (path) => location.pathname === path;
-
-  // Закрытие dropdown при клике вне
+  // Close dropdowns on outside click
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (langRef.current && !langRef.current.contains(e.target)) setLangOpen(false);
       if (userRef.current && !userRef.current.contains(e.target)) setUserMenuOpen(false);
-      if (aboutRef.current && !aboutRef.current.contains(e.target)) setAboutDropdownOpen(false);
+      // Close nav dropdowns
+      if (activeDropdown) {
+        const ref = dropdownRefs.current[activeDropdown];
+        if (ref && !ref.contains(e.target)) setActiveDropdown(null);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [activeDropdown]);
 
   const changeLanguage = (code) => {
     i18n.changeLanguage(code);
@@ -117,18 +137,19 @@ const Header = () => {
     setLangOpen(false);
   };
 
-  // Обработчики для hover на десктопе
-  const handleAboutMouseEnter = () => {
-    if (aboutTimeoutRef.current) {
-      clearTimeout(aboutTimeoutRef.current);
-    }
-    setAboutDropdownOpen(true);
+  const handleDropdownEnter = (id) => {
+    if (dropdownTimeoutRef.current) clearTimeout(dropdownTimeoutRef.current);
+    setActiveDropdown(id);
   };
 
-  const handleAboutMouseLeave = () => {
-    aboutTimeoutRef.current = setTimeout(() => {
-      setAboutDropdownOpen(false);
+  const handleDropdownLeave = () => {
+    dropdownTimeoutRef.current = setTimeout(() => {
+      setActiveDropdown(null);
     }, 150);
+  };
+
+  const toggleMobileMenu = (id) => {
+    setMobileOpenMenus(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
   return (
@@ -139,22 +160,15 @@ const Header = () => {
           : 'bg-gradient-to-r from-slate-900/95 via-slate-900/90 to-slate-900/95 backdrop-blur-lg'
       }`}
     >
-      {/* Тонкая декоративная линия сверху */}
       <div className={`absolute top-0 left-0 right-0 h-px transition-opacity duration-500 ${
         scrolled ? 'opacity-100' : 'opacity-70'
       } bg-gradient-to-r from-sky-500/20 via-sky-400/40 to-sky-500/20`}></div>
-
-      {/* Лёгкое свечение снизу для глубины */}
       <div className={`absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-slate-900/50 to-transparent pointer-events-none transition-opacity duration-500 ${
         scrolled ? 'opacity-0' : 'opacity-30'
       }`}></div>
-
-      {/* Нижняя граница */}
       <div className={`absolute bottom-0 left-0 right-0 h-px transition-opacity duration-500 ${
         scrolled ? 'opacity-100' : 'opacity-60'
       } bg-gradient-to-r from-transparent via-slate-600/60 to-transparent`}></div>
-
-      {/* Scroll Progress Indicator */}
       <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-transparent overflow-hidden">
         <div
           className="h-full bg-gradient-to-r from-sky-500 via-blue-500 to-sky-400 transition-all duration-150 ease-out"
@@ -165,9 +179,8 @@ const Header = () => {
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 sm:h-20">
 
-          {/* Логотип */}
+          {/* Logo */}
           <Link to="/" className="flex items-center gap-2 sm:gap-4 group flex-shrink-0" title="На главную">
-            {/* Контейнер логотипа с элегантной рамкой */}
             <div className="relative">
               <div className="absolute -inset-1 bg-gradient-to-br from-sky-500/20 to-blue-600/20 rounded-lg opacity-0 group-hover:opacity-100 blur transition-opacity duration-500"></div>
               <div className="relative">
@@ -178,7 +191,6 @@ const Header = () => {
                 />
               </div>
             </div>
-            {/* Название - скрыто на мобильных */}
             <div className="hidden xl:block">
               <div className="text-white text-sm font-medium leading-tight" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
                 {t('header.association', 'Ассоциация')}
@@ -191,109 +203,96 @@ const Header = () => {
 
           {/* Desktop Navigation */}
           <nav className="hidden lg:flex items-center">
-            {/* Декоративный элемент слева от навигации */}
-            <div className="w-px h-6 bg-slate-700/50 mr-6"></div>
-
-            <div className="flex items-center gap-1">
-              {navLinks.map((link) => (
-                link.hasSubmenu ? (
-                  // Dropdown menu для "О центре"
-                  <div
-                    key={link.path}
-                    ref={aboutRef}
-                    className="relative"
-                    onMouseEnter={handleAboutMouseEnter}
-                    onMouseLeave={handleAboutMouseLeave}
-                  >
-                    <button
-                      className={`relative px-4 py-2.5 text-sm font-medium transition-all duration-300 flex items-center gap-1.5 rounded-lg ${
-                        isActive(link.path)
-                          ? 'text-sky-400'
-                          : 'text-slate-300 hover:text-white hover:bg-white/5'
-                      }`}
-                    >
-                      <span style={{ fontFamily: isActive(link.path) ? 'Georgia, "Times New Roman", serif' : 'inherit' }}>
-                        {link.label}
-                      </span>
-                      <svg
-                        className={`w-3.5 h-3.5 transition-transform duration-300 ${aboutDropdownOpen ? 'rotate-180' : ''}`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                      {isActive(link.path) && (
-                        <span className="absolute bottom-0 left-4 right-4 h-0.5 bg-gradient-to-r from-sky-400 to-blue-500 rounded-full"></span>
-                      )}
-                    </button>
-
-                    {/* Dropdown с элегантным оформлением */}
-                    <div className={`absolute top-full left-0 mt-2 w-72 transition-all duration-300 ${
-                      aboutDropdownOpen
-                        ? 'opacity-100 visible translate-y-0'
-                        : 'opacity-0 invisible -translate-y-2'
-                    }`}>
-                      {/* Стрелка */}
-                      <div className="absolute -top-2 left-8 w-4 h-4 bg-white rotate-45 border-t border-l border-slate-200"></div>
-
-                      <div className="relative bg-white rounded-xl shadow-2xl shadow-slate-900/20 border border-slate-200/80 overflow-hidden">
-                        {/* Декоративная линия сверху */}
-                        <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-sky-400 to-blue-500"></div>
-
-                        <div className="p-2 pt-3">
-                          {aboutSubmenu.map((item, index) => (
-                            <Link
-                              key={item.path}
-                              to={item.path}
-                              onClick={() => setAboutDropdownOpen(false)}
-                              className={`group flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
-                                isSubmenuActive(item.path)
-                                  ? 'bg-sky-50 text-sky-700'
-                                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                              }`}
-                            >
-                              <span className={`w-1.5 h-1.5 rounded-full transition-colors ${
-                                isSubmenuActive(item.path)
-                                  ? 'bg-sky-500'
-                                  : 'bg-slate-300 group-hover:bg-sky-400'
-                              }`}></span>
-                              <span>{item.label}</span>
-                            </Link>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <Link
-                    key={link.path}
-                    to={link.path}
-                    className={`relative px-4 py-2.5 text-sm font-medium transition-all duration-300 rounded-lg ${
-                      isActive(link.path)
+            <div className="w-px h-6 bg-slate-700/50 mr-4"></div>
+            <div className="flex items-center gap-0.5">
+              {/* Dropdown menus */}
+              {dropdownMenus.map((menu) => (
+                <div
+                  key={menu.id}
+                  ref={el => dropdownRefs.current[menu.id] = el}
+                  className="relative"
+                  onMouseEnter={() => handleDropdownEnter(menu.id)}
+                  onMouseLeave={handleDropdownLeave}
+                >
+                  <button
+                    className={`relative px-3 py-2.5 text-sm font-medium transition-all duration-300 flex items-center gap-1 rounded-lg ${
+                      isDropdownActive(menu)
                         ? 'text-sky-400'
                         : 'text-slate-300 hover:text-white hover:bg-white/5'
                     }`}
                   >
-                    <span style={{ fontFamily: isActive(link.path) ? 'Georgia, "Times New Roman", serif' : 'inherit' }}>
-                      {link.label}
+                    <span style={{ fontFamily: isDropdownActive(menu) ? 'Georgia, "Times New Roman", serif' : 'inherit' }}>
+                      {menu.label}
                     </span>
-                    {isActive(link.path) && (
-                      <span className="absolute bottom-0 left-4 right-4 h-0.5 bg-gradient-to-r from-sky-400 to-blue-500 rounded-full"></span>
+                    <svg
+                      className={`w-3 h-3 transition-transform duration-300 ${activeDropdown === menu.id ? 'rotate-180' : ''}`}
+                      fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                    {isDropdownActive(menu) && (
+                      <span className="absolute bottom-0 left-3 right-3 h-0.5 bg-gradient-to-r from-sky-400 to-blue-500 rounded-full"></span>
                     )}
-                  </Link>
-                )
+                  </button>
+
+                  <div className={`absolute top-full left-0 mt-2 w-72 transition-all duration-300 z-50 ${
+                    activeDropdown === menu.id
+                      ? 'opacity-100 visible translate-y-0'
+                      : 'opacity-0 invisible -translate-y-2'
+                  }`}>
+                    <div className="absolute -top-2 left-8 w-4 h-4 bg-white rotate-45 border-t border-l border-slate-200"></div>
+                    <div className="relative bg-white rounded-xl shadow-2xl shadow-slate-900/20 border border-slate-200/80 overflow-hidden">
+                      <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-sky-400 to-blue-500"></div>
+                      <div className="p-2 pt-3">
+                        {menu.items.map((item) => (
+                          <Link
+                            key={item.path}
+                            to={item.path}
+                            onClick={() => setActiveDropdown(null)}
+                            className={`group flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
+                              isLinkActive(item.path)
+                                ? 'bg-sky-50 text-sky-700'
+                                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                            }`}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full transition-colors ${
+                              isLinkActive(item.path) ? 'bg-sky-500' : 'bg-slate-300 group-hover:bg-sky-400'
+                            }`}></span>
+                            <span>{item.label}</span>
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {/* Direct links */}
+              {directLinks.map((link) => (
+                <Link
+                  key={link.path}
+                  to={link.path}
+                  className={`relative px-3 py-2.5 text-sm font-medium transition-all duration-300 rounded-lg ${
+                    isDirectLinkActive(link.path)
+                      ? 'text-sky-400'
+                      : 'text-slate-300 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <span style={{ fontFamily: isDirectLinkActive(link.path) ? 'Georgia, "Times New Roman", serif' : 'inherit' }}>
+                    {link.label}
+                  </span>
+                  {isDirectLinkActive(link.path) && (
+                    <span className="absolute bottom-0 left-3 right-3 h-0.5 bg-gradient-to-r from-sky-400 to-blue-500 rounded-full"></span>
+                  )}
+                </Link>
               ))}
             </div>
-
-            {/* Декоративный элемент справа от навигации */}
-            <div className="w-px h-6 bg-slate-700/50 ml-6"></div>
+            <div className="w-px h-6 bg-slate-700/50 ml-4"></div>
           </nav>
 
           {/* Right Side */}
           <div className="flex items-center gap-2 sm:gap-3">
-
-            {/* Язык */}
+            {/* Language selector */}
             <div className="relative" ref={langRef}>
               <button
                 onClick={() => setLangOpen(!langOpen)}
@@ -305,21 +304,12 @@ const Header = () => {
               >
                 <currentLang.Flag />
                 <span className="text-xs sm:text-sm font-medium text-slate-200 hidden xs:block">{currentLang.code.toUpperCase()}</span>
-                <svg
-                  className={`w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 transition-transform duration-300 ${langOpen ? 'rotate-180' : ''}`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
+                <svg className={`w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 transition-transform duration-300 ${langOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
-
-              {/* Language Dropdown - адаптивное позиционирование */}
               <div className={`absolute mt-2 w-36 sm:w-48 transition-all duration-300 z-50 left-0 sm:left-auto sm:right-0 ${
-                langOpen
-                  ? 'opacity-100 visible translate-y-0'
-                  : 'opacity-0 invisible -translate-y-2'
+                langOpen ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible -translate-y-2'
               }`}>
                 <div className="relative bg-white rounded-xl shadow-2xl shadow-slate-900/20 border border-slate-200/80 overflow-hidden">
                   <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-sky-400 to-blue-500"></div>
@@ -348,17 +338,15 @@ const Header = () => {
               </div>
             </div>
 
-            {/* Разделитель */}
             <div className="hidden sm:block w-px h-8 bg-gradient-to-b from-transparent via-slate-700 to-transparent"></div>
 
-            {/* Авторизация */}
+            {/* Auth */}
             {user ? (
               <div className="relative" ref={userRef}>
                 <button
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
                   className="flex items-center gap-2 sm:gap-3 px-1.5 sm:px-3 py-1.5 rounded-lg hover:bg-white/5 active:scale-95 transition-all duration-200"
                 >
-                  {/* Аватар с элегантной рамкой */}
                   <div className="relative flex-shrink-0">
                     <div className="absolute -inset-0.5 bg-gradient-to-br from-sky-400 to-blue-600 rounded-full opacity-80"></div>
                     <div className="relative w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-slate-800 flex items-center justify-center text-white font-semibold text-xs sm:text-sm">
@@ -373,40 +361,24 @@ const Header = () => {
                       {isAdmin ? 'Администратор' : 'Участник'}
                     </div>
                   </div>
-                  <svg
-                    className={`w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 transition-transform duration-300 hidden sm:block ${userMenuOpen ? 'rotate-180' : ''}`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
+                  <svg className={`w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 transition-transform duration-300 hidden sm:block ${userMenuOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 </button>
-
-                {/* User Dropdown - адаптивное позиционирование */}
                 <div className={`absolute mt-2 w-56 sm:w-64 transition-all duration-300 z-50 right-0 ${
-                  userMenuOpen
-                    ? 'opacity-100 visible translate-y-0'
-                    : 'opacity-0 invisible -translate-y-2'
+                  userMenuOpen ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible -translate-y-2'
                 }`}>
                   <div className="relative bg-white rounded-xl shadow-2xl shadow-slate-900/20 border border-slate-200/80 overflow-hidden">
                     <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-sky-400 to-blue-500"></div>
-
-                    {/* User info header */}
                     <div className="p-3 sm:p-4 bg-gradient-to-br from-slate-50 to-white border-b border-slate-100">
                       <div className="font-medium text-slate-800 text-sm sm:text-base truncate" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
                         {user.full_name || `${user.last_name} ${user.first_name}`}
                       </div>
                       <div className="text-xs sm:text-sm text-slate-500 mt-0.5 truncate">{user.email}</div>
                     </div>
-
                     <div className="p-1 sm:p-1.5">
                       {isAdmin && (
-                        <Link
-                          to="/admin"
-                          onClick={() => setUserMenuOpen(false)}
-                          className="flex items-center gap-2.5 sm:gap-3 px-2.5 sm:px-3 py-2.5 rounded-lg text-slate-600 hover:bg-slate-50 active:bg-slate-100 hover:text-slate-900 active:scale-[0.98] transition-all duration-200"
-                        >
+                        <Link to="/admin" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-2.5 sm:gap-3 px-2.5 sm:px-3 py-2.5 rounded-lg text-slate-600 hover:bg-slate-50 active:bg-slate-100 hover:text-slate-900 active:scale-[0.98] transition-all duration-200">
                           <svg className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -414,24 +386,15 @@ const Header = () => {
                           <span className="font-medium text-xs sm:text-sm">Админ-панель</span>
                         </Link>
                       )}
-                      <Link
-                        to="/profile"
-                        onClick={() => setUserMenuOpen(false)}
-                        className="flex items-center gap-2.5 sm:gap-3 px-2.5 sm:px-3 py-2.5 rounded-lg text-slate-600 hover:bg-slate-50 active:bg-slate-100 hover:text-slate-900 active:scale-[0.98] transition-all duration-200"
-                      >
+                      <Link to="/profile" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-2.5 sm:gap-3 px-2.5 sm:px-3 py-2.5 rounded-lg text-slate-600 hover:bg-slate-50 active:bg-slate-100 hover:text-slate-900 active:scale-[0.98] transition-all duration-200">
                         <svg className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                         </svg>
                         <span className="font-medium text-xs sm:text-sm">{t('nav.profile')}</span>
                       </Link>
-
                       <div className="my-1 sm:my-1.5 mx-2.5 sm:mx-3 border-t border-slate-100"></div>
-
                       <button
-                        onClick={() => {
-                          logout();
-                          setUserMenuOpen(false);
-                        }}
+                        onClick={() => { logout(); setUserMenuOpen(false); }}
                         className="w-full flex items-center gap-2.5 sm:gap-3 px-2.5 sm:px-3 py-2.5 rounded-lg text-red-600 hover:bg-red-50 active:bg-red-100 active:scale-[0.98] transition-all duration-200"
                       >
                         <svg className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -445,19 +408,11 @@ const Header = () => {
               </div>
             ) : (
               <div className="flex items-center gap-1 sm:gap-2">
-                <Link
-                  to="/login"
-                  className="px-3 sm:px-4 py-2 text-sm font-medium text-slate-300 hover:text-white active:text-sky-400 transition-colors duration-200"
-                >
+                <Link to="/login" className="px-3 sm:px-4 py-2 text-sm font-medium text-slate-300 hover:text-white active:text-sky-400 transition-colors duration-200">
                   {t('nav.login')}
                 </Link>
-                <Link
-                  to="/register"
-                  className="group relative px-4 sm:px-5 py-2 sm:py-2.5 text-sm font-medium text-white rounded-lg overflow-hidden active:scale-95 transition-all duration-200"
-                >
-                  {/* Градиентный фон */}
+                <Link to="/register" className="group relative px-4 sm:px-5 py-2 sm:py-2.5 text-sm font-medium text-white rounded-lg overflow-hidden active:scale-95 transition-all duration-200">
                   <div className="absolute inset-0 bg-gradient-to-r from-sky-500 to-blue-600 transition-all duration-300 group-hover:from-sky-400 group-hover:to-blue-500 group-active:from-sky-600 group-active:to-blue-700"></div>
-                  {/* Свечение */}
                   <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-r from-sky-400/50 to-blue-500/50 blur-xl"></div>
                   <span className="relative">{t('nav.register')}</span>
                 </Link>
@@ -484,74 +439,70 @@ const Header = () => {
 
       {/* Mobile Menu */}
       <div className={`lg:hidden overflow-hidden transition-all duration-300 ease-out ${
-        mobileMenuOpen ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'
+        mobileMenuOpen ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0'
       }`}>
         <div className="bg-slate-800/98 backdrop-blur-xl border-t border-slate-700/50 safe-bottom">
           <nav className="max-w-7xl mx-auto px-3 py-3 space-y-1">
-            {navLinks.map((link) => (
-              link.hasSubmenu ? (
-                <div key={link.path}>
-                  <button
-                    onClick={() => setMobileAboutOpen(!mobileAboutOpen)}
-                    className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl text-[15px] font-medium active:scale-[0.98] transition-all duration-200 ${
-                      isActive(link.path)
-                        ? 'bg-gradient-to-r from-slate-700/80 to-slate-700/60 text-sky-400 shadow-sm'
-                        : 'text-slate-300 hover:bg-slate-700/50 active:bg-slate-700/70 hover:text-white'
-                    }`}
-                  >
-                    <span>{link.label}</span>
-                    <div className={`w-7 h-7 flex items-center justify-center rounded-lg ${mobileAboutOpen ? 'bg-sky-500/10' : 'bg-slate-700/50'} transition-colors duration-200`}>
-                      <svg
-                        className={`w-4 h-4 transition-transform duration-300 ${mobileAboutOpen ? 'rotate-180 text-sky-400' : 'text-slate-400'}`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
-                  </button>
-                  <div className={`overflow-hidden transition-all duration-300 ease-out ${
-                    mobileAboutOpen ? 'max-h-80 opacity-100 mt-1.5' : 'max-h-0 opacity-0'
-                  }`}>
-                    <div className="ml-3 pl-3 border-l-2 border-slate-700/50 space-y-0.5">
-                      {aboutSubmenu.map((item) => (
-                        <Link
-                          key={item.path}
-                          to={item.path}
-                          onClick={() => setMobileMenuOpen(false)}
-                          className={`flex items-center gap-3 px-4 py-3 rounded-xl text-[14px] font-medium active:scale-[0.98] transition-all duration-200 ${
-                            isSubmenuActive(item.path)
-                              ? 'bg-sky-500/10 text-sky-400'
-                              : 'text-slate-400 hover:bg-slate-700/40 active:bg-slate-700/60 hover:text-white'
-                          }`}
-                        >
-                          <span className={`w-2 h-2 rounded-full transition-colors ${
-                            isSubmenuActive(item.path) ? 'bg-sky-400 shadow-sm shadow-sky-400/50' : 'bg-slate-500'
-                          }`}></span>
-                          {item.label}
-                        </Link>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <Link
-                  key={link.path}
-                  to={link.path}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`block px-4 py-3.5 rounded-xl text-[15px] font-medium active:scale-[0.98] transition-all duration-200 ${
-                    isActive(link.path)
+            {/* Dropdown menus */}
+            {dropdownMenus.map((menu) => (
+              <div key={menu.id}>
+                <button
+                  onClick={() => toggleMobileMenu(menu.id)}
+                  className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl text-[15px] font-medium active:scale-[0.98] transition-all duration-200 ${
+                    isDropdownActive(menu)
                       ? 'bg-gradient-to-r from-slate-700/80 to-slate-700/60 text-sky-400 shadow-sm'
                       : 'text-slate-300 hover:bg-slate-700/50 active:bg-slate-700/70 hover:text-white'
                   }`}
                 >
-                  {link.label}
-                </Link>
-              )
+                  <span>{menu.label}</span>
+                  <div className={`w-7 h-7 flex items-center justify-center rounded-lg ${mobileOpenMenus[menu.id] ? 'bg-sky-500/10' : 'bg-slate-700/50'} transition-colors duration-200`}>
+                    <svg className={`w-4 h-4 transition-transform duration-300 ${mobileOpenMenus[menu.id] ? 'rotate-180 text-sky-400' : 'text-slate-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </button>
+                <div className={`overflow-hidden transition-all duration-300 ease-out ${
+                  mobileOpenMenus[menu.id] ? 'max-h-96 opacity-100 mt-1.5' : 'max-h-0 opacity-0'
+                }`}>
+                  <div className="ml-3 pl-3 border-l-2 border-slate-700/50 space-y-0.5">
+                    {menu.items.map((item) => (
+                      <Link
+                        key={item.path}
+                        to={item.path}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={`flex items-center gap-3 px-4 py-3 rounded-xl text-[14px] font-medium active:scale-[0.98] transition-all duration-200 ${
+                          isLinkActive(item.path)
+                            ? 'bg-sky-500/10 text-sky-400'
+                            : 'text-slate-400 hover:bg-slate-700/40 active:bg-slate-700/60 hover:text-white'
+                        }`}
+                      >
+                        <span className={`w-2 h-2 rounded-full transition-colors ${
+                          isLinkActive(item.path) ? 'bg-sky-400 shadow-sm shadow-sky-400/50' : 'bg-slate-500'
+                        }`}></span>
+                        {item.label}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </div>
             ))}
 
-            {/* Дополнительный отступ снизу для safe-area */}
+            {/* Direct links */}
+            {directLinks.map((link) => (
+              <Link
+                key={link.path}
+                to={link.path}
+                onClick={() => setMobileMenuOpen(false)}
+                className={`block px-4 py-3.5 rounded-xl text-[15px] font-medium active:scale-[0.98] transition-all duration-200 ${
+                  isDirectLinkActive(link.path)
+                    ? 'bg-gradient-to-r from-slate-700/80 to-slate-700/60 text-sky-400 shadow-sm'
+                    : 'text-slate-300 hover:bg-slate-700/50 active:bg-slate-700/70 hover:text-white'
+                }`}
+              >
+                {link.label}
+              </Link>
+            ))}
+
             <div className="h-2"></div>
           </nav>
         </div>

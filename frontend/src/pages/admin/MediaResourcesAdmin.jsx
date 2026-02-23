@@ -1,23 +1,30 @@
 import { useState, useEffect } from 'react';
 import { contentAPI } from '../../services/api';
 
-const DiseasesAdmin = () => {
-  const [diseases, setDiseases] = useState([]);
+const MediaResourcesAdmin = () => {
+  const [resources, setResources] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editModal, setEditModal] = useState(null);
   const [deleteModal, setDeleteModal] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState({ recommendation: false, protocol: false });
+  const [uploading, setUploading] = useState({ file: false, image: false });
+  const [activeTab, setActiveTab] = useState('journal');
 
-  const emptyDisease = {
-    name_ru: '', name_uz: '', name_en: '',
-    short_name: '',
+  const tabs = [
+    { key: 'journal', label: 'Журналы' },
+    { key: 'article', label: 'Статьи' },
+    { key: 'book', label: 'Книги' },
+  ];
+
+  const emptyResource = {
+    resource_type: 'journal',
+    title_ru: '', title_uz: '', title_en: '',
     description_ru: '', description_uz: '', description_en: '',
-    symptoms_ru: '', symptoms_uz: '', symptoms_en: '',
-    treatment_ru: '', treatment_uz: '', treatment_en: '',
-    content_ru: '', content_uz: '', content_en: '',
-    recommendation_file_url: '',
-    protocol_file_url: '',
+    author_name_ru: '', author_name_uz: '', author_name_en: '',
+    file_url: '',
+    external_url: '',
+    image_url: '',
+    published_date: '',
     order: 0, is_active: true
   };
 
@@ -27,8 +34,8 @@ const DiseasesAdmin = () => {
 
   const loadData = async () => {
     try {
-      const res = await contentAPI.getDiseases(true);
-      setDiseases(res.data);
+      const res = await contentAPI.getMediaResources(true);
+      setResources(res.data);
     } catch (err) {
       console.error('Error loading data:', err);
     } finally {
@@ -36,13 +43,15 @@ const DiseasesAdmin = () => {
     }
   };
 
-  const handleSaveDisease = async () => {
+  const filteredResources = resources.filter(r => r.resource_type === activeTab);
+
+  const handleSaveResource = async () => {
     setSaving(true);
     try {
       if (editModal.id) {
-        await contentAPI.updateDisease(editModal.id, editModal);
+        await contentAPI.updateMediaResource(editModal.id, editModal);
       } else {
-        await contentAPI.createDisease(editModal);
+        await contentAPI.createMediaResource(editModal);
       }
       await loadData();
       setEditModal(null);
@@ -54,10 +63,10 @@ const DiseasesAdmin = () => {
     }
   };
 
-  const handleDeleteDisease = async (id) => {
+  const handleDeleteResource = async (id) => {
     try {
-      await contentAPI.deleteDisease(id);
-      setDiseases(diseases.filter(d => d.id !== id));
+      await contentAPI.deleteMediaResource(id);
+      setResources(resources.filter(r => r.id !== id));
       setDeleteModal(null);
     } catch (err) {
       console.error('Error deleting:', err);
@@ -71,7 +80,7 @@ const DiseasesAdmin = () => {
     setUploading(prev => ({ ...prev, [fileType]: true }));
     try {
       const res = await contentAPI.uploadFile(file);
-      const fieldName = fileType === 'recommendation' ? 'recommendation_file_url' : 'protocol_file_url';
+      const fieldName = fileType === 'file' ? 'file_url' : 'image_url';
       setEditModal({ ...editModal, [fieldName]: res.data.url });
     } catch (err) {
       console.error('Error uploading:', err);
@@ -82,7 +91,7 @@ const DiseasesAdmin = () => {
   };
 
   const handleRemoveFile = (fileType) => {
-    const fieldName = fileType === 'recommendation' ? 'recommendation_file_url' : 'protocol_file_url';
+    const fieldName = fileType === 'file' ? 'file_url' : 'image_url';
     setEditModal({ ...editModal, [fieldName]: '' });
   };
 
@@ -101,49 +110,69 @@ const DiseasesAdmin = () => {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Информация о заболеваниях</h1>
+        <h1 className="text-2xl font-bold text-gray-800">Медиаресурсы</h1>
         <button
-          onClick={() => setEditModal({ ...emptyDisease })}
+          onClick={() => setEditModal({ ...emptyResource, resource_type: activeTab })}
           className="flex items-center gap-2 px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg hover:bg-[var(--color-primary-dark)] transition-colors"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-          Добавить заболевание
+          Добавить
         </button>
       </div>
 
-      {/* Diseases List */}
+      {/* Tabs */}
+      <div className="flex gap-1 mb-6 bg-gray-100 rounded-lg p-1">
+        {tabs.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeTab === tab.key
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {tab.label}
+            <span className="ml-2 text-xs text-gray-400">
+              ({resources.filter(r => r.resource_type === tab.key).length})
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* Resources List */}
       <div className="grid gap-4">
-        {diseases.map((disease) => (
-          <div key={disease.id} className="bg-white rounded-xl shadow-sm p-5">
+        {filteredResources.map((resource) => (
+          <div key={resource.id} className="bg-white rounded-xl shadow-sm p-5">
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 rounded-lg bg-cyan-50 flex items-center justify-center flex-shrink-0">
                 <svg className="w-6 h-6 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                 </svg>
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-semibold text-gray-900">{disease.name_ru}</h3>
-                  {disease.short_name && (
-                    <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">
-                      {disease.short_name}
-                    </span>
-                  )}
-                  {!disease.is_active && (
+                  <h3 className="font-semibold text-gray-900">{resource.title_ru}</h3>
+                  {!resource.is_active && (
                     <span className="px-2 py-0.5 text-xs bg-yellow-100 text-yellow-800 rounded-full">
                       Неактивен
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-gray-500 mb-3">{disease.description_ru}</p>
+                {resource.author_name_ru && (
+                  <p className="text-sm text-gray-600 mb-1">{resource.author_name_ru}</p>
+                )}
+                {resource.published_date && (
+                  <p className="text-xs text-gray-400 mb-3">{resource.published_date}</p>
+                )}
 
-                {/* Documents badges */}
+                {/* Badges */}
                 <div className="flex flex-wrap gap-2">
-                  {disease.recommendation_file_url ? (
+                  {resource.file_url ? (
                     <a
-                      href={`http://localhost:8000${disease.recommendation_file_url}`}
+                      href={`http://localhost:8000${resource.file_url}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-sm hover:bg-blue-100 transition-colors"
@@ -151,42 +180,42 @@ const DiseasesAdmin = () => {
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
-                      Клинические рекомендации
+                      Файл
                     </a>
                   ) : (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-400 rounded-lg text-sm">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
-                      Нет рекомендаций
+                      Нет файла
                     </span>
                   )}
-                  {disease.protocol_file_url ? (
+                  {resource.external_url ? (
                     <a
-                      href={`http://localhost:8000${disease.protocol_file_url}`}
+                      href={resource.external_url}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-sm hover:bg-emerald-100 transition-colors"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                       </svg>
-                      Клинический протокол
+                      Ссылка
                     </a>
                   ) : (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-400 rounded-lg text-sm">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                       </svg>
-                      Нет протокола
+                      Нет ссылки
                     </span>
                   )}
                 </div>
               </div>
-              <div className="text-sm text-gray-400">#{disease.order}</div>
+              <div className="text-sm text-gray-400">#{resource.order}</div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setEditModal({ ...disease })}
+                  onClick={() => setEditModal({ ...resource })}
                   className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"
                   title="Редактировать"
                 >
@@ -195,7 +224,7 @@ const DiseasesAdmin = () => {
                   </svg>
                 </button>
                 <button
-                  onClick={() => setDeleteModal(disease)}
+                  onClick={() => setDeleteModal(resource)}
                   className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
                   title="Удалить"
                 >
@@ -208,9 +237,9 @@ const DiseasesAdmin = () => {
           </div>
         ))}
 
-        {diseases.length === 0 && (
+        {filteredResources.length === 0 && (
           <div className="text-center py-12 text-gray-500 bg-white rounded-xl">
-            Заболеваний пока нет. Добавьте первое заболевание.
+            Ресурсов пока нет. Добавьте первый ресурс.
           </div>
         )}
       </div>
@@ -220,57 +249,45 @@ const DiseasesAdmin = () => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-white rounded-xl max-w-4xl w-full p-6 my-8">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              {editModal.id ? 'Редактировать' : 'Добавить'} заболевание
+              {editModal.id ? 'Редактировать' : 'Добавить'} ресурс
             </h3>
 
             <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
-              {/* Name - 3 languages */}
+              {/* Title - 3 languages */}
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Название (RU) *</label>
                   <input
                     type="text"
-                    value={editModal.name_ru}
-                    onChange={(e) => updateField('name_ru', e.target.value)}
+                    value={editModal.title_ru}
+                    onChange={(e) => updateField('title_ru', e.target.value)}
                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                    placeholder="Ревматоидный артрит"
+                    placeholder="Название ресурса"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Nomi (UZ)</label>
                   <input
                     type="text"
-                    value={editModal.name_uz}
-                    onChange={(e) => updateField('name_uz', e.target.value)}
+                    value={editModal.title_uz}
+                    onChange={(e) => updateField('title_uz', e.target.value)}
                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                    placeholder="Revmatoid artrit"
+                    placeholder="Resurs nomi"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Name (EN)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Title (EN)</label>
                   <input
                     type="text"
-                    value={editModal.name_en}
-                    onChange={(e) => updateField('name_en', e.target.value)}
+                    value={editModal.title_en}
+                    onChange={(e) => updateField('title_en', e.target.value)}
                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                    placeholder="Rheumatoid Arthritis"
+                    placeholder="Resource title"
                   />
                 </div>
               </div>
 
-              {/* Short name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Краткое название / аббревиатура</label>
-                <input
-                  type="text"
-                  value={editModal.short_name || ''}
-                  onChange={(e) => updateField('short_name', e.target.value)}
-                  className="w-48 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  placeholder="РА"
-                />
-              </div>
-
-              {/* Description */}
+              {/* Description - 3 languages */}
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Описание (RU)</label>
@@ -301,59 +318,51 @@ const DiseasesAdmin = () => {
                 </div>
               </div>
 
-              {/* Rich Text Content */}
-              <div className="border-t pt-6">
-                <h4 className="font-medium text-gray-900 mb-4 flex items-center gap-2">
-                  <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
-                  </svg>
-                  Контент страницы (HTML)
-                </h4>
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Контент (RU)</label>
-                    <textarea
-                      value={editModal.content_ru || ''}
-                      onChange={(e) => updateField('content_ru', e.target.value)}
-                      rows={6}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent font-mono text-sm"
-                      placeholder="<h3>Заголовок</h3><p>Текст...</p>"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Kontent (UZ)</label>
-                    <textarea
-                      value={editModal.content_uz || ''}
-                      onChange={(e) => updateField('content_uz', e.target.value)}
-                      rows={6}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent font-mono text-sm"
-                      placeholder="<h3>Sarlavha</h3><p>Matn...</p>"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Content (EN)</label>
-                    <textarea
-                      value={editModal.content_en || ''}
-                      onChange={(e) => updateField('content_en', e.target.value)}
-                      rows={6}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent font-mono text-sm"
-                      placeholder="<h3>Title</h3><p>Text...</p>"
-                    />
-                  </div>
+              {/* Author name - 3 languages */}
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Автор (RU)</label>
+                  <input
+                    type="text"
+                    value={editModal.author_name_ru || ''}
+                    onChange={(e) => updateField('author_name_ru', e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+                    placeholder="Имя автора"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Muallif (UZ)</label>
+                  <input
+                    type="text"
+                    value={editModal.author_name_uz || ''}
+                    onChange={(e) => updateField('author_name_uz', e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+                    placeholder="Muallif ismi"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Author (EN)</label>
+                  <input
+                    type="text"
+                    value={editModal.author_name_en || ''}
+                    onChange={(e) => updateField('author_name_en', e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+                    placeholder="Author name"
+                  />
                 </div>
               </div>
 
-              {/* Documents Section */}
+              {/* File & Image Uploads */}
               <div className="border-t pt-6">
                 <h4 className="font-medium text-gray-900 mb-4 flex items-center gap-2">
                   <svg className="w-5 h-5 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
-                  Прикреплённые документы
+                  Файлы
                 </h4>
 
                 <div className="grid grid-cols-2 gap-6">
-                  {/* Clinical Recommendations */}
+                  {/* File Upload */}
                   <div className="p-4 border-2 border-dashed border-blue-200 rounded-xl bg-blue-50/50">
                     <div className="flex items-center gap-2 mb-3">
                       <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -361,21 +370,21 @@ const DiseasesAdmin = () => {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                       </div>
-                      <span className="font-medium text-blue-900">Клинические рекомендации</span>
+                      <span className="font-medium text-blue-900">Файл документа</span>
                     </div>
 
-                    {editModal.recommendation_file_url ? (
+                    {editModal.file_url ? (
                       <div className="flex items-center gap-2">
                         <a
-                          href={`http://localhost:8000${editModal.recommendation_file_url}`}
+                          href={`http://localhost:8000${editModal.file_url}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex-1 text-sm text-blue-600 hover:underline truncate"
                         >
-                          {editModal.recommendation_file_url.split('/').pop()}
+                          {editModal.file_url.split('/').pop()}
                         </a>
                         <button
-                          onClick={() => handleRemoveFile('recommendation')}
+                          onClick={() => handleRemoveFile('file')}
                           className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"
                           title="Удалить файл"
                         >
@@ -389,12 +398,12 @@ const DiseasesAdmin = () => {
                         <input
                           type="file"
                           accept=".pdf,.doc,.docx"
-                          onChange={(e) => handleFileUpload(e, 'recommendation')}
+                          onChange={(e) => handleFileUpload(e, 'file')}
                           className="hidden"
-                          disabled={uploading.recommendation}
+                          disabled={uploading.file}
                         />
                         <div className="flex items-center justify-center gap-2 px-4 py-3 border border-blue-300 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors text-sm text-blue-700">
-                          {uploading.recommendation ? (
+                          {uploading.file ? (
                             <>
                               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
                               Загрузка...
@@ -412,31 +421,31 @@ const DiseasesAdmin = () => {
                     )}
                   </div>
 
-                  {/* Clinical Protocol */}
+                  {/* Image Upload (Cover) */}
                   <div className="p-4 border-2 border-dashed border-emerald-200 rounded-xl bg-emerald-50/50">
                     <div className="flex items-center gap-2 mb-3">
                       <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
                         <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
                       </div>
-                      <span className="font-medium text-emerald-900">Клинический протокол</span>
+                      <span className="font-medium text-emerald-900">Обложка</span>
                     </div>
 
-                    {editModal.protocol_file_url ? (
+                    {editModal.image_url ? (
                       <div className="flex items-center gap-2">
                         <a
-                          href={`http://localhost:8000${editModal.protocol_file_url}`}
+                          href={`http://localhost:8000${editModal.image_url}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex-1 text-sm text-emerald-600 hover:underline truncate"
                         >
-                          {editModal.protocol_file_url.split('/').pop()}
+                          {editModal.image_url.split('/').pop()}
                         </a>
                         <button
-                          onClick={() => handleRemoveFile('protocol')}
+                          onClick={() => handleRemoveFile('image')}
                           className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"
-                          title="Удалить файл"
+                          title="Удалить изображение"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -447,13 +456,13 @@ const DiseasesAdmin = () => {
                       <label className="block">
                         <input
                           type="file"
-                          accept=".pdf,.doc,.docx"
-                          onChange={(e) => handleFileUpload(e, 'protocol')}
+                          accept=".jpg,.jpeg,.png,.webp"
+                          onChange={(e) => handleFileUpload(e, 'image')}
                           className="hidden"
-                          disabled={uploading.protocol}
+                          disabled={uploading.image}
                         />
                         <div className="flex items-center justify-center gap-2 px-4 py-3 border border-emerald-300 rounded-lg cursor-pointer hover:bg-emerald-100 transition-colors text-sm text-emerald-700">
-                          {uploading.protocol ? (
+                          {uploading.image ? (
                             <>
                               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-emerald-600"></div>
                               Загрузка...
@@ -463,7 +472,7 @@ const DiseasesAdmin = () => {
                               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                               </svg>
-                              Загрузить PDF
+                              Загрузить изображение
                             </>
                           )}
                         </div>
@@ -471,6 +480,29 @@ const DiseasesAdmin = () => {
                     )}
                   </div>
                 </div>
+              </div>
+
+              {/* External URL */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Внешняя ссылка</label>
+                <input
+                  type="text"
+                  value={editModal.external_url || ''}
+                  onChange={(e) => updateField('external_url', e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+                  placeholder="https://example.com/article"
+                />
+              </div>
+
+              {/* Published date */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Дата публикации</label>
+                <input
+                  type="date"
+                  value={editModal.published_date || ''}
+                  onChange={(e) => updateField('published_date', e.target.value)}
+                  className="w-48 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+                />
               </div>
 
               {/* Order & Active */}
@@ -505,7 +537,7 @@ const DiseasesAdmin = () => {
                 Отмена
               </button>
               <button
-                onClick={handleSaveDisease}
+                onClick={handleSaveResource}
                 disabled={saving}
                 className="px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg hover:bg-[var(--color-primary-dark)] transition-colors disabled:opacity-50"
               >
@@ -520,9 +552,9 @@ const DiseasesAdmin = () => {
       {deleteModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl max-w-md w-full p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Удалить заболевание?</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Удалить ресурс?</h3>
             <p className="text-gray-500 mb-6">
-              Вы уверены, что хотите удалить "{deleteModal.name_ru}"? Прикреплённые документы также будут удалены.
+              Вы уверены, что хотите удалить "{deleteModal.title_ru}"? Прикреплённые файлы также будут удалены.
             </p>
             <div className="flex gap-3 justify-end">
               <button
@@ -532,7 +564,7 @@ const DiseasesAdmin = () => {
                 Отмена
               </button>
               <button
-                onClick={() => handleDeleteDisease(deleteModal.id)}
+                onClick={() => handleDeleteResource(deleteModal.id)}
                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
               >
                 Удалить
@@ -545,4 +577,4 @@ const DiseasesAdmin = () => {
   );
 };
 
-export default DiseasesAdmin;
+export default MediaResourcesAdmin;
