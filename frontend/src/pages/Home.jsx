@@ -76,9 +76,22 @@ const Home = () => {
 
   // Hero для гостей (не авторизованных)
   const GuestHero = () => (
-    <section className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden">
-      {/* Декоративные элементы */}
+    <section className="relative bg-slate-900 overflow-hidden">
+      {/* Фоновое изображение */}
       <div className="absolute inset-0">
+        <img
+          src="/hero-bg.jpg"
+          alt=""
+          className="w-full h-full object-cover"
+        />
+        {/* Градиентный оверлей: плотный слева (текст) → полупрозрачный справа (фото) */}
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-900 via-slate-900/95 to-slate-900/60 lg:to-slate-900/40"></div>
+        {/* Дополнительный вертикальный градиент для мобильных — усиленная читаемость */}
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-900/80 via-transparent to-slate-900/90 lg:from-transparent lg:via-transparent lg:to-slate-900/30"></div>
+      </div>
+
+      {/* Декоративные элементы */}
+      <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-0 right-0 w-64 md:w-96 h-64 md:h-96 bg-sky-500/10 rounded-full blur-3xl"></div>
         <div className="absolute bottom-0 left-0 w-48 md:w-80 h-48 md:h-80 bg-blue-500/10 rounded-full blur-3xl"></div>
         {/* Элегантный паттерн - ромбы вместо точек */}
