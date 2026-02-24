@@ -1,16 +1,75 @@
+import { useState, useEffect } from 'react';
 import { Link, useLocation, Navigate, Outlet } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
+import { ToastProvider } from '../../components/admin/Toast';
+import {
+  LayoutDashboard, Newspaper, Users, UserCircle, Building2,
+  Globe, FileText, Clock, Stethoscope, GraduationCap, BookOpen,
+  CalendarDays, UserCog, PanelLeftClose, PanelLeftOpen,
+  ExternalLink, Menu, X
+} from 'lucide-react';
+import './admin.css';
+
+const NAV_GROUPS = [
+  {
+    label: 'Основное',
+    items: [
+      { path: '/admin', label: 'Дашборд', icon: LayoutDashboard, exact: true },
+      { path: '/admin/news', label: 'Новости и события', icon: Newspaper },
+    ],
+  },
+  {
+    label: 'Организация',
+    items: [
+      { path: '/admin/board', label: 'Правление', icon: Users },
+      { path: '/admin/chief-rheumatologists', label: 'Гл. ревматологи', icon: Stethoscope },
+      { path: '/admin/centers', label: 'Центры', icon: Building2 },
+      { path: '/admin/center-staff', label: 'Сотрудники центров', icon: UserCircle },
+      { path: '/admin/partners', label: 'Партнёры', icon: Globe },
+    ],
+  },
+  {
+    label: 'Контент',
+    items: [
+      { path: '/admin/diseases', label: 'Заболевания', icon: FileText },
+      { path: '/admin/education-events', label: 'Образование', icon: GraduationCap },
+      { path: '/admin/media-resources', label: 'Медиаресурсы', icon: BookOpen },
+      { path: '/admin/charter', label: 'Устав', icon: FileText },
+      { path: '/admin/history', label: 'История', icon: Clock },
+    ],
+  },
+  {
+    label: 'Система',
+    items: [
+      { path: '/admin/congress', label: 'Конгресс', icon: CalendarDays },
+      { path: '/admin/users', label: 'Пользователи', icon: UserCog },
+    ],
+  },
+];
+
+const SIDEBAR_EXPANDED = 240;
+const SIDEBAR_COLLAPSED = 64;
 
 const AdminLayout = () => {
-  const { t } = useTranslation();
   const location = useLocation();
   const { user, isAdmin, loading } = useAuth();
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem('admin_sidebar') === 'collapsed'; } catch { return false; }
+  });
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    try { localStorage.setItem('admin_sidebar', collapsed ? 'collapsed' : 'expanded'); } catch {}
+  }, [collapsed]);
+
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--color-primary)]"></div>
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent" />
       </div>
     );
   }
@@ -19,153 +78,155 @@ const AdminLayout = () => {
     return <Navigate to="/login" replace />;
   }
 
-  const menuItems = [
-    { path: '/admin', label: 'Панель управления', icon: 'dashboard' },
-    { path: '/admin/news', label: 'Новости и события', icon: 'news' },
-    { path: '/admin/board', label: 'Правление', icon: 'members' },
-    { path: '/admin/partners', label: 'Партнёры', icon: 'partners' },
-    { path: '/admin/charter', label: 'Правоустанавливающие документы', icon: 'charter' },
-    { path: '/admin/history', label: 'История', icon: 'history' },
-    { path: '/admin/chief-rheumatologists', label: 'Главные ревматологи', icon: 'doctors' },
-    { path: '/admin/diseases', label: 'Информация о заболеваниях', icon: 'documents' },
-    { path: '/admin/centers', label: 'Центры', icon: 'centers' },
-    { path: '/admin/center-staff', label: 'Сотрудники центров', icon: 'staff' },
-    { path: '/admin/congress', label: 'Конгресс', icon: 'congress' },
-    { path: '/admin/education-events', label: 'Образование', icon: 'education' },
-    { path: '/admin/media-resources', label: 'Медиаресурсы', icon: 'media' },
-    { path: '/admin/users', label: 'Пользователи', icon: 'users' },
-  ];
-
-  const isActive = (path) => {
-    if (path === '/admin') return location.pathname === '/admin';
-    return location.pathname.startsWith(path);
+  const isActive = (item) => {
+    if (item.exact) return location.pathname === item.path;
+    return location.pathname.startsWith(item.path);
   };
 
-  const getIcon = (icon) => {
-    const icons = {
-      dashboard: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-        </svg>
-      ),
-      news: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
-        </svg>
-      ),
-      congress: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-        </svg>
-      ),
-      members: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-        </svg>
-      ),
-      doctors: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      ),
-      centers: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-        </svg>
-      ),
-      partners: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-        </svg>
-      ),
-      charter: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-      ),
-      documents: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-      ),
-      users: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-        </svg>
-      ),
-      staff: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-        </svg>
-      ),
-      history: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      ),
-      education: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-        </svg>
-      ),
-      media: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
-        </svg>
-      ),
-    };
-    return icons[icon] || icons.dashboard;
-  };
+  const sidebarWidth = collapsed ? SIDEBAR_COLLAPSED : SIDEBAR_EXPANDED;
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Top Bar */}
-      <header className="bg-white shadow-sm fixed top-0 left-0 right-0 z-50">
-        <div className="flex items-center justify-between px-6 py-3">
-          <div className="flex items-center gap-4">
-            <Link to="/" className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-[var(--color-primary)] rounded-full flex items-center justify-center">
-                <span className="text-white font-bold text-sm">РА</span>
+    <ToastProvider>
+      <div className="min-h-screen bg-slate-50">
+        {/* Top Bar */}
+        <header className="h-12 bg-white border-b border-slate-200 fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-4">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setMobileOpen(true)}
+              className="md:hidden p-1.5 rounded-md text-slate-500 hover:bg-slate-100"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <Link to="/admin" className="flex items-center gap-2">
+              <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-xs">РА</span>
               </div>
-              <span className="font-semibold text-gray-800">Admin</span>
+              <span className="text-sm font-semibold text-slate-800 hidden sm:inline">Админ-панель</span>
             </Link>
           </div>
-          <div className="flex items-center gap-4">
-            <Link to="/" className="text-sm text-gray-600 hover:text-gray-800">
-              ← Вернуться на сайт
+          <div className="flex items-center gap-3">
+            <Link
+              to="/"
+              className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 transition-colors"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">На сайт</span>
             </Link>
-            <span className="text-sm text-gray-600">{user?.full_name}</span>
+            <div className="h-4 w-px bg-slate-200" />
+            <span className="text-xs text-slate-600 font-medium">{user?.full_name}</span>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <div className="flex pt-14">
+        {/* Mobile overlay */}
+        {mobileOpen && (
+          <div
+            className="fixed inset-0 bg-black/30 z-40 md:hidden sidebar-overlay"
+            onClick={() => setMobileOpen(false)}
+          />
+        )}
+
         {/* Sidebar */}
-        <aside className="w-64 bg-white shadow-sm min-h-[calc(100vh-56px)] fixed left-0 top-14">
-          <nav className="p-4 space-y-1">
-            {menuItems.map((item) => (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-                  isActive(item.path)
-                    ? 'bg-cyan-50 text-[var(--color-primary)]'
-                    : 'text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                {getIcon(item.icon)}
-                {item.label}
-              </Link>
+        <aside
+          className="admin-sidebar fixed top-12 bottom-0 z-40 bg-white border-r border-slate-200 overflow-y-auto overflow-x-hidden hidden md:block"
+          style={{ width: sidebarWidth }}
+        >
+          {/* Collapse toggle */}
+          <div className="flex items-center justify-end p-2 border-b border-slate-100">
+            <button
+              onClick={() => setCollapsed(!collapsed)}
+              className="p-1.5 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+              title={collapsed ? 'Развернуть' : 'Свернуть'}
+            >
+              {collapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
+            </button>
+          </div>
+
+          <nav className="p-2">
+            {NAV_GROUPS.map((group) => (
+              <div key={group.label} className="mb-3">
+                {!collapsed && (
+                  <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                    {group.label}
+                  </div>
+                )}
+                {collapsed && <div className="my-1 mx-2 border-t border-slate-100" />}
+                <div className="space-y-0.5">
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+                    const active = isActive(item);
+                    return (
+                      <Link
+                        key={item.path}
+                        to={item.path}
+                        title={collapsed ? item.label : undefined}
+                        className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-[13px] font-medium transition-colors ${
+                          active
+                            ? 'bg-blue-50 text-blue-600 border-l-2 border-blue-600 pl-[10px]'
+                            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800 border-l-2 border-transparent pl-[10px]'
+                        }`}
+                      >
+                        <Icon className="w-[18px] h-[18px] shrink-0" />
+                        {!collapsed && <span className="sidebar-label">{item.label}</span>}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
             ))}
           </nav>
         </aside>
 
+        {/* Mobile sidebar */}
+        {mobileOpen && (
+          <aside className="admin-sidebar fixed top-12 bottom-0 left-0 z-50 bg-white border-r border-slate-200 overflow-y-auto w-60 md:hidden">
+            <div className="flex items-center justify-between p-3 border-b border-slate-100">
+              <span className="text-sm font-semibold text-slate-700">Меню</span>
+              <button onClick={() => setMobileOpen(false)} className="p-1 text-slate-400 hover:text-slate-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <nav className="p-2">
+              {NAV_GROUPS.map((group) => (
+                <div key={group.label} className="mb-3">
+                  <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                    {group.label}
+                  </div>
+                  <div className="space-y-0.5">
+                    {group.items.map((item) => {
+                      const Icon = item.icon;
+                      const active = isActive(item);
+                      return (
+                        <Link
+                          key={item.path}
+                          to={item.path}
+                          className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-[13px] font-medium transition-colors ${
+                            active
+                              ? 'bg-blue-50 text-blue-600 border-l-2 border-blue-600 pl-[10px]'
+                              : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800 border-l-2 border-transparent pl-[10px]'
+                          }`}
+                        >
+                          <Icon className="w-[18px] h-[18px] shrink-0" />
+                          <span>{item.label}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </nav>
+          </aside>
+        )}
+
         {/* Main Content */}
-        <main className="flex-1 ml-64 p-6">
-          <Outlet />
+        <main
+          className={`pt-12 transition-[margin] duration-200 ${collapsed ? 'md:ml-16' : 'md:ml-60'}`}
+        >
+          <div className="p-4 md:p-5 max-w-7xl">
+            <Outlet />
+          </div>
         </main>
       </div>
-    </div>
+    </ToastProvider>
   );
 };
 

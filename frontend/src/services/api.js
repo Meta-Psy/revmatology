@@ -205,4 +205,17 @@ export const contentAPI = {
     api.get('/congress/congress-registrations', { params: { congress_id: congressId } }),
 };
 
+// ==================== ADMIN API ====================
+export const adminAPI = {
+  getStats: () => api.get('/admin/stats'),
+  getUsers: (skip = 0, limit = 50) => api.get('/admin/users', { params: { skip, limit } }),
+  updateUserRole: (userId, role) => api.put(`/admin/users/${userId}/role`, null, { params: { role } }),
+  deleteUser: (userId) => api.delete(`/admin/users/${userId}`),
+  getCongressRegistrations: (congressId = null) =>
+    api.get('/admin/congress/registrations', { params: { congress_id: congressId } }),
+  getSchoolApplications: (schoolType = null, status = null) =>
+    api.get('/admin/school/applications', { params: { school_type: schoolType, status } }),
+  updateApplicationStatus: (id, status) => api.put(`/admin/school/applications/${id}/status`, null, { params: { status } }),
+};
+
 export default api;

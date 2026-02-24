@@ -1,21 +1,73 @@
 import { useState, useEffect } from 'react';
+import { Plus, Building2 } from 'lucide-react';
 import { contentAPI } from '../../services/api';
+import {
+  PageHeader,
+  AdminTable,
+  AdminModal,
+  AdminForm,
+  AdminFormField,
+  ConfirmDialog,
+  LangTabs,
+  FileUpload,
+  StatusBadge,
+  Skeleton,
+} from '../../components/admin';
+import { useToast } from '../../components/admin/Toast';
+
+const EMPTY_CENTER = {
+  name_ru: '', name_uz: '', name_en: '',
+  description_ru: '', description_uz: '', description_en: '',
+  address_ru: '', address_uz: '', address_en: '',
+  phone: '', email: '', website: '',
+  image_url: '',
+  order: 0,
+  is_active: true,
+};
+
+const columns = [
+  {
+    key: 'name_ru',
+    label: 'Название (RU)',
+    sortable: true,
+    render: (val) => (
+      <span className="font-medium text-slate-800 line-clamp-1">{val || '\u2014'}</span>
+    ),
+  },
+  {
+    key: 'address_ru',
+    label: 'Адрес',
+    sortable: false,
+    render: (val) => (
+      <span className="text-slate-600 line-clamp-1">{val || '\u2014'}</span>
+    ),
+  },
+  {
+    key: 'phone',
+    label: 'Телефон',
+    sortable: false,
+    width: 'w-40',
+    render: (val) => (
+      <span className="text-slate-500 text-xs">{val || '\u2014'}</span>
+    ),
+  },
+  {
+    key: 'is_active',
+    label: 'Статус',
+    sortable: true,
+    width: 'w-28',
+    render: (val) => <StatusBadge active={val} />,
+  },
+];
 
 const CentersAdmin = () => {
+  const toast = useToast();
   const [centers, setCenters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editModal, setEditModal] = useState(null);
-  const [deleteModal, setDeleteModal] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [saving, setSaving] = useState(false);
-
-  const emptyCenter = {
-    name_ru: '', name_uz: '', name_en: '',
-    description_ru: '', description_uz: '', description_en: '',
-    address_ru: '', address_uz: '', address_en: '',
-    phone: '', email: '', website: '',
-    image_url: '',
-    order: 0, is_active: true
-  };
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     loadCenters();
@@ -25,12 +77,15 @@ const CentersAdmin = () => {
     try {
       const res = await contentAPI.getCenters(true);
       setCenters(res.data);
-    } catch (err) {
-      console.error('Error loading centers:', err);
+    } catch {
+      toast.error('Ошибка загрузки центров');
     } finally {
       setLoading(false);
     }
   };
+
+  const handleEdit = (row) => setEditModal({ ...row });
+  const handleCreate = () => setEditModal({ ...EMPTY_CENTER });
 
   const handleSave = async () => {
     setSaving(true);
@@ -40,36 +95,41 @@ const CentersAdmin = () => {
       } else {
         await contentAPI.createCenter(editModal);
       }
-      await loadCenters();
+      toast.success(editModal.id ? 'Центр обновлён' : 'Центр создан');
       setEditModal(null);
-    } catch (err) {
-      console.error('Error saving:', err);
-      alert('Ошибка сохранения');
+      await loadCenters();
+    } catch {
+      toast.error('Ошибка сохранения');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async () => {
+    setDeleting(true);
     try {
-      await contentAPI.deleteCenter(id);
-      setCenters(centers.filter(c => c.id !== id));
-      setDeleteModal(null);
-    } catch (err) {
-      console.error('Error deleting:', err);
+      await contentAPI.deleteCenter(deleteTarget.id);
+      setCenters(centers.filter((c) => c.id !== deleteTarget.id));
+      setDeleteTarget(null);
+      toast.success('Центр удалён');
+    } catch {
+      toast.error('Ошибка удаления');
+    } finally {
+      setDeleting(false);
     }
   };
 
-  const handleImageUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
+  const handleImageUpload = async (file) => {
+    if (!file) {
+      setEditModal({ ...editModal, image_url: '' });
+      return;
+    }
     try {
       const res = await contentAPI.uploadFile(file);
       setEditModal({ ...editModal, image_url: res.data.url });
-    } catch (err) {
-      console.error('Error uploading:', err);
-      alert('Ошибка загрузки файла');
+      toast.success('Изображение загружено');
+    } catch {
+      toast.error('Ошибка загрузки файла');
     }
   };
 
@@ -77,312 +137,161 @@ const CentersAdmin = () => {
     setEditModal({ ...editModal, [field]: value });
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--color-primary)]"></div>
-      </div>
-    );
-  }
+  if (loading) return <Skeleton rows={6} cols={4} />;
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Ревматологические центры</h1>
-        <button
-          onClick={() => setEditModal({ ...emptyCenter })}
-          className="flex items-center gap-2 px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg hover:bg-[var(--color-primary-dark)] transition-colors"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Добавить центр
-        </button>
-      </div>
+      <PageHeader
+        title="Ревматологические центры"
+        breadcrumbs={[
+          { label: 'Главная', path: '/admin' },
+          { label: 'Центры' },
+        ]}
+        action={
+          <button
+            onClick={handleCreate}
+            className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 inline-flex items-center gap-1.5"
+          >
+            <Plus className="w-4 h-4" />
+            Добавить центр
+          </button>
+        }
+      />
 
-      {/* Centers Grid */}
-      <div className="grid gap-4">
-        {centers.map((center) => (
-          <div key={center.id} className="bg-white rounded-xl shadow-sm p-4 flex items-center gap-4">
-            <div className="w-20 h-20 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0">
-              {center.image_url ? (
-                <img src={center.image_url} alt="" className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-gray-400">
-                  <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                  </svg>
-                </div>
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <h3 className="font-medium text-gray-900">{center.name_ru}</h3>
-                {!center.is_active && (
-                  <span className="px-2 py-0.5 text-xs bg-yellow-100 text-yellow-800 rounded-full">
-                    Неактивен
-                  </span>
-                )}
-              </div>
-              <p className="text-sm text-gray-500 truncate">{center.address_ru}</p>
-              {center.phone && <p className="text-xs text-gray-400">{center.phone}</p>}
-            </div>
-            <div className="text-sm text-gray-400">#{center.order}</div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setEditModal({ ...center })}
-                className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-              </button>
-              <button
-                onClick={() => setDeleteModal(center)}
-                className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        ))}
+      <AdminTable
+        columns={columns}
+        data={centers}
+        loading={loading}
+        onEdit={handleEdit}
+        onDelete={setDeleteTarget}
+        emptyIcon={Building2}
+        emptyTitle="Центров пока нет"
+        emptyDescription="Добавьте первый ревматологический центр"
+      />
 
-        {centers.length === 0 && (
-          <div className="text-center py-12 text-gray-500 bg-white rounded-xl">
-            Центров пока нет
-          </div>
-        )}
-      </div>
+      {/* Edit / Create Modal */}
+      <AdminModal
+        open={!!editModal}
+        onClose={() => setEditModal(null)}
+        title={editModal?.id ? 'Редактировать центр' : 'Добавить центр'}
+        size="lg"
+      >
+        {editModal && (
+          <AdminForm
+            onSubmit={handleSave}
+            loading={saving}
+            onCancel={() => setEditModal(null)}
+          >
+            {/* Image */}
+            <FileUpload
+              label="Изображение"
+              value={editModal.image_url}
+              onChange={handleImageUpload}
+              accept="image/*"
+            />
 
-      {/* Edit Modal */}
-      {editModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-xl max-w-4xl w-full p-6 my-8">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              {editModal.id ? 'Редактировать' : 'Добавить'} центр
-            </h3>
-
-            <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
-              {/* Image */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Изображение</label>
-                <div className="flex items-center gap-4">
-                  <div className="w-32 h-24 rounded-lg bg-gray-100 overflow-hidden">
-                    {editModal.image_url ? (
-                      <img src={editModal.image_url} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-400">
-                        <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                        </svg>
-                      </div>
-                    )}
-                  </div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="text-sm"
-                  />
-                </div>
-              </div>
-
-              {/* Name - 3 languages */}
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Название (RU) *</label>
-                  <input
-                    type="text"
-                    value={editModal.name_ru}
-                    onChange={(e) => updateField('name_ru', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                    placeholder="Республиканский центр"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nomi (UZ) *</label>
-                  <input
-                    type="text"
-                    value={editModal.name_uz}
-                    onChange={(e) => updateField('name_uz', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                    placeholder="Respublika markazi"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Name (EN) *</label>
-                  <input
-                    type="text"
-                    value={editModal.name_en}
-                    onChange={(e) => updateField('name_en', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                    placeholder="Republican Center"
-                  />
-                </div>
-              </div>
-
-              {/* Description - 3 languages */}
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Описание (RU)</label>
-                  <textarea
-                    value={editModal.description_ru || ''}
-                    onChange={(e) => updateField('description_ru', e.target.value)}
-                    rows={3}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Tavsif (UZ)</label>
-                  <textarea
-                    value={editModal.description_uz || ''}
-                    onChange={(e) => updateField('description_uz', e.target.value)}
-                    rows={3}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Description (EN)</label>
-                  <textarea
-                    value={editModal.description_en || ''}
-                    onChange={(e) => updateField('description_en', e.target.value)}
-                    rows={3}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              {/* Address - 3 languages */}
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Адрес (RU)</label>
-                  <textarea
-                    value={editModal.address_ru || ''}
-                    onChange={(e) => updateField('address_ru', e.target.value)}
-                    rows={2}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Manzil (UZ)</label>
-                  <textarea
-                    value={editModal.address_uz || ''}
-                    onChange={(e) => updateField('address_uz', e.target.value)}
-                    rows={2}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Address (EN)</label>
-                  <textarea
-                    value={editModal.address_en || ''}
-                    onChange={(e) => updateField('address_en', e.target.value)}
-                    rows={2}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              {/* Contact & Order */}
-              <div className="grid grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Телефон</label>
-                  <input
-                    type="tel"
-                    value={editModal.phone || ''}
-                    onChange={(e) => updateField('phone', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                    placeholder="+998 71 123 45 67"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                  <input
-                    type="email"
-                    value={editModal.email || ''}
-                    onChange={(e) => updateField('email', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Веб-сайт</label>
-                  <input
-                    type="url"
-                    value={editModal.website || ''}
-                    onChange={(e) => updateField('website', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Порядок сортировки</label>
-                  <input
-                    type="number"
-                    value={editModal.order}
-                    onChange={(e) => updateField('order', parseInt(e.target.value) || 0)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              {/* Active */}
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="is_active"
-                  checked={editModal.is_active}
-                  onChange={(e) => updateField('is_active', e.target.checked)}
-                  className="w-4 h-4 text-cyan-600 rounded focus:ring-cyan-500"
+            {/* Name */}
+            <LangTabs>
+              {(lang) => (
+                <AdminFormField
+                  label={`Название (${lang.toUpperCase()})`}
+                  name={`name_${lang}`}
+                  value={editModal[`name_${lang}`]}
+                  onChange={(e) => updateField(`name_${lang}`, e.target.value)}
+                  required={lang === 'ru'}
+                  placeholder="Название центра"
                 />
-                <label htmlFor="is_active" className="text-sm text-gray-700">Активен (отображается на сайте)</label>
-              </div>
+              )}
+            </LangTabs>
+
+            {/* Description */}
+            <LangTabs>
+              {(lang) => (
+                <AdminFormField
+                  label={`Описание (${lang.toUpperCase()})`}
+                  name={`description_${lang}`}
+                  type="textarea"
+                  rows={3}
+                  value={editModal[`description_${lang}`]}
+                  onChange={(e) => updateField(`description_${lang}`, e.target.value)}
+                  placeholder="Описание центра"
+                />
+              )}
+            </LangTabs>
+
+            {/* Address */}
+            <LangTabs>
+              {(lang) => (
+                <AdminFormField
+                  label={`Адрес (${lang.toUpperCase()})`}
+                  name={`address_${lang}`}
+                  type="textarea"
+                  rows={2}
+                  value={editModal[`address_${lang}`]}
+                  onChange={(e) => updateField(`address_${lang}`, e.target.value)}
+                  placeholder="Адрес центра"
+                />
+              )}
+            </LangTabs>
+
+            {/* Contact info */}
+            <div className="grid grid-cols-3 gap-4">
+              <AdminFormField
+                label="Телефон"
+                name="phone"
+                type="tel"
+                value={editModal.phone}
+                onChange={(e) => updateField('phone', e.target.value)}
+                placeholder="+998 71 123 45 67"
+              />
+              <AdminFormField
+                label="Email"
+                name="email"
+                type="email"
+                value={editModal.email}
+                onChange={(e) => updateField('email', e.target.value)}
+                placeholder="info@center.uz"
+              />
+              <AdminFormField
+                label="Веб-сайт"
+                name="website"
+                value={editModal.website}
+                onChange={(e) => updateField('website', e.target.value)}
+                placeholder="https://center.uz"
+              />
             </div>
 
-            <div className="flex gap-3 justify-end mt-6 pt-4 border-t">
-              <button
-                onClick={() => setEditModal(null)}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                Отмена
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg hover:bg-[var(--color-primary-dark)] transition-colors disabled:opacity-50"
-              >
-                {saving ? 'Сохранение...' : 'Сохранить'}
-              </button>
+            {/* Order & Active */}
+            <div className="flex items-end gap-6">
+              <AdminFormField
+                label="Порядок сортировки"
+                name="order"
+                type="number"
+                value={editModal.order}
+                onChange={(e) => updateField('order', parseInt(e.target.value) || 0)}
+                className="w-28"
+              />
+              <AdminFormField
+                label="Активен (отображается на сайте)"
+                name="is_active"
+                type="checkbox"
+                value={editModal.is_active}
+                onChange={(e) => updateField('is_active', e.target.value)}
+              />
             </div>
-          </div>
-        </div>
-      )}
+          </AdminForm>
+        )}
+      </AdminModal>
 
-      {/* Delete Modal */}
-      {deleteModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl max-w-md w-full p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Удалить центр?</h3>
-            <p className="text-gray-500 mb-6">
-              Вы уверены, что хотите удалить "{deleteModal.name_ru}"? Все сотрудники этого центра также будут удалены.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setDeleteModal(null)}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                Отмена
-              </button>
-              <button
-                onClick={() => handleDelete(deleteModal.id)}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-              >
-                Удалить
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        title="Удалить центр?"
+        message={`Вы уверены, что хотите удалить "${deleteTarget?.name_ru}"? Все сотрудники этого центра также будут удалены.`}
+        loading={deleting}
+      />
     </div>
   );
 };

@@ -5,19 +5,42 @@ import ru from './locales/ru.json';
 import uz from './locales/uz.json';
 import en from './locales/en.json';
 
+const SUPPORTED_LANGS = ['ru', 'uz', 'en'];
+
+const getSavedLang = () => {
+  try {
+    const saved = localStorage.getItem('language');
+    if (saved && SUPPORTED_LANGS.includes(saved)) return saved;
+  } catch {}
+  return 'ru';
+};
+
 const resources = {
   ru: { translation: ru },
   uz: { translation: uz },
   en: { translation: en },
 };
 
-i18n.use(initReactI18next).init({
-  resources,
-  lng: localStorage.getItem('language') || 'ru',
-  fallbackLng: 'ru',
-  interpolation: {
-    escapeValue: false,
-  },
+if (!i18n.isInitialized) {
+  i18n.use(initReactI18next).init({
+    resources,
+    lng: getSavedLang(),
+    fallbackLng: 'ru',
+    supportedLngs: SUPPORTED_LANGS,
+    interpolation: {
+      escapeValue: false,
+    },
+    react: {
+      useSuspense: false,
+    },
+  });
+}
+
+// Sync language changes to localStorage
+i18n.on('languageChanged', (lng) => {
+  try {
+    localStorage.setItem('language', lng);
+  } catch {}
 });
 
 export default i18n;

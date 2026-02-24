@@ -1,33 +1,106 @@
 import { useState, useEffect } from 'react';
+import { Plus, FileText, Download } from 'lucide-react';
 import { contentAPI } from '../../services/api';
+import PageHeader from '../../components/admin/PageHeader';
+import AdminTable from '../../components/admin/AdminTable';
+import AdminModal from '../../components/admin/AdminModal';
+import AdminForm from '../../components/admin/AdminForm';
+import AdminFormField from '../../components/admin/AdminFormField';
+import ConfirmDialog from '../../components/admin/ConfirmDialog';
+import LangTabs from '../../components/admin/LangTabs';
+import FileUpload from '../../components/admin/FileUpload';
+import StatusBadge from '../../components/admin/StatusBadge';
+import Skeleton from '../../components/admin/Skeleton';
+import { useToast } from '../../components/admin/Toast';
+
+const EMPTY_ITEM = {
+  title_ru: '', title_uz: '', title_en: '',
+  description_ru: '', description_uz: '', description_en: '',
+  file_url: '',
+  version: '',
+  is_active: true,
+};
+
+const columns = [
+  {
+    key: 'title_ru',
+    label: 'Название (RU)',
+    sortable: true,
+    render: (val, row) => (
+      <div>
+        <span className="font-medium text-slate-800">{val || '—'}</span>
+        {row.version && (
+          <span className="ml-1.5 text-xs text-slate-400">v{row.version}</span>
+        )}
+      </div>
+    ),
+  },
+  {
+    key: 'version',
+    label: 'Версия',
+    sortable: true,
+    width: 'w-24',
+    render: (val) => (
+      <span className="text-slate-600">{val ? `v${val}` : '—'}</span>
+    ),
+  },
+  {
+    key: 'file_url',
+    label: 'Файл',
+    sortable: false,
+    width: 'w-32',
+    render: (val) =>
+      val ? (
+        <a
+          href={val}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 text-xs"
+        >
+          <Download className="w-3 h-3" />
+          Скачать PDF
+        </a>
+      ) : (
+        <span className="text-slate-400">—</span>
+      ),
+  },
+  {
+    key: 'is_active',
+    label: 'Статус',
+    sortable: true,
+    width: 'w-32',
+    render: (val) => (
+      <StatusBadge active={val} activeText="Активная версия" inactiveText="Неактивен" />
+    ),
+  },
+];
 
 const CharterAdmin = () => {
-  const [charters, setCharters] = useState([]);
+  const toast = useToast();
+  const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editModal, setEditModal] = useState(null);
-  const [deleteModal, setDeleteModal] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [saving, setSaving] = useState(false);
-
-  const emptyCharter = {
-    title_ru: '', title_uz: '', title_en: '',
-    description_ru: '', description_uz: '', description_en: '',
-    file_url: '', version: '', is_active: true
-  };
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    loadCharters();
+    loadItems();
   }, []);
 
-  const loadCharters = async () => {
+  const loadItems = async () => {
     try {
       const res = await contentAPI.getCharters();
-      setCharters(res.data);
-    } catch (err) {
-      console.error('Error loading charters:', err);
+      setItems(res.data);
+    } catch {
+      toast.error('Ошибка загрузки данных');
     } finally {
       setLoading(false);
     }
   };
+
+  const handleEdit = (row) => setEditModal({ ...row });
+  const handleCreate = () => setEditModal({ ...EMPTY_ITEM });
 
   const handleSave = async () => {
     setSaving(true);
@@ -37,36 +110,41 @@ const CharterAdmin = () => {
       } else {
         await contentAPI.createCharter(editModal);
       }
-      await loadCharters();
+      toast.success(editModal.id ? 'Устав обновлён' : 'Устав добавлен');
       setEditModal(null);
-    } catch (err) {
-      console.error('Error saving:', err);
-      alert('Ошибка сохранения');
+      await loadItems();
+    } catch {
+      toast.error('Ошибка сохранения');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async () => {
+    setDeleting(true);
     try {
-      await contentAPI.deleteCharter(id);
-      setCharters(charters.filter(c => c.id !== id));
-      setDeleteModal(null);
-    } catch (err) {
-      console.error('Error deleting:', err);
+      await contentAPI.deleteCharter(deleteTarget.id);
+      setItems(items.filter((c) => c.id !== deleteTarget.id));
+      setDeleteTarget(null);
+      toast.success('Устав удалён');
+    } catch {
+      toast.error('Ошибка удаления');
+    } finally {
+      setDeleting(false);
     }
   };
 
-  const handleFileUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
+  const handleFileUpload = async (file) => {
+    if (!file) {
+      setEditModal({ ...editModal, file_url: '' });
+      return;
+    }
     try {
       const res = await contentAPI.uploadFile(file);
       setEditModal({ ...editModal, file_url: res.data.url });
-    } catch (err) {
-      console.error('Error uploading:', err);
-      alert('Ошибка загрузки файла');
+      toast.success('Файл загружен');
+    } catch {
+      toast.error('Ошибка загрузки файла');
     }
   };
 
@@ -74,253 +152,119 @@ const CharterAdmin = () => {
     setEditModal({ ...editModal, [field]: value });
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--color-primary)]"></div>
-      </div>
-    );
-  }
+  if (loading) return <Skeleton rows={4} cols={4} />;
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Устав</h1>
-        <button
-          onClick={() => setEditModal({ ...emptyCharter })}
-          className="flex items-center gap-2 px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg hover:bg-[var(--color-primary-dark)] transition-colors"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Добавить версию
-        </button>
-      </div>
+      <PageHeader
+        title="Устав"
+        breadcrumbs={[
+          { label: 'Главная', path: '/admin' },
+          { label: 'Устав' },
+        ]}
+        action={
+          <button
+            onClick={handleCreate}
+            className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 inline-flex items-center gap-1.5"
+          >
+            <Plus className="w-4 h-4" />
+            Добавить версию
+          </button>
+        }
+      />
 
-      {/* Charters List */}
-      <div className="grid gap-4">
-        {charters.map((charter) => (
-          <div key={charter.id} className="bg-white rounded-xl shadow-sm p-4 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">
-              <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <h3 className="font-medium text-gray-900">{charter.title_ru}</h3>
-                {charter.version && (
-                  <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">
-                    v{charter.version}
-                  </span>
-                )}
-                {charter.is_active && (
-                  <span className="px-2 py-0.5 text-xs bg-green-100 text-green-800 rounded-full">
-                    Активная версия
-                  </span>
-                )}
-              </div>
-              <p className="text-sm text-gray-500 truncate">{charter.description_ru}</p>
-              {charter.file_url && (
-                <a href={charter.file_url} target="_blank" rel="noopener noreferrer" className="text-xs text-cyan-600 hover:underline">
-                  Скачать файл
-                </a>
+      <AdminTable
+        columns={columns}
+        data={items}
+        loading={loading}
+        onEdit={handleEdit}
+        onDelete={setDeleteTarget}
+        emptyIcon={FileText}
+        emptyTitle="Устав ещё не добавлен"
+        emptyDescription="Добавьте первую версию устава Ассоциации"
+      />
+
+      {/* Edit / Create Modal */}
+      <AdminModal
+        open={!!editModal}
+        onClose={() => setEditModal(null)}
+        title={editModal?.id ? 'Редактировать устав' : 'Добавить устав'}
+        size="lg"
+      >
+        {editModal && (
+          <AdminForm
+            onSubmit={handleSave}
+            loading={saving}
+            onCancel={() => setEditModal(null)}
+          >
+            {/* PDF file upload */}
+            <FileUpload
+              label="Файл (PDF)"
+              value={editModal.file_url}
+              onChange={handleFileUpload}
+              accept=".pdf"
+            />
+
+            {/* Title fields with language tabs */}
+            <LangTabs>
+              {(lang) => (
+                <AdminFormField
+                  label={`Название (${lang.toUpperCase()})`}
+                  name={`title_${lang}`}
+                  value={editModal[`title_${lang}`]}
+                  onChange={(e) => updateField(`title_${lang}`, e.target.value)}
+                  required={lang === 'ru'}
+                  placeholder="Устав Ассоциации"
+                />
               )}
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setEditModal({ ...charter })}
-                className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-              </button>
-              <button
-                onClick={() => setDeleteModal(charter)}
-                className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        ))}
+            </LangTabs>
 
-        {charters.length === 0 && (
-          <div className="text-center py-12 text-gray-500 bg-white rounded-xl">
-            Устав ещё не добавлен
-          </div>
+            {/* Description fields with language tabs */}
+            <LangTabs>
+              {(lang) => (
+                <AdminFormField
+                  label={`Описание (${lang.toUpperCase()})`}
+                  name={`description_${lang}`}
+                  type="textarea"
+                  rows={3}
+                  value={editModal[`description_${lang}`]}
+                  onChange={(e) => updateField(`description_${lang}`, e.target.value)}
+                  placeholder="Краткое описание версии устава"
+                />
+              )}
+            </LangTabs>
+
+            {/* Version & Active */}
+            <div className="flex items-end gap-6">
+              <AdminFormField
+                label="Версия"
+                name="version"
+                value={editModal.version}
+                onChange={(e) => updateField('version', e.target.value)}
+                placeholder="1.0"
+                className="w-32"
+              />
+              <AdminFormField
+                label="Активная версия (отображается на сайте)"
+                name="is_active"
+                type="checkbox"
+                value={editModal.is_active}
+                onChange={(e) => updateField('is_active', e.target.value)}
+              />
+            </div>
+          </AdminForm>
         )}
-      </div>
+      </AdminModal>
 
-      {/* Edit Modal */}
-      {editModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-xl max-w-4xl w-full p-6 my-8">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              {editModal.id ? 'Редактировать' : 'Добавить'} устав
-            </h3>
-
-            <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
-              {/* File */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Файл (PDF) *</label>
-                <div className="flex items-center gap-4">
-                  {editModal.file_url && (
-                    <a
-                      href={editModal.file_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-cyan-600 hover:underline"
-                    >
-                      Текущий файл
-                    </a>
-                  )}
-                  <input
-                    type="file"
-                    accept=".pdf"
-                    onChange={handleFileUpload}
-                    className="text-sm"
-                  />
-                </div>
-              </div>
-
-              {/* Title - 3 languages */}
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Название (RU) *</label>
-                  <input
-                    type="text"
-                    value={editModal.title_ru}
-                    onChange={(e) => updateField('title_ru', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                    placeholder="Устав Ассоциации"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Sarlavha (UZ) *</label>
-                  <input
-                    type="text"
-                    value={editModal.title_uz}
-                    onChange={(e) => updateField('title_uz', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                    placeholder="Assotsiatsiya ustavi"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Title (EN) *</label>
-                  <input
-                    type="text"
-                    value={editModal.title_en}
-                    onChange={(e) => updateField('title_en', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                    placeholder="Association Charter"
-                  />
-                </div>
-              </div>
-
-              {/* Description */}
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Описание (RU)</label>
-                  <textarea
-                    value={editModal.description_ru || ''}
-                    onChange={(e) => updateField('description_ru', e.target.value)}
-                    rows={3}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Tavsif (UZ)</label>
-                  <textarea
-                    value={editModal.description_uz || ''}
-                    onChange={(e) => updateField('description_uz', e.target.value)}
-                    rows={3}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Description (EN)</label>
-                  <textarea
-                    value={editModal.description_en || ''}
-                    onChange={(e) => updateField('description_en', e.target.value)}
-                    rows={3}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              {/* Version & Active */}
-              <div className="flex items-center gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Версия</label>
-                  <input
-                    type="text"
-                    value={editModal.version || ''}
-                    onChange={(e) => updateField('version', e.target.value)}
-                    className="w-32 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                    placeholder="1.0"
-                  />
-                </div>
-                <div className="flex items-center gap-2 pt-6">
-                  <input
-                    type="checkbox"
-                    id="is_active"
-                    checked={editModal.is_active}
-                    onChange={(e) => updateField('is_active', e.target.checked)}
-                    className="w-4 h-4 text-cyan-600 rounded focus:ring-cyan-500"
-                  />
-                  <label htmlFor="is_active" className="text-sm text-gray-700">Активная версия (отображается на сайте)</label>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex gap-3 justify-end mt-6 pt-4 border-t">
-              <button
-                onClick={() => setEditModal(null)}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                Отмена
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg hover:bg-[var(--color-primary-dark)] transition-colors disabled:opacity-50"
-              >
-                {saving ? 'Сохранение...' : 'Сохранить'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Modal */}
-      {deleteModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl max-w-md w-full p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Удалить?</h3>
-            <p className="text-gray-500 mb-6">
-              Вы уверены, что хотите удалить "{deleteModal.title_ru}"?
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setDeleteModal(null)}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                Отмена
-              </button>
-              <button
-                onClick={() => handleDelete(deleteModal.id)}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-              >
-                Удалить
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        title="Удалить устав?"
+        message={`Вы уверены, что хотите удалить "${deleteTarget?.title_ru}"?`}
+        loading={deleting}
+      />
     </div>
   );
 };

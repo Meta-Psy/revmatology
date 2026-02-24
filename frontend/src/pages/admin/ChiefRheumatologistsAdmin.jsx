@@ -1,26 +1,106 @@
 import { useState, useEffect } from 'react';
+import { Plus, Stethoscope } from 'lucide-react';
 import { contentAPI } from '../../services/api';
+import {
+  PageHeader,
+  AdminTable,
+  AdminModal,
+  AdminForm,
+  AdminFormField,
+  ConfirmDialog,
+  LangTabs,
+  FileUpload,
+  StatusBadge,
+  Skeleton,
+  useToast,
+} from '../../components/admin';
+
+const EMPTY_DOCTOR = {
+  last_name_ru: '', last_name_uz: '', last_name_en: '',
+  first_name_ru: '', first_name_uz: '', first_name_en: '',
+  patronymic_ru: '', patronymic_uz: '', patronymic_en: '',
+  position_ru: '', position_uz: '', position_en: '',
+  degree_ru: '', degree_uz: '', degree_en: '',
+  workplace_ru: '', workplace_uz: '', workplace_en: '',
+  region_ru: '', region_uz: '', region_en: '',
+  bio_ru: '', bio_uz: '', bio_en: '',
+  achievements_ru: '', achievements_uz: '', achievements_en: '',
+  photo_url: '', email: '', phone: '',
+  order: 0, is_active: true,
+};
+
+const LABELS = {
+  ru: {
+    last_name: 'Фамилия', first_name: 'Имя', patronymic: 'Отчество',
+    position: 'Должность', degree: 'Учёная степень', workplace: 'Место работы',
+    region: 'Регион', bio: 'Биография', achievements: 'Достижения',
+  },
+  uz: {
+    last_name: 'Familiya', first_name: 'Ism', patronymic: 'Otasining ismi',
+    position: 'Lavozim', degree: 'Ilmiy daraja', workplace: 'Ish joyi',
+    region: 'Hudud', bio: 'Biografiya', achievements: 'Yutuqlar',
+  },
+  en: {
+    last_name: 'Last Name', first_name: 'First Name', patronymic: 'Patronymic',
+    position: 'Position', degree: 'Degree', workplace: 'Workplace',
+    region: 'Region', bio: 'Biography', achievements: 'Achievements',
+  },
+};
+
+const columns = [
+  {
+    key: 'photo_url',
+    label: 'Фото',
+    sortable: false,
+    width: 'w-16',
+    render: (val) => (
+      <div className="w-9 h-9 rounded-full bg-slate-100 overflow-hidden flex-shrink-0">
+        {val ? (
+          <img src={val} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <Stethoscope className="w-4 h-4 text-slate-300" />
+          </div>
+        )}
+      </div>
+    ),
+  },
+  {
+    key: 'last_name_ru',
+    label: 'ФИО',
+    render: (_, row) => (
+      <span className="font-medium text-slate-800">
+        {row.last_name_ru} {row.first_name_ru} {row.patronymic_ru}
+      </span>
+    ),
+  },
+  {
+    key: 'region_ru',
+    label: 'Регион',
+    render: (val) => <span className="text-blue-600 text-xs font-medium">{val}</span>,
+  },
+  { key: 'position_ru', label: 'Должность' },
+  {
+    key: 'order',
+    label: '#',
+    width: 'w-12',
+  },
+  {
+    key: 'is_active',
+    label: 'Статус',
+    width: 'w-28',
+    render: (val) => <StatusBadge active={val} />,
+  },
+];
 
 const ChiefRheumatologistsAdmin = () => {
   const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editModal, setEditModal] = useState(null);
-  const [deleteModal, setDeleteModal] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [saving, setSaving] = useState(false);
-
-  const emptyDoctor = {
-    last_name_ru: '', last_name_uz: '', last_name_en: '',
-    first_name_ru: '', first_name_uz: '', first_name_en: '',
-    patronymic_ru: '', patronymic_uz: '', patronymic_en: '',
-    position_ru: '', position_uz: '', position_en: '',
-    degree_ru: '', degree_uz: '', degree_en: '',
-    workplace_ru: '', workplace_uz: '', workplace_en: '',
-    region_ru: '', region_uz: '', region_en: '',
-    bio_ru: '', bio_uz: '', bio_en: '',
-    achievements_ru: '', achievements_uz: '', achievements_en: '',
-    photo_url: '', email: '', phone: '',
-    order: 0, is_active: true
-  };
+  const [deleting, setDeleting] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     loadDoctors();
@@ -30,8 +110,8 @@ const ChiefRheumatologistsAdmin = () => {
     try {
       const res = await contentAPI.getChiefRheumatologists(true);
       setDoctors(res.data);
-    } catch (err) {
-      console.error('Error loading doctors:', err);
+    } catch {
+      toast.error('Ошибка загрузки главных ревматологов');
     } finally {
       setLoading(false);
     }
@@ -42,39 +122,44 @@ const ChiefRheumatologistsAdmin = () => {
     try {
       if (editModal.id) {
         await contentAPI.updateChiefRheumatologist(editModal.id, editModal);
+        toast.success('Ревматолог обновлён');
       } else {
         await contentAPI.createChiefRheumatologist(editModal);
+        toast.success('Ревматолог добавлен');
       }
       await loadDoctors();
       setEditModal(null);
-    } catch (err) {
-      console.error('Error saving:', err);
-      alert('Ошибка сохранения');
+    } catch {
+      toast.error('Ошибка сохранения');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async () => {
+    setDeleting(true);
     try {
-      await contentAPI.deleteChiefRheumatologist(id);
-      setDoctors(doctors.filter(d => d.id !== id));
-      setDeleteModal(null);
-    } catch (err) {
-      console.error('Error deleting:', err);
+      await contentAPI.deleteChiefRheumatologist(deleteTarget.id);
+      setDoctors(doctors.filter(d => d.id !== deleteTarget.id));
+      setDeleteTarget(null);
+      toast.success('Ревматолог удалён');
+    } catch {
+      toast.error('Ошибка удаления');
+    } finally {
+      setDeleting(false);
     }
   };
 
-  const handlePhotoUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
+  const handlePhotoUpload = async (file) => {
+    if (!file) {
+      setEditModal({ ...editModal, photo_url: '' });
+      return;
+    }
     try {
       const res = await contentAPI.uploadFile(file);
       setEditModal({ ...editModal, photo_url: res.data.url });
-    } catch (err) {
-      console.error('Error uploading:', err);
-      alert('Ошибка загрузки файла');
+    } catch {
+      toast.error('Ошибка загрузки фото');
     }
   };
 
@@ -82,503 +167,228 @@ const ChiefRheumatologistsAdmin = () => {
     setEditModal({ ...editModal, [field]: value });
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--color-primary)]"></div>
-      </div>
-    );
-  }
+  if (loading) return <Skeleton />;
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Главные ревматологи</h1>
-        <button
-          onClick={() => setEditModal({ ...emptyDoctor })}
-          className="flex items-center gap-2 px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg hover:bg-[var(--color-primary-dark)] transition-colors"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Добавить
-        </button>
-      </div>
+      <PageHeader
+        title="Главные ревматологи"
+        breadcrumbs={[
+          { label: 'Главная', path: '/admin' },
+          { label: 'Главные ревматологи' },
+        ]}
+        action={
+          <button
+            onClick={() => setEditModal({ ...EMPTY_DOCTOR })}
+            className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 inline-flex items-center gap-1.5"
+          >
+            <Plus className="w-4 h-4" />
+            Добавить
+          </button>
+        }
+      />
 
-      {/* Doctors Grid */}
-      <div className="grid gap-4">
-        {doctors.map((doctor) => (
-          <div key={doctor.id} className="bg-white rounded-xl shadow-sm p-4 flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-gray-100 overflow-hidden flex-shrink-0">
-              {doctor.photo_url ? (
-                <img src={doctor.photo_url} alt="" className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-gray-400">
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
+      <AdminTable
+        columns={columns}
+        data={doctors}
+        loading={loading}
+        onEdit={(row) => setEditModal({ ...row })}
+        onDelete={(row) => setDeleteTarget(row)}
+        emptyIcon={<Stethoscope className="w-10 h-10" />}
+        emptyTitle="Главных ревматологов пока нет"
+      />
+
+      {/* Edit / Create Modal */}
+      <AdminModal
+        open={!!editModal}
+        onClose={() => setEditModal(null)}
+        title={editModal?.id ? 'Редактировать ревматолога' : 'Добавить ревматолога'}
+        size="lg"
+      >
+        {editModal && (
+          <AdminForm onSubmit={handleSave} loading={saving} onCancel={() => setEditModal(null)}>
+            {/* Photo */}
+            <FileUpload
+              value={editModal.photo_url}
+              onChange={handlePhotoUpload}
+              accept="image/*"
+              label="Фото"
+            />
+
+            {/* Region */}
+            <LangTabs>
+              {(lang) => (
+                <AdminFormField
+                  label={LABELS[lang].region}
+                  name={`region_${lang}`}
+                  value={editModal[`region_${lang}`]}
+                  onChange={(e) => updateField(`region_${lang}`, e.target.value)}
+                  required={lang === 'ru'}
+                  placeholder={
+                    lang === 'ru' ? 'г. Ташкент'
+                    : lang === 'uz' ? 'Toshkent sh.'
+                    : 'Tashkent City'
+                  }
+                />
+              )}
+            </LangTabs>
+
+            {/* Name fields */}
+            <LangTabs>
+              {(lang) => (
+                <div className="grid grid-cols-3 gap-3">
+                  <AdminFormField
+                    label={LABELS[lang].last_name}
+                    name={`last_name_${lang}`}
+                    value={editModal[`last_name_${lang}`]}
+                    onChange={(e) => updateField(`last_name_${lang}`, e.target.value)}
+                    required={lang === 'ru'}
+                  />
+                  <AdminFormField
+                    label={LABELS[lang].first_name}
+                    name={`first_name_${lang}`}
+                    value={editModal[`first_name_${lang}`]}
+                    onChange={(e) => updateField(`first_name_${lang}`, e.target.value)}
+                    required={lang === 'ru'}
+                  />
+                  <AdminFormField
+                    label={LABELS[lang].patronymic}
+                    name={`patronymic_${lang}`}
+                    value={editModal[`patronymic_${lang}`]}
+                    onChange={(e) => updateField(`patronymic_${lang}`, e.target.value)}
+                  />
                 </div>
               )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <h3 className="font-medium text-gray-900">
-                  {doctor.last_name_ru} {doctor.first_name_ru} {doctor.patronymic_ru}
-                </h3>
-                {!doctor.is_active && (
-                  <span className="px-2 py-0.5 text-xs bg-yellow-100 text-yellow-800 rounded-full">
-                    Неактивен
-                  </span>
-                )}
-              </div>
-              <p className="text-sm text-gray-500">{doctor.position_ru}</p>
-              <p className="text-xs text-cyan-600">{doctor.region_ru}</p>
-            </div>
-            <div className="text-sm text-gray-400">#{doctor.order}</div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setEditModal({ ...doctor })}
-                className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-              </button>
-              <button
-                onClick={() => setDeleteModal(doctor)}
-                className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        ))}
+            </LangTabs>
 
-        {doctors.length === 0 && (
-          <div className="text-center py-12 text-gray-500 bg-white rounded-xl">
-            Главных ревматологов пока нет
-          </div>
-        )}
-      </div>
-
-      {/* Edit Modal */}
-      {editModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-xl max-w-4xl w-full p-6 my-8">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              {editModal.id ? 'Редактировать' : 'Добавить'} главного ревматолога
-            </h3>
-
-            <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
-              {/* Photo */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Фото</label>
-                <div className="flex items-center gap-4">
-                  <div className="w-24 h-24 rounded-lg bg-gray-100 overflow-hidden">
-                    {editModal.photo_url ? (
-                      <img src={editModal.photo_url} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-400">
-                        <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                        </svg>
-                      </div>
-                    )}
-                  </div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handlePhotoUpload}
-                    className="text-sm"
-                  />
-                </div>
-              </div>
-
-              {/* Region */}
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Регион (RU) *</label>
-                  <input
-                    type="text"
-                    value={editModal.region_ru || ''}
-                    onChange={(e) => updateField('region_ru', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                    placeholder="г. Ташкент"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Hudud (UZ) *</label>
-                  <input
-                    type="text"
-                    value={editModal.region_uz || ''}
-                    onChange={(e) => updateField('region_uz', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                    placeholder="Toshkent sh."
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Region (EN) *</label>
-                  <input
-                    type="text"
-                    value={editModal.region_en || ''}
-                    onChange={(e) => updateField('region_en', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                    placeholder="Tashkent City"
-                  />
-                </div>
-              </div>
-
-              {/* Name - 3 languages */}
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Фамилия (RU) *</label>
-                  <input
-                    type="text"
-                    value={editModal.last_name_ru}
-                    onChange={(e) => updateField('last_name_ru', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Familiya (UZ) *</label>
-                  <input
-                    type="text"
-                    value={editModal.last_name_uz}
-                    onChange={(e) => updateField('last_name_uz', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Last Name (EN) *</label>
-                  <input
-                    type="text"
-                    value={editModal.last_name_en}
-                    onChange={(e) => updateField('last_name_en', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Имя (RU) *</label>
-                  <input
-                    type="text"
-                    value={editModal.first_name_ru}
-                    onChange={(e) => updateField('first_name_ru', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Ism (UZ) *</label>
-                  <input
-                    type="text"
-                    value={editModal.first_name_uz}
-                    onChange={(e) => updateField('first_name_uz', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">First Name (EN) *</label>
-                  <input
-                    type="text"
-                    value={editModal.first_name_en}
-                    onChange={(e) => updateField('first_name_en', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Отчество (RU)</label>
-                  <input
-                    type="text"
-                    value={editModal.patronymic_ru || ''}
-                    onChange={(e) => updateField('patronymic_ru', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Otasining ismi (UZ)</label>
-                  <input
-                    type="text"
-                    value={editModal.patronymic_uz || ''}
-                    onChange={(e) => updateField('patronymic_uz', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Patronymic (EN)</label>
-                  <input
-                    type="text"
-                    value={editModal.patronymic_en || ''}
-                    onChange={(e) => updateField('patronymic_en', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              {/* Position */}
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Должность (RU) *</label>
-                  <input
-                    type="text"
-                    value={editModal.position_ru}
-                    onChange={(e) => updateField('position_ru', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                    placeholder="Главный ревматолог"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Lavozim (UZ) *</label>
-                  <input
-                    type="text"
-                    value={editModal.position_uz}
-                    onChange={(e) => updateField('position_uz', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                    placeholder="Bosh revmatolog"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Position (EN) *</label>
-                  <input
-                    type="text"
-                    value={editModal.position_en}
-                    onChange={(e) => updateField('position_en', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                    placeholder="Chief Rheumatologist"
-                  />
-                </div>
-              </div>
-
-              {/* Degree */}
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Учёная степень (RU)</label>
-                  <input
-                    type="text"
-                    value={editModal.degree_ru || ''}
-                    onChange={(e) => updateField('degree_ru', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Ilmiy daraja (UZ)</label>
-                  <input
-                    type="text"
-                    value={editModal.degree_uz || ''}
-                    onChange={(e) => updateField('degree_uz', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Degree (EN)</label>
-                  <input
-                    type="text"
-                    value={editModal.degree_en || ''}
-                    onChange={(e) => updateField('degree_en', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              {/* Workplace */}
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Место работы (RU)</label>
-                  <textarea
-                    value={editModal.workplace_ru || ''}
-                    onChange={(e) => updateField('workplace_ru', e.target.value)}
-                    rows={2}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Ish joyi (UZ)</label>
-                  <textarea
-                    value={editModal.workplace_uz || ''}
-                    onChange={(e) => updateField('workplace_uz', e.target.value)}
-                    rows={2}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Workplace (EN)</label>
-                  <textarea
-                    value={editModal.workplace_en || ''}
-                    onChange={(e) => updateField('workplace_en', e.target.value)}
-                    rows={2}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              {/* Bio */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Биография / Tarjimai hol / Biography</label>
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">RU</label>
-                    <textarea
-                      value={editModal.bio_ru || ''}
-                      onChange={(e) => updateField('bio_ru', e.target.value)}
-                      rows={3}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                      placeholder="Краткая биография..."
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">UZ</label>
-                    <textarea
-                      value={editModal.bio_uz || ''}
-                      onChange={(e) => updateField('bio_uz', e.target.value)}
-                      rows={3}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                      placeholder="Qisqa tarjimai hol..."
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">EN</label>
-                    <textarea
-                      value={editModal.bio_en || ''}
-                      onChange={(e) => updateField('bio_en', e.target.value)}
-                      rows={3}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                      placeholder="Brief biography..."
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Achievements */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Достижения и награды / Yutuqlar / Achievements</label>
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">RU</label>
-                    <textarea
-                      value={editModal.achievements_ru || ''}
-                      onChange={(e) => updateField('achievements_ru', e.target.value)}
-                      rows={3}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                      placeholder="Достижения, награды, публикации..."
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">UZ</label>
-                    <textarea
-                      value={editModal.achievements_uz || ''}
-                      onChange={(e) => updateField('achievements_uz', e.target.value)}
-                      rows={3}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                      placeholder="Yutuqlar, mukofotlar, nashrlar..."
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">EN</label>
-                    <textarea
-                      value={editModal.achievements_en || ''}
-                      onChange={(e) => updateField('achievements_en', e.target.value)}
-                      rows={3}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                      placeholder="Achievements, awards, publications..."
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Contact & Order */}
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                  <input
-                    type="email"
-                    value={editModal.email || ''}
-                    onChange={(e) => updateField('email', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Телефон</label>
-                  <input
-                    type="tel"
-                    value={editModal.phone || ''}
-                    onChange={(e) => updateField('phone', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Порядок сортировки</label>
-                  <input
-                    type="number"
-                    value={editModal.order}
-                    onChange={(e) => updateField('order', parseInt(e.target.value) || 0)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              {/* Active */}
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="is_active"
-                  checked={editModal.is_active}
-                  onChange={(e) => updateField('is_active', e.target.checked)}
-                  className="w-4 h-4 text-cyan-600 rounded focus:ring-cyan-500"
+            {/* Position */}
+            <LangTabs>
+              {(lang) => (
+                <AdminFormField
+                  label={LABELS[lang].position}
+                  name={`position_${lang}`}
+                  value={editModal[`position_${lang}`]}
+                  onChange={(e) => updateField(`position_${lang}`, e.target.value)}
+                  required={lang === 'ru'}
+                  placeholder={
+                    lang === 'ru' ? 'Главный ревматолог'
+                    : lang === 'uz' ? 'Bosh revmatolog'
+                    : 'Chief Rheumatologist'
+                  }
                 />
-                <label htmlFor="is_active" className="text-sm text-gray-700">Активен</label>
-              </div>
+              )}
+            </LangTabs>
+
+            {/* Degree */}
+            <LangTabs>
+              {(lang) => (
+                <AdminFormField
+                  label={LABELS[lang].degree}
+                  name={`degree_${lang}`}
+                  value={editModal[`degree_${lang}`]}
+                  onChange={(e) => updateField(`degree_${lang}`, e.target.value)}
+                />
+              )}
+            </LangTabs>
+
+            {/* Workplace */}
+            <LangTabs>
+              {(lang) => (
+                <AdminFormField
+                  label={LABELS[lang].workplace}
+                  name={`workplace_${lang}`}
+                  type="textarea"
+                  rows={2}
+                  value={editModal[`workplace_${lang}`]}
+                  onChange={(e) => updateField(`workplace_${lang}`, e.target.value)}
+                />
+              )}
+            </LangTabs>
+
+            {/* Bio */}
+            <LangTabs>
+              {(lang) => (
+                <AdminFormField
+                  label={LABELS[lang].bio}
+                  name={`bio_${lang}`}
+                  type="textarea"
+                  rows={3}
+                  value={editModal[`bio_${lang}`]}
+                  onChange={(e) => updateField(`bio_${lang}`, e.target.value)}
+                  placeholder={
+                    lang === 'ru' ? 'Краткая биография...'
+                    : lang === 'uz' ? 'Qisqa tarjimai hol...'
+                    : 'Brief biography...'
+                  }
+                />
+              )}
+            </LangTabs>
+
+            {/* Achievements */}
+            <LangTabs>
+              {(lang) => (
+                <AdminFormField
+                  label={LABELS[lang].achievements}
+                  name={`achievements_${lang}`}
+                  type="textarea"
+                  rows={3}
+                  value={editModal[`achievements_${lang}`]}
+                  onChange={(e) => updateField(`achievements_${lang}`, e.target.value)}
+                  placeholder={
+                    lang === 'ru' ? 'Достижения, награды, публикации...'
+                    : lang === 'uz' ? 'Yutuqlar, mukofotlar, nashrlar...'
+                    : 'Achievements, awards, publications...'
+                  }
+                />
+              )}
+            </LangTabs>
+
+            {/* Contact & Order */}
+            <div className="grid grid-cols-3 gap-3">
+              <AdminFormField
+                label="Email"
+                name="email"
+                type="email"
+                value={editModal.email}
+                onChange={(e) => updateField('email', e.target.value)}
+              />
+              <AdminFormField
+                label="Телефон"
+                name="phone"
+                type="tel"
+                value={editModal.phone}
+                onChange={(e) => updateField('phone', e.target.value)}
+              />
+              <AdminFormField
+                label="Порядок сортировки"
+                name="order"
+                type="number"
+                value={editModal.order}
+                onChange={(e) => updateField('order', parseInt(e.target.value) || 0)}
+              />
             </div>
 
-            <div className="flex gap-3 justify-end mt-6 pt-4 border-t">
-              <button
-                onClick={() => setEditModal(null)}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                Отмена
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg hover:bg-[var(--color-primary-dark)] transition-colors disabled:opacity-50"
-              >
-                {saving ? 'Сохранение...' : 'Сохранить'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            {/* Active */}
+            <AdminFormField
+              label="Активен (отображается на сайте)"
+              name="is_active"
+              type="checkbox"
+              value={editModal.is_active}
+              onChange={(e) => updateField('is_active', e.target.value)}
+            />
+          </AdminForm>
+        )}
+      </AdminModal>
 
-      {/* Delete Modal */}
-      {deleteModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl max-w-md w-full p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Удалить?</h3>
-            <p className="text-gray-500 mb-6">
-              Вы уверены, что хотите удалить {deleteModal.last_name_ru} {deleteModal.first_name_ru}?
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setDeleteModal(null)}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                Отмена
-              </button>
-              <button
-                onClick={() => handleDelete(deleteModal.id)}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-              >
-                Удалить
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        title="Удалить ревматолога?"
+        message={`Вы уверены, что хотите удалить ${deleteTarget?.last_name_ru} ${deleteTarget?.first_name_ru}?`}
+        loading={deleting}
+      />
     </div>
   );
 };

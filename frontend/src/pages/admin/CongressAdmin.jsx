@@ -1,8 +1,395 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { Plus, Building2, Calendar, LayoutList, Mic, Users, Download } from 'lucide-react';
 import { contentAPI } from '../../services/api';
+import {
+  PageHeader, AdminTable, AdminModal, ConfirmDialog, AdminForm,
+  AdminFormField, LangTabs, FileUpload, StatusBadge, Skeleton, EmptyState, useToast,
+} from '../../components/admin';
 
+// ---------------------------------------------------------------------------
+// TABS CONFIG
+// ---------------------------------------------------------------------------
+const TABS = [
+  { key: 'congresses', label: 'Конгрессы', icon: Building2 },
+  { key: 'sponsors', label: 'Спонсоры', icon: Building2 },
+  { key: 'days', label: 'Дни программы', icon: Calendar },
+  { key: 'sections', label: 'Секции', icon: LayoutList },
+  { key: 'speakers', label: 'Спикеры', icon: Mic },
+  { key: 'registrations', label: 'Регистрации', icon: Users },
+];
+
+// ---------------------------------------------------------------------------
+// EMPTY MODELS
+// ---------------------------------------------------------------------------
+const EMPTY_CONGRESS = {
+  title_ru: '', title_uz: '', title_en: '',
+  description_ru: '', description_uz: '', description_en: '',
+  date_start: '', date_end: '',
+  location_ru: '', location_uz: '', location_en: '',
+  image_url: '', is_active: true, registration_open: true,
+  about_ru: '', about_uz: '', about_en: '',
+  organizers_ru: '', organizers_uz: '', organizers_en: '',
+  young_scientists_ru: '', young_scientists_uz: '', young_scientists_en: '',
+  contact_publications_phone: '', contact_publications_email: '',
+  contact_registration_phone: '', contact_registration_email: '',
+  contact_participation_phone: '', contact_participation_email: '',
+  info_letter_ru: '', info_letter_uz: '', info_letter_en: '',
+  info_letter_file_ru: '', info_letter_file_uz: '', info_letter_file_en: '',
+};
+
+const EMPTY_SPONSOR = {
+  name_ru: '', name_uz: '', name_en: '',
+  description_ru: '', description_uz: '', description_en: '',
+  logo_url: '', website_url: '', order: 0, is_active: true,
+};
+
+const EMPTY_DAY = {
+  date: '', title_ru: '', title_uz: '', title_en: '',
+  description_ru: '', description_uz: '', description_en: '', order: 0,
+};
+
+const EMPTY_SECTION = {
+  title_ru: '', title_uz: '', title_en: '',
+  description_ru: '', description_uz: '', description_en: '', order: 0,
+};
+
+const EMPTY_SPEAKER = {
+  last_name_ru: '', last_name_uz: '', last_name_en: '',
+  first_name_ru: '', first_name_uz: '', first_name_en: '',
+  patronymic_ru: '', patronymic_uz: '', patronymic_en: '',
+  degree_ru: '', degree_uz: '', degree_en: '',
+  workplace_ru: '', workplace_uz: '', workplace_en: '',
+  topic_ru: '', topic_uz: '', topic_en: '',
+  section_id: null, time_start: '', time_end: '',
+  photo_url: '', order: 0, is_active: true,
+};
+
+// ---------------------------------------------------------------------------
+// COLUMN DEFINITIONS
+// ---------------------------------------------------------------------------
+const congressColumns = [
+  {
+    key: 'title_ru', label: 'Название', sortable: true,
+    render: (val) => <span className="font-medium text-slate-800">{val || '--'}</span>,
+  },
+  {
+    key: 'date_start', label: 'Дата начала', sortable: true, width: 'w-36',
+    render: (val) => <span className="text-slate-600">{val ? new Date(val).toLocaleDateString('ru-RU') : '--'}</span>,
+  },
+  {
+    key: 'is_active', label: 'Статус', sortable: true, width: 'w-28',
+    render: (val) => <StatusBadge active={val} />,
+  },
+  {
+    key: 'registration_open', label: 'Регистрация', sortable: true, width: 'w-28',
+    render: (val) => <StatusBadge active={val} activeText="Открыта" inactiveText="Закрыта" />,
+  },
+];
+
+const sponsorColumns = [
+  {
+    key: 'logo_url', label: 'Лого', sortable: false, width: 'w-16',
+    render: (val, row) => (
+      <div className="w-10 h-10 rounded bg-slate-100 overflow-hidden flex items-center justify-center shrink-0">
+        {val ? <img src={val} alt="" className="w-full h-full object-contain p-1" /> : <span className="text-xs font-bold text-slate-400">{(row.name_ru || '?')[0]}</span>}
+      </div>
+    ),
+  },
+  {
+    key: 'name_ru', label: 'Название', sortable: true,
+    render: (val) => <span className="font-medium text-slate-800">{val || '--'}</span>,
+  },
+  {
+    key: 'website_url', label: 'Сайт', sortable: false, width: 'w-40',
+    render: (val) => val ? <a href={val} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700 text-xs truncate max-w-[140px] inline-block">{val.replace(/^https?:\/\/(www\.)?/, '')}</a> : <span className="text-slate-400">--</span>,
+  },
+  { key: 'order', label: 'Порядок', sortable: true, width: 'w-24', render: (val) => <span className="text-slate-500">{val ?? 0}</span> },
+  { key: 'is_active', label: 'Статус', sortable: true, width: 'w-28', render: (val) => <StatusBadge active={val} /> },
+];
+
+const dayColumns = [
+  {
+    key: 'title_ru', label: 'Название', sortable: true,
+    render: (val) => <span className="font-medium text-slate-800">{val || '--'}</span>,
+  },
+  {
+    key: 'date', label: 'Дата', sortable: true, width: 'w-36',
+    render: (val) => <span className="text-slate-600">{val ? new Date(val).toLocaleDateString('ru-RU') : '--'}</span>,
+  },
+  { key: 'order', label: 'Порядок', sortable: true, width: 'w-24', render: (val) => <span className="text-slate-500">{val ?? 0}</span> },
+];
+
+const sectionColumns = [
+  {
+    key: 'title_ru', label: 'Название', sortable: true,
+    render: (val) => <span className="font-medium text-slate-800">{val || '--'}</span>,
+  },
+  { key: 'order', label: 'Порядок', sortable: true, width: 'w-24', render: (val) => <span className="text-slate-500">{val ?? 0}</span> },
+];
+
+const speakerColumns = [
+  {
+    key: 'last_name_ru', label: 'ФИО', sortable: true,
+    render: (_, row) => <span className="font-medium text-slate-800">{row.last_name_ru} {row.first_name_ru} {row.patronymic_ru || ''}</span>,
+  },
+  { key: 'degree_ru', label: 'Степень', sortable: true, width: 'w-40', render: (val) => <span className="text-slate-600">{val || '--'}</span> },
+  { key: 'topic_ru', label: 'Тема', sortable: false, render: (val) => <span className="text-slate-600 truncate max-w-[200px] inline-block">{val || '--'}</span> },
+  { key: 'is_active', label: 'Статус', sortable: true, width: 'w-28', render: (val) => <StatusBadge active={val} /> },
+];
+
+const registrationColumns = [
+  {
+    key: 'last_name', label: 'ФИО', sortable: true,
+    render: (_, row) => <span className="font-medium text-slate-800">{row.last_name} {row.first_name} {row.patronymic || ''}</span>,
+  },
+  {
+    key: 'email', label: 'Контакты', sortable: true,
+    render: (val, row) => (
+      <div>
+        <div className="text-slate-800">{val}</div>
+        {row.phone && <div className="text-xs text-slate-400">{row.phone}</div>}
+      </div>
+    ),
+  },
+  { key: 'organization', label: 'Организация', sortable: true, render: (val) => <span className="text-slate-600">{val || '--'}</span> },
+  { key: 'position', label: 'Должность', sortable: true, render: (val) => <span className="text-slate-600">{val || '--'}</span> },
+  {
+    key: 'created_at', label: 'Дата', sortable: true, width: 'w-28',
+    render: (val) => <span className="text-slate-500">{val ? new Date(val).toLocaleDateString('ru-RU') : '--'}</span>,
+  },
+];
+
+// ---------------------------------------------------------------------------
+// CSV EXPORT HELPER
+// ---------------------------------------------------------------------------
+const exportRegistrationsCSV = (registrations) => {
+  const headers = ['Фамилия', 'Имя', 'Отчество', 'Email', 'Телефон', 'Организация', 'Должность', 'Дата'];
+  const rows = registrations.map(r => [
+    r.last_name, r.first_name, r.patronymic || '', r.email, r.phone || '',
+    r.organization || '', r.position || '', new Date(r.created_at).toLocaleDateString('ru-RU'),
+  ]);
+  const csvContent = [headers, ...rows].map(row => row.map(c => `"${(c || '').replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'congress_registrations.csv';
+  link.click();
+  URL.revokeObjectURL(url);
+};
+
+// ---------------------------------------------------------------------------
+// CONGRESS FORM SUB-TABS
+// ---------------------------------------------------------------------------
+const CONGRESS_FORM_TABS = [
+  { key: 'basic', label: 'Основное' },
+  { key: 'tabs', label: 'Вкладки' },
+  { key: 'contacts', label: 'Контакты' },
+  { key: 'infoLetter', label: 'Инфо-письмо' },
+];
+
+const CONGRESS_TAB_FIELDS = [
+  { field: 'about', label: 'О конгрессе' },
+  { field: 'organizers', label: 'Организаторы' },
+  { field: 'young_scientists', label: 'Конкурс молодых ученых' },
+];
+
+const CONTACT_BLOCKS = [
+  { prefix: 'contact_publications', label: 'По вопросам публикаций' },
+  { prefix: 'contact_registration', label: 'По вопросам регистрации' },
+  { prefix: 'contact_participation', label: 'По вопросам участия' },
+];
+
+// ---------------------------------------------------------------------------
+// CONGRESS FORM MODAL CONTENT
+// ---------------------------------------------------------------------------
+const CongressFormContent = ({ form, updateField, onImageUpload }) => {
+  const [formTab, setFormTab] = useState('basic');
+
+  return (
+    <>
+      {/* Sub-tabs within the congress form */}
+      <div className="flex gap-0.5 mb-4 bg-slate-100 rounded-md p-0.5 w-fit">
+        {CONGRESS_FORM_TABS.map(t => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setFormTab(t.key)}
+            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+              formTab === t.key ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {formTab === 'basic' && (
+        <>
+          <LangTabs>
+            {(lang) => (
+              <AdminFormField
+                label={`Название (${lang.toUpperCase()})`}
+                name={`title_${lang}`}
+                value={form[`title_${lang}`]}
+                onChange={(e) => updateField(`title_${lang}`, e.target.value)}
+                required={lang === 'ru'}
+              />
+            )}
+          </LangTabs>
+
+          <LangTabs>
+            {(lang) => (
+              <AdminFormField
+                label={`Описание (${lang.toUpperCase()})`}
+                name={`description_${lang}`}
+                type="textarea"
+                rows={3}
+                value={form[`description_${lang}`]}
+                onChange={(e) => updateField(`description_${lang}`, e.target.value)}
+              />
+            )}
+          </LangTabs>
+
+          <div className="grid grid-cols-2 gap-4">
+            <AdminFormField
+              label="Дата начала"
+              name="date_start"
+              type="datetime-local"
+              value={form.date_start ? form.date_start.substring(0, 16) : ''}
+              onChange={(e) => updateField('date_start', e.target.value)}
+            />
+            <AdminFormField
+              label="Дата окончания"
+              name="date_end"
+              type="datetime-local"
+              value={form.date_end ? form.date_end.substring(0, 16) : ''}
+              onChange={(e) => updateField('date_end', e.target.value)}
+            />
+          </div>
+
+          <LangTabs>
+            {(lang) => (
+              <AdminFormField
+                label={`Место проведения (${lang.toUpperCase()})`}
+                name={`location_${lang}`}
+                value={form[`location_${lang}`]}
+                onChange={(e) => updateField(`location_${lang}`, e.target.value)}
+              />
+            )}
+          </LangTabs>
+
+          <FileUpload
+            label="Изображение"
+            value={form.image_url}
+            onChange={onImageUpload}
+            accept="image/*"
+          />
+
+          <div className="flex items-end gap-6">
+            <AdminFormField
+              label="Активен"
+              name="is_active"
+              type="checkbox"
+              value={form.is_active}
+              onChange={(e) => updateField('is_active', e.target.value)}
+            />
+            <AdminFormField
+              label="Регистрация открыта"
+              name="registration_open"
+              type="checkbox"
+              value={form.registration_open}
+              onChange={(e) => updateField('registration_open', e.target.value)}
+            />
+          </div>
+        </>
+      )}
+
+      {formTab === 'tabs' && (
+        <>
+          {CONGRESS_TAB_FIELDS.map(({ field, label }) => (
+            <div key={field}>
+              <p className="text-xs font-medium text-slate-600 mb-1">{label}</p>
+              <LangTabs>
+                {(lang) => (
+                  <AdminFormField
+                    label={lang.toUpperCase()}
+                    name={`${field}_${lang}`}
+                    type="textarea"
+                    rows={4}
+                    value={form[`${field}_${lang}`]}
+                    onChange={(e) => updateField(`${field}_${lang}`, e.target.value)}
+                  />
+                )}
+              </LangTabs>
+            </div>
+          ))}
+        </>
+      )}
+
+      {formTab === 'contacts' && (
+        <>
+          {CONTACT_BLOCKS.map(({ prefix, label }) => (
+            <div key={prefix}>
+              <p className="text-xs font-medium text-slate-600 mb-1">{label}</p>
+              <div className="grid grid-cols-2 gap-4">
+                <AdminFormField
+                  label="Телефон"
+                  name={`${prefix}_phone`}
+                  value={form[`${prefix}_phone`]}
+                  onChange={(e) => updateField(`${prefix}_phone`, e.target.value)}
+                />
+                <AdminFormField
+                  label="Email"
+                  name={`${prefix}_email`}
+                  type="email"
+                  value={form[`${prefix}_email`]}
+                  onChange={(e) => updateField(`${prefix}_email`, e.target.value)}
+                />
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+
+      {formTab === 'infoLetter' && (
+        <>
+          <LangTabs>
+            {(lang) => (
+              <AdminFormField
+                label={`Контент (${lang.toUpperCase()})`}
+                name={`info_letter_${lang}`}
+                type="textarea"
+                rows={4}
+                value={form[`info_letter_${lang}`]}
+                onChange={(e) => updateField(`info_letter_${lang}`, e.target.value)}
+              />
+            )}
+          </LangTabs>
+          <LangTabs>
+            {(lang) => (
+              <AdminFormField
+                label={`PDF файл URL (${lang.toUpperCase()})`}
+                name={`info_letter_file_${lang}`}
+                value={form[`info_letter_file_${lang}`]}
+                onChange={(e) => updateField(`info_letter_file_${lang}`, e.target.value)}
+                placeholder="https://..."
+              />
+            )}
+          </LangTabs>
+        </>
+      )}
+    </>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// MAIN COMPONENT
+// ---------------------------------------------------------------------------
 const CongressAdmin = () => {
-  const [activeTab, setActiveTab] = useState('congresses');
+  const toast = useToast();
+
+  // --- Data state ---
   const [congresses, setCongresses] = useState([]);
   const [sponsors, setSponsors] = useState([]);
   const [programDays, setProgramDays] = useState([]);
@@ -11,25 +398,37 @@ const CongressAdmin = () => {
   const [registrations, setRegistrations] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // --- UI state ---
+  const [activeTab, setActiveTab] = useState('congresses');
   const [selectedCongressId, setSelectedCongressId] = useState(null);
   const [selectedDayId, setSelectedDayId] = useState(null);
-  const [editItem, setEditItem] = useState(null);
-  const [showForm, setShowForm] = useState(false);
 
-  useEffect(() => { loadCongresses(); }, []);
-  useEffect(() => { if (selectedCongressId) { loadCongressData(); } }, [selectedCongressId]);
-  useEffect(() => { if (selectedDayId) { loadSections(selectedDayId); } }, [selectedDayId]);
+  // --- Modal state ---
+  const [editModal, setEditModal] = useState(null);   // null = closed, object = editing
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
-  const loadCongresses = async () => {
+  // ---------------------------------------------------------------------------
+  // DATA LOADING
+  // ---------------------------------------------------------------------------
+  const loadCongresses = useCallback(async () => {
     try {
       const res = await contentAPI.getCongresses(true);
-      setCongresses(res.data || []);
-      if (res.data?.length > 0 && !selectedCongressId) setSelectedCongressId(res.data[0].id);
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
-  };
+      const list = res.data || [];
+      setCongresses(list);
+      if (list.length > 0 && !selectedCongressId) {
+        setSelectedCongressId(list[0].id);
+      }
+    } catch {
+      toast.error('Ошибка загрузки конгрессов');
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedCongressId]);
 
-  const loadCongressData = async () => {
+  const loadCongressData = useCallback(async () => {
+    if (!selectedCongressId) return;
     try {
       const [sp, days, spk, regs] = await Promise.all([
         contentAPI.getCongressSponsors(selectedCongressId, true),
@@ -38,623 +437,675 @@ const CongressAdmin = () => {
         contentAPI.getCongressRegistrations(selectedCongressId).catch(() => ({ data: [] })),
       ]);
       setSponsors(sp.data || []);
-      setProgramDays(days.data || []);
+      const daysList = days.data || [];
+      setProgramDays(daysList);
       setSpeakers(spk.data || []);
       setRegistrations(regs.data || []);
-      if (days.data?.length > 0) { setSelectedDayId(days.data[0].id); }
-    } catch (err) { console.error(err); }
-  };
-
-  const loadSections = async (dayId) => {
-    try {
-      const res = await contentAPI.getCongressProgramSections(dayId);
-      setSections(res.data || []);
-    } catch (err) { console.error(err); }
-  };
-
-  // ==================== GENERIC CRUD HELPERS ====================
-  const handleSave = async (type, data) => {
-    try {
-      if (editItem?.id) {
-        const { congress_id, day_id, ...updateData } = data;
-        const updateFn = {
-          congress: contentAPI.updateCongress,
-          sponsor: contentAPI.updateCongressSponsor,
-          day: contentAPI.updateCongressProgramDay,
-          section: contentAPI.updateCongressProgramSection,
-          speaker: contentAPI.updateCongressSpeaker,
-        }[type];
-        await updateFn(editItem.id, updateData);
-      } else {
-        const createFn = {
-          congress: contentAPI.createCongress,
-          sponsor: contentAPI.createCongressSponsor,
-          day: contentAPI.createCongressProgramDay,
-          section: contentAPI.createCongressProgramSection,
-          speaker: contentAPI.createCongressSpeaker,
-        }[type];
-        await createFn(data);
+      if (daysList.length > 0 && !selectedDayId) {
+        setSelectedDayId(daysList[0].id);
       }
-      setShowForm(false);
-      setEditItem(null);
-      if (type === 'congress') loadCongresses();
-      else loadCongressData();
-    } catch (err) {
-      console.error(err);
-      alert('Ошибка при сохранении: ' + (err.response?.data?.detail || err.message));
+    } catch {
+      toast.error('Ошибка загрузки данных конгресса');
     }
-  };
+  }, [selectedCongressId]);
 
-  const handleDelete = async (type, id) => {
-    if (!confirm('Удалить?')) return;
+  const loadSections = useCallback(async () => {
+    if (!selectedDayId) { setSections([]); return; }
     try {
-      const deleteFn = {
-        congress: contentAPI.deleteCongress,
-        sponsor: contentAPI.deleteCongressSponsor,
-        day: contentAPI.deleteCongressProgramDay,
-        section: contentAPI.deleteCongressProgramSection,
-        speaker: contentAPI.deleteCongressSpeaker,
-      }[type];
-      await deleteFn(id);
-      if (type === 'congress') loadCongresses();
-      else loadCongressData();
-    } catch (err) { alert('Ошибка: ' + (err.response?.data?.detail || err.message)); }
+      const res = await contentAPI.getCongressProgramSections(selectedDayId);
+      setSections(res.data || []);
+    } catch {
+      toast.error('Ошибка загрузки секций');
+    }
+  }, [selectedDayId]);
+
+  useEffect(() => { loadCongresses(); }, []);
+  useEffect(() => { if (selectedCongressId) loadCongressData(); }, [selectedCongressId]);
+  useEffect(() => { loadSections(); }, [selectedDayId]);
+
+  // ---------------------------------------------------------------------------
+  // CRUD OPERATIONS (generic pattern)
+  // ---------------------------------------------------------------------------
+  const apiMap = {
+    congresses: { create: contentAPI.createCongress, update: contentAPI.updateCongress, delete: contentAPI.deleteCongress },
+    sponsors:   { create: contentAPI.createCongressSponsor, update: contentAPI.updateCongressSponsor, delete: contentAPI.deleteCongressSponsor },
+    days:       { create: contentAPI.createCongressProgramDay, update: contentAPI.updateCongressProgramDay, delete: contentAPI.deleteCongressProgramDay },
+    sections:   { create: contentAPI.createCongressProgramSection, update: contentAPI.updateCongressProgramSection, delete: contentAPI.deleteCongressProgramSection },
+    speakers:   { create: contentAPI.createCongressSpeaker, update: contentAPI.updateCongressSpeaker, delete: contentAPI.deleteCongressSpeaker },
   };
 
-  const openForm = (type, item = null) => {
-    setEditItem(item || { _type: type });
-    setShowForm(true);
+  const reloadTab = async (tab) => {
+    if (tab === 'congresses') await loadCongresses();
+    else if (tab === 'sections') await loadSections();
+    else await loadCongressData();
   };
 
-  // ==================== INPUT HELPER ====================
-  const Input = ({ label, name, value, onChange, type = 'text', required = false, multiline = false }) => (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}{required && ' *'}</label>
-      {multiline ? (
-        <textarea name={name} value={value || ''} onChange={onChange} rows={4} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm" />
-      ) : (
-        <input type={type} name={name} value={value || ''} onChange={onChange} required={required} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm" />
-      )}
-    </div>
-  );
-
-  // ==================== CONGRESS FORM ====================
-  const CongressForm = () => {
-    const [form, setForm] = useState(editItem?.id ? { ...editItem } : {
-      title_ru: '', title_uz: '', title_en: '', description_ru: '', description_uz: '', description_en: '',
-      date_start: '', date_end: '', location_ru: '', location_uz: '', location_en: '', image_url: '',
-      is_active: true, registration_open: true,
-      about_ru: '', about_uz: '', about_en: '', organizers_ru: '', organizers_uz: '', organizers_en: '',
-      young_scientists_ru: '', young_scientists_uz: '', young_scientists_en: '',
-      contact_publications_phone: '', contact_publications_email: '',
-      contact_registration_phone: '', contact_registration_email: '',
-      contact_participation_phone: '', contact_participation_email: '',
-      info_letter_ru: '', info_letter_uz: '', info_letter_en: '',
-      info_letter_file_ru: '', info_letter_file_uz: '', info_letter_file_en: '',
-    });
-    const ch = (e) => setForm({ ...form, [e.target.name]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
-    const [formTab, setFormTab] = useState('basic');
-    const formTabs = [
-      { key: 'basic', label: 'Основное' }, { key: 'tabs', label: 'Вкладки' },
-      { key: 'contacts', label: 'Контакты' }, { key: 'infoLetter', label: 'Инфо-письмо' },
-    ];
-
-    return (
-      <div className="bg-white rounded-xl shadow-sm p-6">
-        <h2 className="text-lg font-bold mb-4">{editItem?.id ? 'Редактировать конгресс' : 'Новый конгресс'}</h2>
-        <div className="flex gap-2 mb-4 border-b pb-2">
-          {formTabs.map(t => (
-            <button key={t.key} onClick={() => setFormTab(t.key)} className={`px-3 py-1.5 text-sm rounded-lg ${formTab === t.key ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{t.label}</button>
-          ))}
-        </div>
-        <form onSubmit={(e) => { e.preventDefault(); handleSave('congress', form); }} className="space-y-4">
-          {formTab === 'basic' && (
-            <>
-              <div className="grid grid-cols-3 gap-4">
-                <Input label="Название (RU)" name="title_ru" value={form.title_ru} onChange={ch} required />
-                <Input label="Название (UZ)" name="title_uz" value={form.title_uz} onChange={ch} required />
-                <Input label="Название (EN)" name="title_en" value={form.title_en} onChange={ch} required />
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <Input label="Описание (RU)" name="description_ru" value={form.description_ru} onChange={ch} multiline />
-                <Input label="Описание (UZ)" name="description_uz" value={form.description_uz} onChange={ch} multiline />
-                <Input label="Описание (EN)" name="description_en" value={form.description_en} onChange={ch} multiline />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <Input label="Дата начала" name="date_start" value={form.date_start ? form.date_start.substring(0, 16) : ''} onChange={ch} type="datetime-local" />
-                <Input label="Дата окончания" name="date_end" value={form.date_end ? form.date_end.substring(0, 16) : ''} onChange={ch} type="datetime-local" />
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <Input label="Место (RU)" name="location_ru" value={form.location_ru} onChange={ch} />
-                <Input label="Место (UZ)" name="location_uz" value={form.location_uz} onChange={ch} />
-                <Input label="Место (EN)" name="location_en" value={form.location_en} onChange={ch} />
-              </div>
-              <Input label="URL изображения" name="image_url" value={form.image_url} onChange={ch} />
-              <div className="flex gap-6">
-                <label className="flex items-center gap-2"><input type="checkbox" name="is_active" checked={form.is_active} onChange={ch} className="rounded" /> Активен</label>
-                <label className="flex items-center gap-2"><input type="checkbox" name="registration_open" checked={form.registration_open} onChange={ch} className="rounded" /> Регистрация открыта</label>
-              </div>
-            </>
-          )}
-          {formTab === 'tabs' && (
-            <>
-              {['about', 'organizers', 'young_scientists'].map(field => (
-                <div key={field}>
-                  <h3 className="font-medium text-gray-800 mb-2 capitalize">{field === 'about' ? 'О конгрессе' : field === 'organizers' ? 'Организаторы' : 'Конкурс молодых ученых'}</h3>
-                  <div className="grid grid-cols-3 gap-4">
-                    <Input label="RU" name={`${field}_ru`} value={form[`${field}_ru`]} onChange={ch} multiline />
-                    <Input label="UZ" name={`${field}_uz`} value={form[`${field}_uz`]} onChange={ch} multiline />
-                    <Input label="EN" name={`${field}_en`} value={form[`${field}_en`]} onChange={ch} multiline />
-                  </div>
-                </div>
-              ))}
-            </>
-          )}
-          {formTab === 'contacts' && (
-            <div className="space-y-4">
-              {[
-                { prefix: 'contact_publications', label: 'По вопросам публикаций' },
-                { prefix: 'contact_registration', label: 'По вопросам регистрации' },
-                { prefix: 'contact_participation', label: 'По вопросам участия' },
-              ].map(({ prefix, label }) => (
-                <div key={prefix}>
-                  <h3 className="font-medium text-gray-800 mb-2">{label}</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Input label="Телефон" name={`${prefix}_phone`} value={form[`${prefix}_phone`]} onChange={ch} />
-                    <Input label="Email" name={`${prefix}_email`} value={form[`${prefix}_email`]} onChange={ch} type="email" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          {formTab === 'infoLetter' && (
-            <>
-              <div className="grid grid-cols-3 gap-4">
-                <Input label="Контент (RU)" name="info_letter_ru" value={form.info_letter_ru} onChange={ch} multiline />
-                <Input label="Контент (UZ)" name="info_letter_uz" value={form.info_letter_uz} onChange={ch} multiline />
-                <Input label="Контент (EN)" name="info_letter_en" value={form.info_letter_en} onChange={ch} multiline />
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <Input label="PDF файл (RU)" name="info_letter_file_ru" value={form.info_letter_file_ru} onChange={ch} />
-                <Input label="PDF файл (UZ)" name="info_letter_file_uz" value={form.info_letter_file_uz} onChange={ch} />
-                <Input label="PDF файл (EN)" name="info_letter_file_en" value={form.info_letter_file_en} onChange={ch} />
-              </div>
-            </>
-          )}
-          <div className="flex gap-3 pt-4 border-t">
-            <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Сохранить</button>
-            <button type="button" onClick={() => { setShowForm(false); setEditItem(null); }} className="px-6 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200">Отмена</button>
-          </div>
-        </form>
-      </div>
-    );
-  };
-
-  // ==================== SPONSOR FORM ====================
-  const SponsorForm = () => {
-    const [form, setForm] = useState(editItem?.id ? { ...editItem } : {
-      congress_id: selectedCongressId, name_ru: '', name_uz: '', name_en: '',
-      description_ru: '', description_uz: '', description_en: '',
-      logo_url: '', website_url: '', order: 0, is_active: true,
-    });
-    const ch = (e) => setForm({ ...form, [e.target.name]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
-    return (
-      <div className="bg-white rounded-xl shadow-sm p-6">
-        <h2 className="text-lg font-bold mb-4">{editItem?.id ? 'Редактировать спонсора' : 'Новый спонсор'}</h2>
-        <form onSubmit={(e) => { e.preventDefault(); handleSave('sponsor', form); }} className="space-y-4">
-          <div className="grid grid-cols-3 gap-4">
-            <Input label="Название (RU)" name="name_ru" value={form.name_ru} onChange={ch} required />
-            <Input label="Название (UZ)" name="name_uz" value={form.name_uz} onChange={ch} required />
-            <Input label="Название (EN)" name="name_en" value={form.name_en} onChange={ch} required />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Логотип URL" name="logo_url" value={form.logo_url} onChange={ch} />
-            <Input label="Сайт URL" name="website_url" value={form.website_url} onChange={ch} />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Порядок" name="order" value={form.order} onChange={ch} type="number" />
-            <label className="flex items-center gap-2 mt-6"><input type="checkbox" name="is_active" checked={form.is_active} onChange={ch} className="rounded" /> Активен</label>
-          </div>
-          <div className="flex gap-3 pt-4 border-t">
-            <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Сохранить</button>
-            <button type="button" onClick={() => { setShowForm(false); setEditItem(null); }} className="px-6 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200">Отмена</button>
-          </div>
-        </form>
-      </div>
-    );
-  };
-
-  // ==================== DAY FORM ====================
-  const DayForm = () => {
-    const [form, setForm] = useState(editItem?.id ? { ...editItem } : {
-      congress_id: selectedCongressId, date: '', title_ru: '', title_uz: '', title_en: '',
-      description_ru: '', description_uz: '', description_en: '', order: 0,
-    });
-    const ch = (e) => setForm({ ...form, [e.target.name]: e.target.value });
-    return (
-      <div className="bg-white rounded-xl shadow-sm p-6">
-        <h2 className="text-lg font-bold mb-4">{editItem?.id ? 'Редактировать день' : 'Новый день'}</h2>
-        <form onSubmit={(e) => { e.preventDefault(); handleSave('day', form); }} className="space-y-4">
-          <div className="grid grid-cols-3 gap-4">
-            <Input label="Название (RU)" name="title_ru" value={form.title_ru} onChange={ch} required />
-            <Input label="Название (UZ)" name="title_uz" value={form.title_uz} onChange={ch} required />
-            <Input label="Название (EN)" name="title_en" value={form.title_en} onChange={ch} required />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Дата" name="date" value={form.date || ''} onChange={ch} type="date" />
-            <Input label="Порядок" name="order" value={form.order} onChange={ch} type="number" />
-          </div>
-          <div className="flex gap-3 pt-4 border-t">
-            <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Сохранить</button>
-            <button type="button" onClick={() => { setShowForm(false); setEditItem(null); }} className="px-6 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200">Отмена</button>
-          </div>
-        </form>
-      </div>
-    );
-  };
-
-  // ==================== SECTION FORM ====================
-  const SectionForm = () => {
-    const [form, setForm] = useState(editItem?.id ? { ...editItem } : {
-      day_id: selectedDayId, title_ru: '', title_uz: '', title_en: '',
-      description_ru: '', description_uz: '', description_en: '', order: 0,
-    });
-    const ch = (e) => setForm({ ...form, [e.target.name]: e.target.value });
-    return (
-      <div className="bg-white rounded-xl shadow-sm p-6">
-        <h2 className="text-lg font-bold mb-4">{editItem?.id ? 'Редактировать секцию' : 'Новая секция'}</h2>
-        <form onSubmit={(e) => { e.preventDefault(); handleSave('section', form); }} className="space-y-4">
-          <div className="grid grid-cols-3 gap-4">
-            <Input label="Название (RU)" name="title_ru" value={form.title_ru} onChange={ch} required />
-            <Input label="Название (UZ)" name="title_uz" value={form.title_uz} onChange={ch} required />
-            <Input label="Название (EN)" name="title_en" value={form.title_en} onChange={ch} required />
-          </div>
-          <Input label="Порядок" name="order" value={form.order} onChange={ch} type="number" />
-          <div className="flex gap-3 pt-4 border-t">
-            <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Сохранить</button>
-            <button type="button" onClick={() => { setShowForm(false); setEditItem(null); }} className="px-6 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200">Отмена</button>
-          </div>
-        </form>
-      </div>
-    );
-  };
-
-  // ==================== SPEAKER FORM ====================
-  const SpeakerForm = () => {
-    const [form, setForm] = useState(editItem?.id ? { ...editItem } : {
-      congress_id: selectedCongressId, section_id: null,
-      last_name_ru: '', last_name_uz: '', last_name_en: '',
-      first_name_ru: '', first_name_uz: '', first_name_en: '',
-      patronymic_ru: '', patronymic_uz: '', patronymic_en: '',
-      degree_ru: '', degree_uz: '', degree_en: '',
-      workplace_ru: '', workplace_uz: '', workplace_en: '',
-      topic_ru: '', topic_uz: '', topic_en: '',
-      time_start: '', time_end: '', photo_url: '', order: 0, is_active: true,
-    });
-    const ch = (e) => setForm({ ...form, [e.target.name]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
-    return (
-      <div className="bg-white rounded-xl shadow-sm p-6">
-        <h2 className="text-lg font-bold mb-4">{editItem?.id ? 'Редактировать спикера' : 'Новый спикер'}</h2>
-        <form onSubmit={(e) => { e.preventDefault(); handleSave('speaker', { ...form, section_id: form.section_id || null }); }} className="space-y-4">
-          <div className="grid grid-cols-3 gap-4">
-            <Input label="Фамилия (RU)" name="last_name_ru" value={form.last_name_ru} onChange={ch} required />
-            <Input label="Фамилия (UZ)" name="last_name_uz" value={form.last_name_uz} onChange={ch} required />
-            <Input label="Фамилия (EN)" name="last_name_en" value={form.last_name_en} onChange={ch} required />
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <Input label="Имя (RU)" name="first_name_ru" value={form.first_name_ru} onChange={ch} required />
-            <Input label="Имя (UZ)" name="first_name_uz" value={form.first_name_uz} onChange={ch} required />
-            <Input label="Имя (EN)" name="first_name_en" value={form.first_name_en} onChange={ch} required />
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <Input label="Отчество (RU)" name="patronymic_ru" value={form.patronymic_ru} onChange={ch} />
-            <Input label="Отчество (UZ)" name="patronymic_uz" value={form.patronymic_uz} onChange={ch} />
-            <Input label="Отчество (EN)" name="patronymic_en" value={form.patronymic_en} onChange={ch} />
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <Input label="Степень (RU)" name="degree_ru" value={form.degree_ru} onChange={ch} />
-            <Input label="Степень (UZ)" name="degree_uz" value={form.degree_uz} onChange={ch} />
-            <Input label="Степень (EN)" name="degree_en" value={form.degree_en} onChange={ch} />
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <Input label="Место работы (RU)" name="workplace_ru" value={form.workplace_ru} onChange={ch} />
-            <Input label="Место работы (UZ)" name="workplace_uz" value={form.workplace_uz} onChange={ch} />
-            <Input label="Место работы (EN)" name="workplace_en" value={form.workplace_en} onChange={ch} />
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <Input label="Тема (RU)" name="topic_ru" value={form.topic_ru} onChange={ch} />
-            <Input label="Тема (UZ)" name="topic_uz" value={form.topic_uz} onChange={ch} />
-            <Input label="Тема (EN)" name="topic_en" value={form.topic_en} onChange={ch} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Секция</label>
-            <select name="section_id" value={form.section_id || ''} onChange={ch} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-              <option value="">Без секции</option>
-              {sections.map(s => <option key={s.id} value={s.id}>{s.title_ru}</option>)}
-            </select>
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <Input label="Время начала" name="time_start" value={form.time_start || ''} onChange={ch} type="time" />
-            <Input label="Время окончания" name="time_end" value={form.time_end || ''} onChange={ch} type="time" />
-            <Input label="Порядок" name="order" value={form.order} onChange={ch} type="number" />
-          </div>
-          <Input label="Фото URL" name="photo_url" value={form.photo_url} onChange={ch} />
-          <label className="flex items-center gap-2"><input type="checkbox" name="is_active" checked={form.is_active} onChange={ch} className="rounded" /> Активен</label>
-          <div className="flex gap-3 pt-4 border-t">
-            <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Сохранить</button>
-            <button type="button" onClick={() => { setShowForm(false); setEditItem(null); }} className="px-6 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200">Отмена</button>
-          </div>
-        </form>
-      </div>
-    );
-  };
-
-  // ==================== CSV EXPORT ====================
-  const exportToCSV = () => {
-    const headers = ['Фамилия', 'Имя', 'Отчество', 'Email', 'Телефон', 'Организация', 'Должность', 'Дата'];
-    const rows = registrations.map(r => [
-      r.last_name, r.first_name, r.patronymic || '', r.email, r.phone || '',
-      r.organization || '', r.position || '', new Date(r.created_at).toLocaleDateString('ru-RU'),
-    ]);
-    const csvContent = [headers, ...rows].map(row => row.map(c => `"${(c || '').replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'congress_registrations.csv';
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  // ==================== RENDER ====================
-  const adminTabs = [
-    { key: 'congresses', label: 'Конгрессы' },
-    { key: 'sponsors', label: 'Спонсоры' },
-    { key: 'program', label: 'Программа' },
-    { key: 'speakers', label: 'Спикеры' },
-    { key: 'registrations', label: 'Регистрации' },
-  ];
-
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div></div>;
-
-  const renderForm = () => {
-    if (!showForm) return null;
-    const type = editItem?._type || (activeTab === 'congresses' ? 'congress' : activeTab === 'sponsors' ? 'sponsor' : activeTab === 'speakers' ? 'speaker' : activeTab === 'program' ? (editItem?.day_id !== undefined || editItem?._formType === 'section' ? 'section' : 'day') : null);
-    switch (type) {
-      case 'congress': return <CongressForm />;
-      case 'sponsor': return <SponsorForm />;
-      case 'day': return <DayForm />;
-      case 'section': return <SectionForm />;
-      case 'speaker': return <SpeakerForm />;
-      default: return null;
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const { _tab, ...data } = editModal;
+      const api = apiMap[_tab];
+      if (data.id) {
+        const { congress_id, day_id, ...updateData } = data;
+        await api.update(data.id, updateData);
+        toast.success('Запись обновлена');
+      } else {
+        // Attach foreign keys for child entities
+        if (_tab === 'sponsors' || _tab === 'days' || _tab === 'speakers') {
+          data.congress_id = selectedCongressId;
+        }
+        if (_tab === 'sections') {
+          data.day_id = selectedDayId;
+        }
+        if (_tab === 'speakers') {
+          data.section_id = data.section_id || null;
+        }
+        await api.create(data);
+        toast.success('Запись создана');
+      }
+      setEditModal(null);
+      await reloadTab(_tab);
+    } catch (err) {
+      toast.error('Ошибка сохранения: ' + (err.response?.data?.detail || err.message));
+    } finally {
+      setSaving(false);
     }
   };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      const { _tab, id } = deleteTarget;
+      await apiMap[_tab].delete(id);
+      setDeleteTarget(null);
+      toast.success('Запись удалена');
+      await reloadTab(_tab);
+    } catch (err) {
+      toast.error('Ошибка удаления: ' + (err.response?.data?.detail || err.message));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // MODAL HELPERS
+  // ---------------------------------------------------------------------------
+  const openCreate = (tab, empty) => setEditModal({ _tab: tab, ...empty });
+  const openEdit = (tab, row) => setEditModal({ _tab: tab, ...row });
+  const openDelete = (tab, row) => setDeleteTarget({ _tab: tab, ...row });
+
+  const updateField = (field, value) => {
+    setEditModal(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleImageUpload = async (file, field = 'image_url') => {
+    if (!file) { updateField(field, ''); return; }
+    try {
+      const res = await contentAPI.uploadFile(file);
+      updateField(field, res.data.url);
+      toast.success('Файл загружен');
+    } catch {
+      toast.error('Ошибка загрузки файла');
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // TAB SWITCH
+  // ---------------------------------------------------------------------------
+  const switchTab = (tabKey) => {
+    setActiveTab(tabKey);
+    setEditModal(null);
+    setDeleteTarget(null);
+  };
+
+  // ---------------------------------------------------------------------------
+  // CONGRESS SELECTOR (shown for all tabs except congresses)
+  // ---------------------------------------------------------------------------
+  const CongressSelector = () => {
+    if (activeTab === 'congresses' || congresses.length === 0) return null;
+    return (
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-xs font-medium text-slate-500">Конгресс:</span>
+        <select
+          value={selectedCongressId || ''}
+          onChange={(e) => {
+            setSelectedCongressId(parseInt(e.target.value));
+            setSelectedDayId(null);
+          }}
+          className="px-3 py-1.5 text-sm border border-slate-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+        >
+          {congresses.map(c => <option key={c.id} value={c.id}>{c.title_ru}</option>)}
+        </select>
+      </div>
+    );
+  };
+
+  // ---------------------------------------------------------------------------
+  // DAY SELECTOR (shown only for sections tab)
+  // ---------------------------------------------------------------------------
+  const DaySelector = () => {
+    if (activeTab !== 'sections' || programDays.length === 0) return null;
+    return (
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-xs font-medium text-slate-500">День:</span>
+        <select
+          value={selectedDayId || ''}
+          onChange={(e) => setSelectedDayId(parseInt(e.target.value))}
+          className="px-3 py-1.5 text-sm border border-slate-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+        >
+          {programDays.map(d => <option key={d.id} value={d.id}>{d.title_ru} {d.date ? `(${new Date(d.date).toLocaleDateString('ru-RU')})` : ''}</option>)}
+        </select>
+      </div>
+    );
+  };
+
+  // ---------------------------------------------------------------------------
+  // DELETE NAME HELPER
+  // ---------------------------------------------------------------------------
+  const getDeleteName = () => {
+    if (!deleteTarget) return '';
+    return deleteTarget.title_ru || deleteTarget.name_ru ||
+      (deleteTarget.last_name_ru ? `${deleteTarget.last_name_ru} ${deleteTarget.first_name_ru}` : '') ||
+      `#${deleteTarget.id}`;
+  };
+
+  // ---------------------------------------------------------------------------
+  // RENDER
+  // ---------------------------------------------------------------------------
+  if (loading) return <Skeleton rows={6} cols={4} />;
+
+  const needsCongress = activeTab !== 'congresses' && !selectedCongressId;
+  const needsDay = activeTab === 'sections' && !selectedDayId;
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Управление конгрессами</h1>
-        {congresses.length > 1 && (
-          <select value={selectedCongressId || ''} onChange={(e) => setSelectedCongressId(parseInt(e.target.value))} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
-            {congresses.map(c => <option key={c.id} value={c.id}>{c.title_ru}</option>)}
-          </select>
-        )}
-      </div>
+      <PageHeader
+        title="Управление конгрессами"
+        breadcrumbs={[
+          { label: 'Главная', path: '/admin' },
+          { label: 'Конгрессы' },
+        ]}
+      />
 
-      {/* Tabs */}
-      <div className="flex gap-2 mb-6 border-b pb-2">
-        {adminTabs.map(tab => (
-          <button key={tab.key} onClick={() => { setActiveTab(tab.key); setShowForm(false); setEditItem(null); }}
-            className={`px-4 py-2 text-sm rounded-lg transition-colors ${activeTab === tab.key ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+      {/* ===== Tab Bar ===== */}
+      <div className="flex gap-0.5 mb-5 bg-slate-100 rounded-md p-0.5 w-fit">
+        {TABS.map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => switchTab(tab.key)}
+            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+              activeTab === tab.key
+                ? 'bg-white text-slate-800 shadow-sm'
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
             {tab.label}
           </button>
         ))}
       </div>
 
-      {showForm && renderForm()}
+      <CongressSelector />
+      <DaySelector />
 
-      {!showForm && (
+      {/* ===== Empty state when no congress selected ===== */}
+      {needsCongress && (
+        <EmptyState
+          icon={Building2}
+          title="Сначала создайте конгресс"
+          description="Перейдите на вкладку Конгрессы и добавьте хотя бы один конгресс"
+        />
+      )}
+
+      {needsDay && !needsCongress && (
+        <EmptyState
+          icon={Calendar}
+          title="Нет дней программы"
+          description="Сначала добавьте дни программы на соответствующей вкладке"
+        />
+      )}
+
+      {/* ===================================================================== */}
+      {/* CONGRESSES TAB                                                        */}
+      {/* ===================================================================== */}
+      {activeTab === 'congresses' && (
         <>
-          {/* ===== CONGRESSES TAB ===== */}
-          {activeTab === 'congresses' && (
-            <div>
-              <div className="mb-4">
-                <button onClick={() => openForm('congress')} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">+ Новый конгресс</button>
-              </div>
-              <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Название</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Даты</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Статус</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Действия</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {congresses.map(c => (
-                      <tr key={c.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900">{c.title_ru}</td>
-                        <td className="px-4 py-3 text-sm text-gray-500">{c.date_start ? new Date(c.date_start).toLocaleDateString('ru-RU') : '—'}</td>
-                        <td className="px-4 py-3">
-                          <span className={`px-2 py-1 text-xs rounded-full ${c.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{c.is_active ? 'Активен' : 'Неактивен'}</span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <button onClick={() => openForm('congress', c)} className="text-blue-600 hover:text-blue-800 text-sm mr-3">Ред.</button>
-                          <button onClick={() => handleDelete('congress', c.id)} className="text-red-600 hover:text-red-800 text-sm">Удл.</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {congresses.length === 0 && <div className="text-center py-8 text-gray-500">Конгрессов нет</div>}
-              </div>
-            </div>
-          )}
-
-          {/* ===== SPONSORS TAB ===== */}
-          {activeTab === 'sponsors' && (
-            <div>
-              <div className="mb-4"><button onClick={() => openForm('sponsor')} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">+ Новый спонсор</button></div>
-              <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Название</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Сайт</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Порядок</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Действия</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {sponsors.map(s => (
-                      <tr key={s.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900">{s.name_ru}</td>
-                        <td className="px-4 py-3 text-sm text-gray-500">{s.website_url || '—'}</td>
-                        <td className="px-4 py-3 text-sm text-gray-500">{s.order}</td>
-                        <td className="px-4 py-3 text-right">
-                          <button onClick={() => openForm('sponsor', s)} className="text-blue-600 hover:text-blue-800 text-sm mr-3">Ред.</button>
-                          <button onClick={() => handleDelete('sponsor', s.id)} className="text-red-600 hover:text-red-800 text-sm">Удл.</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {sponsors.length === 0 && <div className="text-center py-8 text-gray-500">Спонсоров нет</div>}
-              </div>
-            </div>
-          )}
-
-          {/* ===== PROGRAM TAB ===== */}
-          {activeTab === 'program' && (
-            <div className="space-y-6">
-              {/* Days */}
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-semibold text-gray-800">Дни программы</h2>
-                  <button onClick={() => openForm('day')} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">+ Новый день</button>
-                </div>
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {programDays.map(d => (
-                    <div key={d.id} className={`flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer ${selectedDayId === d.id ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-200 hover:border-gray-300'}`}>
-                      <button onClick={() => setSelectedDayId(d.id)} className="text-sm font-medium">{d.title_ru}</button>
-                      <button onClick={() => openForm('day', d)} className="text-blue-500 hover:text-blue-700 text-xs">ред</button>
-                      <button onClick={() => handleDelete('day', d.id)} className="text-red-500 hover:text-red-700 text-xs">x</button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Sections */}
-              {selectedDayId && (
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold text-gray-800">Секции</h2>
-                    <button onClick={() => { setEditItem({ _type: 'section', _formType: 'section' }); setShowForm(true); }} className="px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 text-sm">+ Новая секция</button>
-                  </div>
-                  <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-                    <table className="w-full">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Название</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Порядок</th>
-                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Действия</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {sections.map(s => (
-                          <tr key={s.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 text-sm font-medium text-gray-900">{s.title_ru}</td>
-                            <td className="px-4 py-3 text-sm text-gray-500">{s.order}</td>
-                            <td className="px-4 py-3 text-right">
-                              <button onClick={() => { setEditItem({ ...s, _type: 'section', _formType: 'section' }); setShowForm(true); }} className="text-blue-600 hover:text-blue-800 text-sm mr-3">Ред.</button>
-                              <button onClick={() => handleDelete('section', s.id)} className="text-red-600 hover:text-red-800 text-sm">Удл.</button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {sections.length === 0 && <div className="text-center py-8 text-gray-500">Секций нет</div>}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ===== SPEAKERS TAB ===== */}
-          {activeTab === 'speakers' && (
-            <div>
-              <div className="mb-4"><button onClick={() => openForm('speaker')} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">+ Новый спикер</button></div>
-              <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ФИО</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Степень</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Тема</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Действия</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {speakers.map(s => (
-                      <tr key={s.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900">{s.last_name_ru} {s.first_name_ru} {s.patronymic_ru || ''}</td>
-                        <td className="px-4 py-3 text-sm text-gray-500">{s.degree_ru || '—'}</td>
-                        <td className="px-4 py-3 text-sm text-gray-500">{s.topic_ru || '—'}</td>
-                        <td className="px-4 py-3 text-right">
-                          <button onClick={() => openForm('speaker', s)} className="text-blue-600 hover:text-blue-800 text-sm mr-3">Ред.</button>
-                          <button onClick={() => handleDelete('speaker', s.id)} className="text-red-600 hover:text-red-800 text-sm">Удл.</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {speakers.length === 0 && <div className="text-center py-8 text-gray-500">Спикеров нет</div>}
-              </div>
-            </div>
-          )}
-
-          {/* ===== REGISTRATIONS TAB ===== */}
-          {activeTab === 'registrations' && (
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-gray-500">Всего заявок: {registrations.length}</p>
-                <button onClick={exportToCSV} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                  CSV
-                </button>
-              </div>
-              <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ФИО</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Контакты</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Организация</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Должность</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Дата</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {registrations.map(r => (
-                        <tr key={r.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{r.last_name} {r.first_name} {r.patronymic || ''}</td>
-                          <td className="px-4 py-3"><div className="text-sm text-gray-900">{r.email}</div><div className="text-sm text-gray-500">{r.phone}</div></td>
-                          <td className="px-4 py-3 text-sm text-gray-500">{r.organization || '—'}</td>
-                          <td className="px-4 py-3 text-sm text-gray-500">{r.position || '—'}</td>
-                          <td className="px-4 py-3 text-sm text-gray-500">{new Date(r.created_at).toLocaleDateString('ru-RU')}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                {registrations.length === 0 && <div className="text-center py-8 text-gray-500">Заявок нет</div>}
-              </div>
-            </div>
-          )}
+          <div className="mb-4">
+            <button
+              onClick={() => openCreate('congresses', EMPTY_CONGRESS)}
+              className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 inline-flex items-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" /> Добавить конгресс
+            </button>
+          </div>
+          <AdminTable
+            columns={congressColumns}
+            data={congresses}
+            onEdit={(row) => openEdit('congresses', row)}
+            onDelete={(row) => openDelete('congresses', row)}
+            emptyIcon={Building2}
+            emptyTitle="Конгрессов пока нет"
+            emptyDescription="Добавьте первый конгресс"
+          />
         </>
       )}
+
+      {/* ===================================================================== */}
+      {/* SPONSORS TAB                                                          */}
+      {/* ===================================================================== */}
+      {activeTab === 'sponsors' && !needsCongress && (
+        <>
+          <div className="mb-4">
+            <button
+              onClick={() => openCreate('sponsors', EMPTY_SPONSOR)}
+              className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 inline-flex items-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" /> Добавить спонсора
+            </button>
+          </div>
+          <AdminTable
+            columns={sponsorColumns}
+            data={sponsors}
+            onEdit={(row) => openEdit('sponsors', row)}
+            onDelete={(row) => openDelete('sponsors', row)}
+            emptyIcon={Building2}
+            emptyTitle="Спонсоров пока нет"
+            emptyDescription="Добавьте первого спонсора"
+          />
+        </>
+      )}
+
+      {/* ===================================================================== */}
+      {/* PROGRAM DAYS TAB                                                      */}
+      {/* ===================================================================== */}
+      {activeTab === 'days' && !needsCongress && (
+        <>
+          <div className="mb-4">
+            <button
+              onClick={() => openCreate('days', EMPTY_DAY)}
+              className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 inline-flex items-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" /> Добавить день
+            </button>
+          </div>
+          <AdminTable
+            columns={dayColumns}
+            data={programDays}
+            onEdit={(row) => openEdit('days', row)}
+            onDelete={(row) => openDelete('days', row)}
+            emptyIcon={Calendar}
+            emptyTitle="Дней программы пока нет"
+            emptyDescription="Добавьте первый день программы"
+          />
+        </>
+      )}
+
+      {/* ===================================================================== */}
+      {/* SECTIONS TAB                                                          */}
+      {/* ===================================================================== */}
+      {activeTab === 'sections' && !needsCongress && !needsDay && (
+        <>
+          <div className="mb-4">
+            <button
+              onClick={() => openCreate('sections', EMPTY_SECTION)}
+              className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 inline-flex items-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" /> Добавить секцию
+            </button>
+          </div>
+          <AdminTable
+            columns={sectionColumns}
+            data={sections}
+            onEdit={(row) => openEdit('sections', row)}
+            onDelete={(row) => openDelete('sections', row)}
+            emptyIcon={LayoutList}
+            emptyTitle="Секций пока нет"
+            emptyDescription="Добавьте первую секцию"
+          />
+        </>
+      )}
+
+      {/* ===================================================================== */}
+      {/* SPEAKERS TAB                                                          */}
+      {/* ===================================================================== */}
+      {activeTab === 'speakers' && !needsCongress && (
+        <>
+          <div className="mb-4">
+            <button
+              onClick={() => openCreate('speakers', EMPTY_SPEAKER)}
+              className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 inline-flex items-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" /> Добавить спикера
+            </button>
+          </div>
+          <AdminTable
+            columns={speakerColumns}
+            data={speakers}
+            onEdit={(row) => openEdit('speakers', row)}
+            onDelete={(row) => openDelete('speakers', row)}
+            emptyIcon={Mic}
+            emptyTitle="Спикеров пока нет"
+            emptyDescription="Добавьте первого спикера"
+          />
+        </>
+      )}
+
+      {/* ===================================================================== */}
+      {/* REGISTRATIONS TAB (read-only)                                         */}
+      {/* ===================================================================== */}
+      {activeTab === 'registrations' && !needsCongress && (
+        <>
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-sm text-slate-500">Всего заявок: {registrations.length}</span>
+            {registrations.length > 0 && (
+              <button
+                onClick={() => exportRegistrationsCSV(registrations)}
+                className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 inline-flex items-center gap-1.5"
+              >
+                <Download className="w-4 h-4" /> Экспорт CSV
+              </button>
+            )}
+          </div>
+          <AdminTable
+            columns={registrationColumns}
+            data={registrations}
+            emptyIcon={Users}
+            emptyTitle="Регистраций пока нет"
+            emptyDescription="Заявки появятся после открытия регистрации"
+          />
+        </>
+      )}
+
+      {/* ===================================================================== */}
+      {/* EDIT / CREATE MODAL                                                   */}
+      {/* ===================================================================== */}
+      <AdminModal
+        open={!!editModal}
+        onClose={() => setEditModal(null)}
+        title={
+          editModal?.id
+            ? `Редактировать ${editModal._tab === 'congresses' ? 'конгресс' : editModal._tab === 'sponsors' ? 'спонсора' : editModal._tab === 'days' ? 'день' : editModal._tab === 'sections' ? 'секцию' : 'спикера'}`
+            : `Добавить ${editModal?._tab === 'congresses' ? 'конгресс' : editModal?._tab === 'sponsors' ? 'спонсора' : editModal?._tab === 'days' ? 'день' : editModal?._tab === 'sections' ? 'секцию' : 'спикера'}`
+        }
+        size="lg"
+      >
+        {editModal && (
+          <AdminForm onSubmit={handleSave} loading={saving} onCancel={() => setEditModal(null)}>
+
+            {/* ---------- CONGRESS FORM ---------- */}
+            {editModal._tab === 'congresses' && (
+              <CongressFormContent
+                form={editModal}
+                updateField={updateField}
+                onImageUpload={(file) => handleImageUpload(file, 'image_url')}
+              />
+            )}
+
+            {/* ---------- SPONSOR FORM ---------- */}
+            {editModal._tab === 'sponsors' && (
+              <>
+                <FileUpload
+                  label="Логотип"
+                  value={editModal.logo_url}
+                  onChange={(file) => handleImageUpload(file, 'logo_url')}
+                  accept="image/*"
+                />
+                <LangTabs>
+                  {(lang) => (
+                    <AdminFormField
+                      label={`Название (${lang.toUpperCase()})`}
+                      name={`name_${lang}`}
+                      value={editModal[`name_${lang}`]}
+                      onChange={(e) => updateField(`name_${lang}`, e.target.value)}
+                      required={lang === 'ru'}
+                    />
+                  )}
+                </LangTabs>
+                <LangTabs>
+                  {(lang) => (
+                    <AdminFormField
+                      label={`Описание (${lang.toUpperCase()})`}
+                      name={`description_${lang}`}
+                      type="textarea"
+                      rows={3}
+                      value={editModal[`description_${lang}`]}
+                      onChange={(e) => updateField(`description_${lang}`, e.target.value)}
+                    />
+                  )}
+                </LangTabs>
+                <div className="grid grid-cols-2 gap-4">
+                  <AdminFormField
+                    label="Сайт"
+                    name="website_url"
+                    type="url"
+                    value={editModal.website_url}
+                    onChange={(e) => updateField('website_url', e.target.value)}
+                    placeholder="https://..."
+                  />
+                  <AdminFormField
+                    label="Порядок"
+                    name="order"
+                    type="number"
+                    value={editModal.order}
+                    onChange={(e) => updateField('order', parseInt(e.target.value) || 0)}
+                    className="w-28"
+                  />
+                </div>
+                <AdminFormField
+                  label="Активен"
+                  name="is_active"
+                  type="checkbox"
+                  value={editModal.is_active}
+                  onChange={(e) => updateField('is_active', e.target.value)}
+                />
+              </>
+            )}
+
+            {/* ---------- DAY FORM ---------- */}
+            {editModal._tab === 'days' && (
+              <>
+                <LangTabs>
+                  {(lang) => (
+                    <AdminFormField
+                      label={`Название (${lang.toUpperCase()})`}
+                      name={`title_${lang}`}
+                      value={editModal[`title_${lang}`]}
+                      onChange={(e) => updateField(`title_${lang}`, e.target.value)}
+                      required={lang === 'ru'}
+                    />
+                  )}
+                </LangTabs>
+                <LangTabs>
+                  {(lang) => (
+                    <AdminFormField
+                      label={`Описание (${lang.toUpperCase()})`}
+                      name={`description_${lang}`}
+                      type="textarea"
+                      rows={3}
+                      value={editModal[`description_${lang}`]}
+                      onChange={(e) => updateField(`description_${lang}`, e.target.value)}
+                    />
+                  )}
+                </LangTabs>
+                <div className="grid grid-cols-2 gap-4">
+                  <AdminFormField
+                    label="Дата"
+                    name="date"
+                    type="date"
+                    value={editModal.date || ''}
+                    onChange={(e) => updateField('date', e.target.value)}
+                  />
+                  <AdminFormField
+                    label="Порядок"
+                    name="order"
+                    type="number"
+                    value={editModal.order}
+                    onChange={(e) => updateField('order', parseInt(e.target.value) || 0)}
+                    className="w-28"
+                  />
+                </div>
+              </>
+            )}
+
+            {/* ---------- SECTION FORM ---------- */}
+            {editModal._tab === 'sections' && (
+              <>
+                <LangTabs>
+                  {(lang) => (
+                    <AdminFormField
+                      label={`Название (${lang.toUpperCase()})`}
+                      name={`title_${lang}`}
+                      value={editModal[`title_${lang}`]}
+                      onChange={(e) => updateField(`title_${lang}`, e.target.value)}
+                      required={lang === 'ru'}
+                    />
+                  )}
+                </LangTabs>
+                <LangTabs>
+                  {(lang) => (
+                    <AdminFormField
+                      label={`Описание (${lang.toUpperCase()})`}
+                      name={`description_${lang}`}
+                      type="textarea"
+                      rows={3}
+                      value={editModal[`description_${lang}`]}
+                      onChange={(e) => updateField(`description_${lang}`, e.target.value)}
+                    />
+                  )}
+                </LangTabs>
+                <AdminFormField
+                  label="Порядок"
+                  name="order"
+                  type="number"
+                  value={editModal.order}
+                  onChange={(e) => updateField('order', parseInt(e.target.value) || 0)}
+                  className="w-28"
+                />
+              </>
+            )}
+
+            {/* ---------- SPEAKER FORM ---------- */}
+            {editModal._tab === 'speakers' && (
+              <>
+                <FileUpload
+                  label="Фото"
+                  value={editModal.photo_url}
+                  onChange={(file) => handleImageUpload(file, 'photo_url')}
+                  accept="image/*"
+                />
+                <LangTabs>
+                  {(lang) => (
+                    <div className="grid grid-cols-3 gap-3">
+                      <AdminFormField
+                        label={`Фамилия (${lang.toUpperCase()})`}
+                        name={`last_name_${lang}`}
+                        value={editModal[`last_name_${lang}`]}
+                        onChange={(e) => updateField(`last_name_${lang}`, e.target.value)}
+                        required={lang === 'ru'}
+                      />
+                      <AdminFormField
+                        label={`Имя (${lang.toUpperCase()})`}
+                        name={`first_name_${lang}`}
+                        value={editModal[`first_name_${lang}`]}
+                        onChange={(e) => updateField(`first_name_${lang}`, e.target.value)}
+                        required={lang === 'ru'}
+                      />
+                      <AdminFormField
+                        label={`Отчество (${lang.toUpperCase()})`}
+                        name={`patronymic_${lang}`}
+                        value={editModal[`patronymic_${lang}`]}
+                        onChange={(e) => updateField(`patronymic_${lang}`, e.target.value)}
+                      />
+                    </div>
+                  )}
+                </LangTabs>
+                <LangTabs>
+                  {(lang) => (
+                    <AdminFormField
+                      label={`Степень (${lang.toUpperCase()})`}
+                      name={`degree_${lang}`}
+                      value={editModal[`degree_${lang}`]}
+                      onChange={(e) => updateField(`degree_${lang}`, e.target.value)}
+                    />
+                  )}
+                </LangTabs>
+                <LangTabs>
+                  {(lang) => (
+                    <AdminFormField
+                      label={`Место работы (${lang.toUpperCase()})`}
+                      name={`workplace_${lang}`}
+                      value={editModal[`workplace_${lang}`]}
+                      onChange={(e) => updateField(`workplace_${lang}`, e.target.value)}
+                    />
+                  )}
+                </LangTabs>
+                <LangTabs>
+                  {(lang) => (
+                    <AdminFormField
+                      label={`Тема доклада (${lang.toUpperCase()})`}
+                      name={`topic_${lang}`}
+                      value={editModal[`topic_${lang}`]}
+                      onChange={(e) => updateField(`topic_${lang}`, e.target.value)}
+                    />
+                  )}
+                </LangTabs>
+                <AdminFormField
+                  label="Секция"
+                  name="section_id"
+                  type="select"
+                  value={editModal.section_id || ''}
+                  onChange={(e) => updateField('section_id', e.target.value ? parseInt(e.target.value) : null)}
+                  options={[
+                    { value: '', label: 'Без секции' },
+                    ...sections.map(s => ({ value: s.id, label: s.title_ru })),
+                  ]}
+                />
+                <div className="grid grid-cols-3 gap-4">
+                  <AdminFormField
+                    label="Время начала"
+                    name="time_start"
+                    type="time"
+                    value={editModal.time_start || ''}
+                    onChange={(e) => updateField('time_start', e.target.value)}
+                  />
+                  <AdminFormField
+                    label="Время окончания"
+                    name="time_end"
+                    type="time"
+                    value={editModal.time_end || ''}
+                    onChange={(e) => updateField('time_end', e.target.value)}
+                  />
+                  <AdminFormField
+                    label="Порядок"
+                    name="order"
+                    type="number"
+                    value={editModal.order}
+                    onChange={(e) => updateField('order', parseInt(e.target.value) || 0)}
+                  />
+                </div>
+                <AdminFormField
+                  label="Активен"
+                  name="is_active"
+                  type="checkbox"
+                  value={editModal.is_active}
+                  onChange={(e) => updateField('is_active', e.target.value)}
+                />
+              </>
+            )}
+          </AdminForm>
+        )}
+      </AdminModal>
+
+      {/* ===================================================================== */}
+      {/* DELETE CONFIRMATION                                                   */}
+      {/* ===================================================================== */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        title="Удалить запись?"
+        message={`Вы уверены, что хотите удалить "${getDeleteName()}"?`}
+        loading={deleting}
+      />
     </div>
   );
 };

@@ -131,9 +131,8 @@ const Header = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [activeDropdown]);
 
-  const changeLanguage = (code) => {
-    i18n.changeLanguage(code);
-    localStorage.setItem('language', code);
+  const changeLanguage = async (code) => {
+    await i18n.changeLanguage(code);
     setLangOpen(false);
   };
 

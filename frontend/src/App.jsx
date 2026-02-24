@@ -21,7 +21,7 @@ import DiseaseInfo from './pages/DiseaseInfo';
 import AdminLayout from './pages/admin/AdminLayout';
 import Dashboard from './pages/admin/Dashboard';
 import NewsAdmin from './pages/admin/NewsAdmin';
-import NewsEditor from './pages/admin/NewsEditor';
+
 import UsersAdmin from './pages/admin/UsersAdmin';
 import CongressAdmin from './pages/admin/CongressAdmin';
 import BoardMembersAdmin from './pages/admin/BoardMembersAdmin';
@@ -48,8 +48,6 @@ function App() {
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<Dashboard />} />
             <Route path="news" element={<NewsAdmin />} />
-            <Route path="news/new" element={<NewsEditor />} />
-            <Route path="news/:id/edit" element={<NewsEditor />} />
             <Route path="board" element={<BoardMembersAdmin />} />
             <Route path="partners" element={<PartnersAdmin />} />
             <Route path="charter" element={<CharterAdmin />} />

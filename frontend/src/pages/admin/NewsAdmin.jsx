@@ -1,53 +1,148 @@
 import { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Plus, Newspaper, Star } from 'lucide-react';
 import { contentAPI } from '../../services/api';
+import PageHeader from '../../components/admin/PageHeader';
+import AdminTable from '../../components/admin/AdminTable';
+import AdminModal from '../../components/admin/AdminModal';
+import AdminForm from '../../components/admin/AdminForm';
+import AdminFormField from '../../components/admin/AdminFormField';
+import ConfirmDialog from '../../components/admin/ConfirmDialog';
+import LangTabs from '../../components/admin/LangTabs';
+import FileUpload from '../../components/admin/FileUpload';
+import StatusBadge from '../../components/admin/StatusBadge';
+import Skeleton from '../../components/admin/Skeleton';
+import { useToast } from '../../components/admin/Toast';
+
+const EMPTY_ITEM = {
+  news_type: 'news',
+  title_ru: '', title_uz: '', title_en: '',
+  subtitle_ru: '', subtitle_uz: '', subtitle_en: '',
+  content_ru: '', content_uz: '', content_en: '',
+  excerpt_ru: '', excerpt_uz: '', excerpt_en: '',
+  image_url: '',
+  background_image_url: '',
+  event_date_start: '',
+  event_date_end: '',
+  event_location_ru: '', event_location_uz: '', event_location_en: '',
+  registration_url: '',
+  is_published: false,
+  is_featured: false,
+};
+
+const FILTER_TABS = [
+  { key: 'all', label: 'Все' },
+  { key: 'news', label: 'Новости' },
+  { key: 'event', label: 'События' },
+];
+
+const columns = [
+  {
+    key: 'title_ru',
+    label: 'Заголовок (RU)',
+    sortable: true,
+    render: (val, row) => (
+      <div className="flex items-center gap-2">
+        <span className="font-medium text-slate-800 truncate max-w-xs">{val || '---'}</span>
+        {row.is_featured && (
+          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-xs font-medium bg-amber-50 text-amber-700 rounded">
+            <Star className="w-3 h-3" />
+            Карусель
+          </span>
+        )}
+      </div>
+    ),
+  },
+  {
+    key: 'news_type',
+    label: 'Тип',
+    sortable: true,
+    width: 'w-28',
+    render: (val) => (
+      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+        val === 'event'
+          ? 'bg-purple-50 text-purple-700'
+          : 'bg-blue-50 text-blue-700'
+      }`}>
+        {val === 'event' ? 'Событие' : 'Новость'}
+      </span>
+    ),
+  },
+  {
+    key: 'is_published',
+    label: 'Статус',
+    sortable: true,
+    width: 'w-32',
+    render: (val) => (
+      <StatusBadge active={val} activeText="Опубликовано" inactiveText="Черновик" />
+    ),
+  },
+  {
+    key: 'is_featured',
+    label: 'Избранное',
+    sortable: true,
+    width: 'w-28',
+    render: (val) => (
+      <StatusBadge active={val} activeText="Да" inactiveText="Нет" />
+    ),
+  },
+  {
+    key: 'created_at',
+    label: 'Дата',
+    sortable: true,
+    width: 'w-28',
+    render: (val, row) => (
+      <span className="text-slate-500 text-xs">
+        {row.event_date_start
+          ? new Date(row.event_date_start).toLocaleDateString('ru-RU')
+          : val
+            ? new Date(val).toLocaleDateString('ru-RU')
+            : '---'}
+      </span>
+    ),
+  },
+];
 
 const NewsAdmin = () => {
-  const { i18n } = useTranslation();
-  const [news, setNews] = useState([]);
+  const toast = useToast();
+  const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editModal, setEditModal] = useState(null);
-  const [deleteModal, setDeleteModal] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [filter, setFilter] = useState('all');
 
-  const emptyNews = {
-    news_type: 'news',
-    title_ru: '', title_uz: '', title_en: '',
-    subtitle_ru: '', subtitle_uz: '', subtitle_en: '',
-    content_ru: '', content_uz: '', content_en: '',
-    excerpt_ru: '', excerpt_uz: '', excerpt_en: '',
-    image_url: '',
-    background_image_url: '',
-    event_date_start: '',
-    event_date_end: '',
-    event_location_ru: '', event_location_uz: '', event_location_en: '',
-    registration_url: '',
-    is_published: false,
-    is_featured: false
-  };
-
   useEffect(() => {
-    loadNews();
+    loadItems();
   }, [filter]);
 
-  const loadNews = async () => {
+  const loadItems = async () => {
     setLoading(true);
     try {
       const newsType = filter === 'all' ? null : filter;
       const res = await contentAPI.getNews(newsType, false, 0, 100);
-      setNews(res.data);
-    } catch (err) {
-      console.error('Error loading news:', err);
+      setItems(res.data);
+    } catch {
+      toast.error('Ошибка загрузки новостей');
     } finally {
       setLoading(false);
     }
   };
 
-  const getTitle = (item) => {
-    const lang = i18n.language;
-    return item[`title_${lang}`] || item.title_ru;
+  const formatDateLocal = (dateStr) => {
+    if (!dateStr) return '';
+    return dateStr.slice(0, 16);
   };
+
+  const handleEdit = (row) => {
+    setEditModal({
+      ...row,
+      event_date_start: formatDateLocal(row.event_date_start),
+      event_date_end: formatDateLocal(row.event_date_end),
+    });
+  };
+
+  const handleCreate = () => setEditModal({ ...EMPTY_ITEM });
 
   const handleSave = async () => {
     setSaving(true);
@@ -61,45 +156,41 @@ const NewsAdmin = () => {
       } else {
         await contentAPI.createNews(data);
       }
-      await loadNews();
+      toast.success(editModal.id ? 'Запись обновлена' : 'Запись добавлена');
       setEditModal(null);
-    } catch (err) {
-      console.error('Error saving:', err);
-      alert('Ошибка сохранения');
+      await loadItems();
+    } catch {
+      toast.error('Ошибка сохранения');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async () => {
+    setDeleting(true);
     try {
-      await contentAPI.deleteNews(id);
-      setNews(news.filter(n => n.id !== id));
-      setDeleteModal(null);
-    } catch (err) {
-      console.error('Error deleting news:', err);
+      await contentAPI.deleteNews(deleteTarget.id);
+      setItems(items.filter((n) => n.id !== deleteTarget.id));
+      setDeleteTarget(null);
+      toast.success('Запись удалена');
+    } catch {
+      toast.error('Ошибка удаления');
+    } finally {
+      setDeleting(false);
     }
   };
 
-  const togglePublish = async (item) => {
-    try {
-      await contentAPI.updateNews(item.id, { is_published: !item.is_published });
-      setNews(news.map(n => n.id === item.id ? { ...n, is_published: !n.is_published } : n));
-    } catch (err) {
-      console.error('Error updating news:', err);
+  const handleImageUpload = async (file, field) => {
+    if (!file) {
+      setEditModal({ ...editModal, [field]: '' });
+      return;
     }
-  };
-
-  const handleImageUpload = async (e, field) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
     try {
       const res = await contentAPI.uploadFile(file);
       setEditModal({ ...editModal, [field]: res.data.url });
-    } catch (err) {
-      console.error('Error uploading:', err);
-      alert('Ошибка загрузки файла');
+      toast.success('Изображение загружено');
+    } catch {
+      toast.error('Ошибка загрузки файла');
     }
   };
 
@@ -107,507 +198,238 @@ const NewsAdmin = () => {
     setEditModal({ ...editModal, [field]: value });
   };
 
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '';
-    return dateStr.slice(0, 16);
-  };
-
-  const openEditModal = (item) => {
-    setEditModal({
-      ...item,
-      event_date_start: formatDate(item.event_date_start),
-      event_date_end: formatDate(item.event_date_end)
-    });
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--color-primary)]"></div>
-      </div>
-    );
-  }
+  if (loading) return <Skeleton rows={6} cols={5} />;
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Новости и события</h1>
-        <button
-          onClick={() => setEditModal({ ...emptyNews })}
-          className="flex items-center gap-2 px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg hover:bg-[var(--color-primary-dark)] transition-colors"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Добавить
-        </button>
-      </div>
+      <PageHeader
+        title="Новости и события"
+        breadcrumbs={[
+          { label: 'Главная', path: '/admin' },
+          { label: 'Новости и события' },
+        ]}
+        action={
+          <button
+            onClick={handleCreate}
+            className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 inline-flex items-center gap-1.5"
+          >
+            <Plus className="w-4 h-4" />
+            Добавить
+          </button>
+        }
+      />
 
       {/* Filter Tabs */}
-      <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-lg w-fit">
-        <button
-          onClick={() => setFilter('all')}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-            filter === 'all' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          Все
-        </button>
-        <button
-          onClick={() => setFilter('news')}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-            filter === 'news' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          Новости
-        </button>
-        <button
-          onClick={() => setFilter('event')}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-            filter === 'event' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          События
-        </button>
+      <div className="flex gap-0.5 mb-4 bg-slate-100 rounded-md p-0.5 w-fit">
+        {FILTER_TABS.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setFilter(tab.key)}
+            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+              filter === tab.key
+                ? 'bg-white text-slate-800 shadow-sm'
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      {/* News Table */}
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Заголовок
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Тип
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Дата
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Статус
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Действия
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {news.map((item) => (
-              <tr key={item.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4">
-                  <div className="flex items-center gap-2">
-                    <div className="text-sm font-medium text-gray-900 max-w-md truncate">
-                      {getTitle(item)}
-                    </div>
-                    {item.is_featured && (
-                      <span className="px-1.5 py-0.5 text-xs bg-amber-100 text-amber-700 rounded">
-                        В карусели
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    item.news_type === 'event' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
-                  }`}>
-                    {item.news_type === 'event' ? 'Событие' : 'Новость'}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-500">
-                    {item.event_date_start
-                      ? new Date(item.event_date_start).toLocaleDateString('ru-RU')
-                      : new Date(item.created_at).toLocaleDateString('ru-RU')}
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <button
-                    onClick={() => togglePublish(item)}
-                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      item.is_published
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-yellow-100 text-yellow-800'
-                    }`}
-                  >
-                    {item.is_published ? 'Опубликовано' : 'Черновик'}
-                  </button>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                  <div className="flex items-center justify-end gap-2">
-                    <button
-                      onClick={() => openEditModal(item)}
-                      className="text-blue-500 hover:text-blue-700"
-                      title="Редактировать"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={() => setDeleteModal(item)}
-                      className="text-red-500 hover:text-red-700"
-                      title="Удалить"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <AdminTable
+        columns={columns}
+        data={items}
+        loading={loading}
+        onEdit={handleEdit}
+        onDelete={setDeleteTarget}
+        emptyIcon={Newspaper}
+        emptyTitle={filter === 'event' ? 'Событий пока нет' : 'Новостей пока нет'}
+        emptyDescription="Нажмите кнопку выше, чтобы добавить"
+      />
 
-        {news.length === 0 && (
-          <div className="text-center py-12 text-gray-500">
-            {filter === 'all' ? 'Новостей пока нет' : filter === 'news' ? 'Новостей пока нет' : 'Событий пока нет'}
-          </div>
-        )}
-      </div>
+      {/* Edit / Create Modal */}
+      <AdminModal
+        open={!!editModal}
+        onClose={() => setEditModal(null)}
+        title={editModal?.id
+          ? `Редактировать ${editModal.news_type === 'event' ? 'событие' : 'новость'}`
+          : `Добавить ${editModal?.news_type === 'event' ? 'событие' : 'новость'}`
+        }
+        size="lg"
+      >
+        {editModal && (
+          <AdminForm
+            onSubmit={handleSave}
+            loading={saving}
+            onCancel={() => setEditModal(null)}
+          >
+            {/* Type & Options */}
+            <div className="flex items-end gap-6">
+              <AdminFormField
+                label="Тип"
+                name="news_type"
+                type="select"
+                value={editModal.news_type}
+                onChange={(e) => updateField('news_type', e.target.value)}
+                options={[
+                  { value: 'news', label: 'Новость' },
+                  { value: 'event', label: 'Событие' },
+                ]}
+                className="w-40"
+              />
+              <AdminFormField
+                label="Показывать в карусели"
+                name="is_featured"
+                type="checkbox"
+                value={editModal.is_featured}
+                onChange={(e) => updateField('is_featured', e.target.value)}
+              />
+              <AdminFormField
+                label="Опубликовать"
+                name="is_published"
+                type="checkbox"
+                value={editModal.is_published}
+                onChange={(e) => updateField('is_published', e.target.value)}
+              />
+            </div>
 
-      {/* Edit Modal */}
-      {editModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-xl max-w-5xl w-full p-6 my-8">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              {editModal.id ? 'Редактировать' : 'Добавить'} {editModal.news_type === 'event' ? 'событие' : 'новость'}
-            </h3>
-
-            <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
-              {/* Type & Featured */}
-              <div className="flex items-center gap-8">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Тип</label>
-                  <div className="flex gap-4">
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="news_type"
-                        value="news"
-                        checked={editModal.news_type === 'news'}
-                        onChange={(e) => updateField('news_type', e.target.value)}
-                        className="text-cyan-600 focus:ring-cyan-500"
-                      />
-                      <span className="text-sm">Новость</span>
-                    </label>
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="news_type"
-                        value="event"
-                        checked={editModal.news_type === 'event'}
-                        onChange={(e) => updateField('news_type', e.target.value)}
-                        className="text-cyan-600 focus:ring-cyan-500"
-                      />
-                      <span className="text-sm">Событие</span>
-                    </label>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 pt-6">
-                  <input
-                    type="checkbox"
-                    id="is_featured"
-                    checked={editModal.is_featured}
-                    onChange={(e) => updateField('is_featured', e.target.checked)}
-                    className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500"
-                  />
-                  <label htmlFor="is_featured" className="text-sm text-gray-700">Показывать в карусели</label>
-                </div>
-              </div>
-
-              {/* Images */}
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {editModal.news_type === 'event' ? 'Картинка события' : 'Картинка новости'}
-                  </label>
-                  <div className="flex items-center gap-4">
-                    {editModal.image_url && (
-                      <img src={editModal.image_url} alt="" className="w-24 h-16 object-cover rounded-lg" />
-                    )}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleImageUpload(e, 'image_url')}
-                      className="text-sm"
-                    />
-                  </div>
-                </div>
-                {editModal.news_type === 'event' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Фоновая картинка</label>
-                    <div className="flex items-center gap-4">
-                      {editModal.background_image_url && (
-                        <img src={editModal.background_image_url} alt="" className="w-24 h-16 object-cover rounded-lg" />
-                      )}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleImageUpload(e, 'background_image_url')}
-                        className="text-sm"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Title - 3 languages */}
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Заголовок (RU) *</label>
-                  <input
-                    type="text"
-                    value={editModal.title_ru}
-                    onChange={(e) => updateField('title_ru', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Sarlavha (UZ) *</label>
-                  <input
-                    type="text"
-                    value={editModal.title_uz}
-                    onChange={(e) => updateField('title_uz', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Title (EN) *</label>
-                  <input
-                    type="text"
-                    value={editModal.title_en}
-                    onChange={(e) => updateField('title_en', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              {/* Subtitle for news */}
-              {editModal.news_type === 'news' && (
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Подзаголовок (RU)</label>
-                    <input
-                      type="text"
-                      value={editModal.subtitle_ru || ''}
-                      onChange={(e) => updateField('subtitle_ru', e.target.value)}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                      placeholder="Раскрывает суть новости"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Quyi sarlavha (UZ)</label>
-                    <input
-                      type="text"
-                      value={editModal.subtitle_uz || ''}
-                      onChange={(e) => updateField('subtitle_uz', e.target.value)}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Subtitle (EN)</label>
-                    <input
-                      type="text"
-                      value={editModal.subtitle_en || ''}
-                      onChange={(e) => updateField('subtitle_en', e.target.value)}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Excerpt - 3 languages */}
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Краткое описание (RU)</label>
-                  <textarea
-                    value={editModal.excerpt_ru || ''}
-                    onChange={(e) => updateField('excerpt_ru', e.target.value)}
-                    rows={2}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Qisqa tavsif (UZ)</label>
-                  <textarea
-                    value={editModal.excerpt_uz || ''}
-                    onChange={(e) => updateField('excerpt_uz', e.target.value)}
-                    rows={2}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Short description (EN)</label>
-                  <textarea
-                    value={editModal.excerpt_en || ''}
-                    onChange={(e) => updateField('excerpt_en', e.target.value)}
-                    rows={2}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              {/* Content - 3 languages */}
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Содержание (RU) *</label>
-                  <textarea
-                    value={editModal.content_ru}
-                    onChange={(e) => updateField('content_ru', e.target.value)}
-                    rows={5}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Mazmun (UZ) *</label>
-                  <textarea
-                    value={editModal.content_uz}
-                    onChange={(e) => updateField('content_uz', e.target.value)}
-                    rows={5}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Content (EN) *</label>
-                  <textarea
-                    value={editModal.content_en}
-                    onChange={(e) => updateField('content_en', e.target.value)}
-                    rows={5}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              {/* Event fields */}
+            {/* Images */}
+            <div className="grid grid-cols-2 gap-4">
+              <FileUpload
+                label={editModal.news_type === 'event' ? 'Картинка события' : 'Картинка новости'}
+                value={editModal.image_url}
+                onChange={(file) => handleImageUpload(file, 'image_url')}
+                accept="image/*"
+              />
               {editModal.news_type === 'event' && (
-                <>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Дата начала *</label>
-                      <input
-                        type="datetime-local"
-                        value={editModal.event_date_start || ''}
-                        onChange={(e) => updateField('event_date_start', e.target.value)}
-                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Дата окончания</label>
-                      <input
-                        type="datetime-local"
-                        value={editModal.event_date_end || ''}
-                        onChange={(e) => updateField('event_date_end', e.target.value)}
-                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Место проведения (RU)</label>
-                      <input
-                        type="text"
-                        value={editModal.event_location_ru || ''}
-                        onChange={(e) => updateField('event_location_ru', e.target.value)}
-                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                        placeholder="г. Ташкент"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">O'tkazilish joyi (UZ)</label>
-                      <input
-                        type="text"
-                        value={editModal.event_location_uz || ''}
-                        onChange={(e) => updateField('event_location_uz', e.target.value)}
-                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                        placeholder="Toshkent sh."
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Location (EN)</label>
-                      <input
-                        type="text"
-                        value={editModal.event_location_en || ''}
-                        onChange={(e) => updateField('event_location_en', e.target.value)}
-                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                        placeholder="Tashkent"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Ссылка на регистрацию</label>
-                    <input
-                      type="url"
-                      value={editModal.registration_url || ''}
-                      onChange={(e) => updateField('registration_url', e.target.value)}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                      placeholder="https://forms.google.com/..."
-                    />
-                  </div>
-                </>
-              )}
-
-              {/* Publish */}
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="is_published"
-                  checked={editModal.is_published}
-                  onChange={(e) => updateField('is_published', e.target.checked)}
-                  className="w-4 h-4 text-cyan-600 rounded focus:ring-cyan-500"
+                <FileUpload
+                  label="Фоновая картинка"
+                  value={editModal.background_image_url}
+                  onChange={(file) => handleImageUpload(file, 'background_image_url')}
+                  accept="image/*"
                 />
-                <label htmlFor="is_published" className="text-sm text-gray-700">Опубликовать</label>
-              </div>
+              )}
             </div>
 
-            <div className="flex gap-3 justify-end mt-6 pt-4 border-t">
-              <button
-                onClick={() => setEditModal(null)}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                Отмена
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg hover:bg-[var(--color-primary-dark)] transition-colors disabled:opacity-50"
-              >
-                {saving ? 'Сохранение...' : 'Сохранить'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            {/* Title */}
+            <LangTabs>
+              {(lang) => (
+                <AdminFormField
+                  label={`Заголовок (${lang.toUpperCase()})`}
+                  name={`title_${lang}`}
+                  value={editModal[`title_${lang}`]}
+                  onChange={(e) => updateField(`title_${lang}`, e.target.value)}
+                  required={lang === 'ru'}
+                  placeholder="Заголовок"
+                />
+              )}
+            </LangTabs>
 
-      {/* Delete Modal */}
-      {deleteModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl max-w-md w-full p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Удалить?</h3>
-            <p className="text-gray-500 mb-6">
-              Вы уверены, что хотите удалить "{getTitle(deleteModal)}"?
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setDeleteModal(null)}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                Отмена
-              </button>
-              <button
-                onClick={() => handleDelete(deleteModal.id)}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-              >
-                Удалить
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            {/* Subtitle (only for news type) */}
+            {editModal.news_type === 'news' && (
+              <LangTabs>
+                {(lang) => (
+                  <AdminFormField
+                    label={`Подзаголовок (${lang.toUpperCase()})`}
+                    name={`subtitle_${lang}`}
+                    value={editModal[`subtitle_${lang}`]}
+                    onChange={(e) => updateField(`subtitle_${lang}`, e.target.value)}
+                    placeholder="Раскрывает суть новости"
+                  />
+                )}
+              </LangTabs>
+            )}
+
+            {/* Excerpt */}
+            <LangTabs>
+              {(lang) => (
+                <AdminFormField
+                  label={`Краткое описание (${lang.toUpperCase()})`}
+                  name={`excerpt_${lang}`}
+                  type="textarea"
+                  rows={2}
+                  value={editModal[`excerpt_${lang}`]}
+                  onChange={(e) => updateField(`excerpt_${lang}`, e.target.value)}
+                  placeholder="Краткое описание для карточки"
+                />
+              )}
+            </LangTabs>
+
+            {/* Content (HTML) */}
+            <LangTabs>
+              {(lang) => (
+                <AdminFormField
+                  label={`Содержание (${lang.toUpperCase()})`}
+                  name={`content_${lang}`}
+                  type="textarea"
+                  rows={5}
+                  value={editModal[`content_${lang}`]}
+                  onChange={(e) => updateField(`content_${lang}`, e.target.value)}
+                  required={lang === 'ru'}
+                  placeholder="HTML-содержание"
+                />
+              )}
+            </LangTabs>
+
+            {/* Event-specific fields */}
+            {editModal.news_type === 'event' && (
+              <>
+                {/* Event dates */}
+                <div className="grid grid-cols-2 gap-4">
+                  <AdminFormField
+                    label="Дата начала"
+                    name="event_date_start"
+                    type="datetime-local"
+                    value={editModal.event_date_start}
+                    onChange={(e) => updateField('event_date_start', e.target.value)}
+                    required
+                  />
+                  <AdminFormField
+                    label="Дата окончания"
+                    name="event_date_end"
+                    type="datetime-local"
+                    value={editModal.event_date_end}
+                    onChange={(e) => updateField('event_date_end', e.target.value)}
+                  />
+                </div>
+
+                {/* Event location */}
+                <LangTabs>
+                  {(lang) => (
+                    <AdminFormField
+                      label={`Место проведения (${lang.toUpperCase()})`}
+                      name={`event_location_${lang}`}
+                      value={editModal[`event_location_${lang}`]}
+                      onChange={(e) => updateField(`event_location_${lang}`, e.target.value)}
+                      placeholder="г. Ташкент"
+                    />
+                  )}
+                </LangTabs>
+
+                {/* Registration URL */}
+                <AdminFormField
+                  label="Ссылка на регистрацию"
+                  name="registration_url"
+                  type="url"
+                  value={editModal.registration_url}
+                  onChange={(e) => updateField('registration_url', e.target.value)}
+                  placeholder="https://forms.google.com/..."
+                />
+              </>
+            )}
+          </AdminForm>
+        )}
+      </AdminModal>
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        title="Удалить запись?"
+        message={`Вы уверены, что хотите удалить "${deleteTarget?.title_ru}"?`}
+        loading={deleting}
+      />
     </div>
   );
 };

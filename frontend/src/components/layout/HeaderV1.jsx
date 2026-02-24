@@ -27,9 +27,8 @@ const HeaderV1 = () => {
   const currentLang = languages.find(l => l.code === i18n.language) || languages[0];
   const isActive = (path) => location.pathname === path;
 
-  const changeLanguage = (code) => {
-    i18n.changeLanguage(code);
-    localStorage.setItem('language', code);
+  const changeLanguage = async (code) => {
+    await i18n.changeLanguage(code);
     setLangOpen(false);
   };
 
