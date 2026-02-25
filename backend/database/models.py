@@ -167,6 +167,13 @@ class CongressRegistration(Base):
     phone = Column(String(50))
     organization = Column(String(255))
     position = Column(String(255))
+    academic_degree = Column(String(100))
+    academic_title = Column(String(100))
+    institution_address = Column(String(500))
+    participation_form = Column(String(50))  # publication / oral_presentation / participation
+    report_title = Column(String(500))
+    is_young_scientist = Column(Boolean, default=False)
+    needs_hotel = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     congress = relationship("Congress", back_populates="registrations")

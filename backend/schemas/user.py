@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Optional
 from datetime import datetime
 from database.models import UserRole
@@ -6,7 +6,7 @@ from database.models import UserRole
 
 class UserCreate(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(min_length=8)
     last_name: str      # Фамилия
     first_name: str     # Имя
     patronymic: Optional[str] = None  # Отчество

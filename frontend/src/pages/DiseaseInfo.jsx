@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { contentAPI } from '../services/api';
+import { contentAPI, getImageUrl } from '../services/api';
 
 const DiseaseInfo = () => {
   const { t, i18n } = useTranslation();
@@ -235,7 +235,7 @@ const DiseaseInfo = () => {
 
                         {/* Description */}
                         {getField(selectedDisease, 'description') && (
-                          <p className="text-slate-400 leading-relaxed max-w-3xl" style={{ fontFamily: 'Georgia, serif' }}>
+                          <p className="text-slate-400 leading-relaxed max-w-3xl whitespace-pre-line" style={{ fontFamily: 'Georgia, serif' }}>
                             {getField(selectedDisease, 'description')}
                           </p>
                         )}
@@ -248,7 +248,7 @@ const DiseaseInfo = () => {
                         <div
                           className="prose prose-stone prose-lg max-w-none text-stone-600 leading-relaxed"
                           style={{ fontFamily: 'Georgia, serif' }}
-                          dangerouslySetInnerHTML={{ __html: getField(selectedDisease, 'content') }}
+                          dangerouslySetInnerHTML={{ __html: (getField(selectedDisease, 'content') || '').replace(/\n/g, '<br />') }}
                         />
                       </div>
                     )}
@@ -277,7 +277,7 @@ const DiseaseInfo = () => {
                         {/* Clinical recommendations */}
                         {selectedDisease.recommendation_file_url ? (
                           <a
-                            href={`http://localhost:8000${selectedDisease.recommendation_file_url}`}
+                            href={getImageUrl(selectedDisease.recommendation_file_url)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="group relative bg-gradient-to-br from-blue-50 to-sky-50 rounded-xl p-5 border border-blue-100 hover:border-blue-200 hover:shadow-lg hover:shadow-blue-500/10 transition-all duration-300"
@@ -333,7 +333,7 @@ const DiseaseInfo = () => {
                         {/* Clinical protocol */}
                         {selectedDisease.protocol_file_url ? (
                           <a
-                            href={`http://localhost:8000${selectedDisease.protocol_file_url}`}
+                            href={getImageUrl(selectedDisease.protocol_file_url)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="group relative bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-5 border border-emerald-100 hover:border-emerald-200 hover:shadow-lg hover:shadow-emerald-500/10 transition-all duration-300"

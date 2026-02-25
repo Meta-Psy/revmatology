@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { contentAPI } from '../services/api';
+import { contentAPI, getImageUrl } from '../services/api';
 
 const NewsDetail = () => {
   const { id } = useParams();
@@ -112,7 +112,7 @@ const NewsDetail = () => {
         className="relative h-64 md:h-96 bg-cover bg-center"
         style={{
           backgroundImage: news.background_image_url || news.image_url
-            ? `url(http://localhost:8000${news.background_image_url || news.image_url})`
+            ? `url(${getImageUrl(news.background_image_url || news.image_url)})`
             : 'linear-gradient(135deg, #0891b2 0%, #0d9488 100%)',
         }}
       >
@@ -239,7 +239,7 @@ const NewsDetail = () => {
             {isEvent && news.image_url && (
               <div className="mb-8">
                 <img
-                  src={`http://localhost:8000${news.image_url}`}
+                  src={getImageUrl(news.image_url)}
                   alt={getLocalizedField(news, 'title')}
                   className="w-full max-w-lg mx-auto rounded-xl shadow-md"
                 />
@@ -305,7 +305,7 @@ const NewsDetail = () => {
                   <div className="h-40 bg-gray-200 overflow-hidden">
                     {item.image_url ? (
                       <img
-                        src={`http://localhost:8000${item.image_url}`}
+                        src={getImageUrl(item.image_url)}
                         alt={getLocalizedField(item, 'title')}
                         className="w-full h-full object-cover"
                       />

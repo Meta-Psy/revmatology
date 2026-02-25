@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { contentAPI } from '../services/api';
+import { contentAPI, getImageUrl } from '../services/api';
 
 const Rheumatology = ({ defaultTab = 'centers' }) => {
   const { t, i18n } = useTranslation();
@@ -403,7 +403,7 @@ const Rheumatology = ({ defaultTab = 'centers' }) => {
                                   <div className="relative aspect-[3/4] rounded-xl overflow-hidden bg-gradient-to-br from-slate-100 to-stone-200 shadow-sm group-hover:shadow-lg transition-all duration-300">
                                     {staff.photo_url ? (
                                       <img
-                                        src={`http://localhost:8000${staff.photo_url}`}
+                                        src={getImageUrl(staff.photo_url)}
                                         alt={`${getLocalizedField(staff, 'last_name')} ${getLocalizedField(staff, 'first_name')}`}
                                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                                       />
@@ -494,7 +494,7 @@ const Rheumatology = ({ defaultTab = 'centers' }) => {
                               <div className="relative aspect-[3/4] bg-stone-100 shadow-lg overflow-hidden">
                                 {doctor.photo_url ? (
                                   <img
-                                    src={`http://localhost:8000${doctor.photo_url}`}
+                                    src={getImageUrl(doctor.photo_url)}
                                     alt={`${getLocalizedField(doctor, 'last_name')} ${getLocalizedField(doctor, 'first_name')}`}
                                     className="w-full h-full object-cover grayscale-[15%] sepia-[5%] group-hover/photo:grayscale-[5%] group-hover/photo:sepia-0 transition-all duration-500"
                                   />

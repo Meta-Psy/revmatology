@@ -20,6 +20,9 @@ const Congress = () => {
   const [formData, setFormData] = useState({
     last_name: '', first_name: '', patronymic: '',
     email: '', phone: '', organization: '', position: '',
+    academic_degree: '', academic_title: '', institution_address: '',
+    participation_form: 'participation', report_title: '',
+    is_young_scientist: false, needs_hotel: false,
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -98,7 +101,7 @@ const Congress = () => {
       await contentAPI.registerForCongress(congress.id, { ...formData, congress_id: congress.id });
       alert(t('congress.registrationSuccess', 'Заявка отправлена!'));
       setShowRegistration(false);
-      setFormData({ last_name: '', first_name: '', patronymic: '', email: '', phone: '', organization: '', position: '' });
+      setFormData({ last_name: '', first_name: '', patronymic: '', email: '', phone: '', organization: '', position: '', academic_degree: '', academic_title: '', institution_address: '', participation_form: 'participation', report_title: '', is_young_scientist: false, needs_hotel: false });
     } catch (err) {
       alert(t('congress.registrationError', 'Ошибка при отправке заявки'));
     } finally {
@@ -106,7 +109,10 @@ const Congress = () => {
     }
   };
 
-  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleChange = (e) => {
+    const { name, type, value, checked } = e.target;
+    setFormData({ ...formData, [name]: type === 'checkbox' ? checked : value });
+  };
 
   const tabs = [
     { key: 'main', label: t('congress.tabs.main', 'Главная') },
@@ -302,7 +308,7 @@ const Congress = () => {
             </div>
             <h2 className="text-xl text-stone-800" style={{ fontFamily: 'Georgia, serif' }}>{t('congress.tabs.about', 'О конгрессе')}</h2>
           </div>
-          <div className="text-stone-600 leading-relaxed prose prose-stone max-w-none" style={{ fontFamily: 'Georgia, serif' }} dangerouslySetInnerHTML={{ __html: Lf('description') }} />
+          <div className="text-stone-600 leading-relaxed prose prose-stone max-w-none" style={{ fontFamily: 'Georgia, serif' }} dangerouslySetInnerHTML={{ __html: (Lf('description') || '').replace(/\n/g, '<br />') }} />
         </div>
       )}
 
@@ -344,7 +350,7 @@ const Congress = () => {
           <div className="grid sm:grid-cols-3 gap-6">
             {congress.contact_publications_phone && (
               <div className="p-4 bg-stone-50 rounded-xl border border-stone-100">
-                <h3 className="font-medium text-stone-800 mb-3" style={{ fontFamily: 'Georgia, serif' }}>{t('congress.contacts.publications', 'По вопросам публикаций')}</h3>
+                <h3 className="font-medium text-stone-800 mb-3" style={{ fontFamily: 'Georgia, serif' }}>{t('congress.contacts.publications', 'Для авторов')}</h3>
                 <div className="space-y-2 text-sm">
                   <a href={`tel:${congress.contact_publications_phone}`} className="flex items-center gap-2 text-stone-600 hover:text-cyan-600"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>{congress.contact_publications_phone}</a>
                   {congress.contact_publications_email && <a href={`mailto:${congress.contact_publications_email}`} className="flex items-center gap-2 text-stone-600 hover:text-cyan-600"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>{congress.contact_publications_email}</a>}
@@ -353,7 +359,7 @@ const Congress = () => {
             )}
             {congress.contact_registration_phone && (
               <div className="p-4 bg-stone-50 rounded-xl border border-stone-100">
-                <h3 className="font-medium text-stone-800 mb-3" style={{ fontFamily: 'Georgia, serif' }}>{t('congress.contacts.registration', 'По вопросам регистрации')}</h3>
+                <h3 className="font-medium text-stone-800 mb-3" style={{ fontFamily: 'Georgia, serif' }}>{t('congress.contacts.registration', 'Для слушателей')}</h3>
                 <div className="space-y-2 text-sm">
                   <a href={`tel:${congress.contact_registration_phone}`} className="flex items-center gap-2 text-stone-600 hover:text-cyan-600"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>{congress.contact_registration_phone}</a>
                   {congress.contact_registration_email && <a href={`mailto:${congress.contact_registration_email}`} className="flex items-center gap-2 text-stone-600 hover:text-cyan-600"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>{congress.contact_registration_email}</a>}
@@ -362,7 +368,7 @@ const Congress = () => {
             )}
             {congress.contact_participation_phone && (
               <div className="p-4 bg-stone-50 rounded-xl border border-stone-100">
-                <h3 className="font-medium text-stone-800 mb-3" style={{ fontFamily: 'Georgia, serif' }}>{t('congress.contacts.participation', 'По вопросам участия')}</h3>
+                <h3 className="font-medium text-stone-800 mb-3" style={{ fontFamily: 'Georgia, serif' }}>{t('congress.contacts.participation', 'Для докладчиков')}</h3>
                 <div className="space-y-2 text-sm">
                   <a href={`tel:${congress.contact_participation_phone}`} className="flex items-center gap-2 text-stone-600 hover:text-cyan-600"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>{congress.contact_participation_phone}</a>
                   {congress.contact_participation_email && <a href={`mailto:${congress.contact_participation_email}`} className="flex items-center gap-2 text-stone-600 hover:text-cyan-600"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>{congress.contact_participation_email}</a>}
@@ -411,7 +417,7 @@ const Congress = () => {
     );
     return (
       <div className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-stone-200/60">
-        <div className="text-stone-600 leading-relaxed prose prose-stone max-w-none" style={{ fontFamily: 'Georgia, serif' }} dangerouslySetInnerHTML={{ __html: content }} />
+        <div className="text-stone-600 leading-relaxed prose prose-stone max-w-none" style={{ fontFamily: 'Georgia, serif' }} dangerouslySetInnerHTML={{ __html: (content || '').replace(/\n/g, '<br />') }} />
       </div>
     );
   };
@@ -669,31 +675,6 @@ const Congress = () => {
                 </div>
               )}
 
-              {/* Sidebar contacts */}
-              {(congress.contact_registration_phone || congress.contact_participation_phone) && (
-                <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/60">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
-                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                    </div>
-                    <h3 className="text-lg text-stone-800" style={{ fontFamily: 'Georgia, serif' }}>{t('congress.contacts.title', 'Контакты')}</h3>
-                  </div>
-                  <div className="space-y-3 text-sm">
-                    {congress.contact_registration_email && (
-                      <a href={`mailto:${congress.contact_registration_email}`} className="flex items-center gap-3 text-stone-600 hover:text-cyan-600 transition-colors">
-                        <svg className="w-4 h-4 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                        <span style={{ fontFamily: 'Georgia, serif' }}>{congress.contact_registration_email}</span>
-                      </a>
-                    )}
-                    {congress.contact_registration_phone && (
-                      <a href={`tel:${congress.contact_registration_phone}`} className="flex items-center gap-3 text-stone-600 hover:text-cyan-600 transition-colors">
-                        <svg className="w-4 h-4 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-                        <span style={{ fontFamily: 'Georgia, serif' }}>{congress.contact_registration_phone}</span>
-                      </a>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -702,7 +683,7 @@ const Congress = () => {
       {/* Registration Modal */}
       {showRegistration && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 md:p-8 shadow-2xl relative overflow-hidden max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 md:p-8 shadow-2xl relative overflow-hidden max-h-[90vh] overflow-y-auto">
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500 to-teal-600"></div>
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl text-stone-800" style={{ fontFamily: 'Georgia, serif' }}>{t('congress.registrationForm.title', 'Регистрация на конгресс')}</h2>
@@ -711,24 +692,108 @@ const Congress = () => {
               </button>
             </div>
             <form onSubmit={handleSubmit} className="space-y-4">
-              {[
-                { name: 'last_name', label: t('congress.registrationForm.lastName', 'Фамилия'), required: true },
-                { name: 'first_name', label: t('congress.registrationForm.firstName', 'Имя'), required: true },
-                { name: 'patronymic', label: t('congress.registrationForm.patronymic', 'Отчество') },
-                { name: 'email', label: t('congress.registrationForm.email', 'Email'), required: true, type: 'email' },
-                { name: 'phone', label: t('congress.registrationForm.phone', 'Телефон'), type: 'tel' },
-                { name: 'organization', label: t('congress.registrationForm.organization', 'Организация') },
-                { name: 'position', label: t('congress.registrationForm.position', 'Должность') },
-              ].map((field) => (
-                <div key={field.name}>
-                  <label className="block text-sm font-medium text-stone-700 mb-1.5">{field.label}{field.required ? ' *' : ''}</label>
-                  <input
-                    type={field.type || 'text'} name={field.name} value={formData[field.name]} onChange={handleChange} required={field.required}
-                    className="w-full px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all outline-none"
-                    style={{ fontFamily: 'Georgia, serif' }}
-                  />
+              {/* ФИО row */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {[
+                  { name: 'last_name', label: t('congress.registrationForm.lastName', 'Фамилия'), required: true },
+                  { name: 'first_name', label: t('congress.registrationForm.firstName', 'Имя'), required: true },
+                  { name: 'patronymic', label: t('congress.registrationForm.patronymic', 'Отчество') },
+                ].map((field) => (
+                  <div key={field.name}>
+                    <label className="block text-sm font-medium text-stone-700 mb-1.5">{field.label}{field.required ? ' *' : ''}</label>
+                    <input type="text" name={field.name} value={formData[field.name]} onChange={handleChange} required={field.required} className="w-full px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all outline-none" style={{ fontFamily: 'Georgia, serif' }} />
+                  </div>
+                ))}
+              </div>
+
+              {/* Email + Phone */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1.5">{t('congress.registrationForm.email', 'Email')} *</label>
+                  <input type="email" name="email" value={formData.email} onChange={handleChange} required className="w-full px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all outline-none" style={{ fontFamily: 'Georgia, serif' }} />
                 </div>
-              ))}
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1.5">{t('congress.registrationForm.phone', 'Телефон')}</label>
+                  <input type="tel" name="phone" value={formData.phone} onChange={handleChange} className="w-full px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all outline-none" style={{ fontFamily: 'Georgia, serif' }} />
+                </div>
+              </div>
+
+              {/* Organization + Position */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1.5">{t('congress.registrationForm.organization', 'Место работы')}</label>
+                  <input type="text" name="organization" value={formData.organization} onChange={handleChange} className="w-full px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all outline-none" style={{ fontFamily: 'Georgia, serif' }} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1.5">{t('congress.registrationForm.position', 'Должность')}</label>
+                  <input type="text" name="position" value={formData.position} onChange={handleChange} className="w-full px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all outline-none" style={{ fontFamily: 'Georgia, serif' }} />
+                </div>
+              </div>
+
+              {/* Academic degree + title */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1.5">{t('congress.registrationForm.academicDegree', 'Ученая степень')}</label>
+                  <select name="academic_degree" value={formData.academic_degree} onChange={handleChange} className="w-full px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all outline-none bg-white" style={{ fontFamily: 'Georgia, serif' }}>
+                    <option value="">{t('congress.registrationForm.notSelected', '— Не выбрано —')}</option>
+                    <option value="candidate">{t('congress.registrationForm.candidate', 'Кандидат наук')}</option>
+                    <option value="doctor">{t('congress.registrationForm.doctor', 'Доктор наук')}</option>
+                    <option value="phd">PhD</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1.5">{t('congress.registrationForm.academicTitle', 'Ученое звание')}</label>
+                  <select name="academic_title" value={formData.academic_title} onChange={handleChange} className="w-full px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all outline-none bg-white" style={{ fontFamily: 'Georgia, serif' }}>
+                    <option value="">{t('congress.registrationForm.notSelected', '— Не выбрано —')}</option>
+                    <option value="docent">{t('congress.registrationForm.docent', 'Доцент')}</option>
+                    <option value="professor">{t('congress.registrationForm.professor', 'Профессор')}</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Institution address */}
+              <div>
+                <label className="block text-sm font-medium text-stone-700 mb-1.5">{t('congress.registrationForm.institutionAddress', 'Адрес учреждения')}</label>
+                <input type="text" name="institution_address" value={formData.institution_address} onChange={handleChange} className="w-full px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all outline-none" style={{ fontFamily: 'Georgia, serif' }} />
+              </div>
+
+              {/* Participation form */}
+              <div>
+                <label className="block text-sm font-medium text-stone-700 mb-2">{t('congress.registrationForm.participationForm', 'Форма участия')}</label>
+                <div className="flex flex-wrap gap-4">
+                  {[
+                    { value: 'participation', label: t('congress.registrationForm.participationType', 'Участие (слушатель)') },
+                    { value: 'oral_presentation', label: t('congress.registrationForm.oralPresentation', 'Устный доклад') },
+                    { value: 'publication', label: t('congress.registrationForm.publication', 'Публикация тезисов') },
+                  ].map((opt) => (
+                    <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" name="participation_form" value={opt.value} checked={formData.participation_form === opt.value} onChange={handleChange} className="text-cyan-500 focus:ring-cyan-500" />
+                      <span className="text-sm text-stone-700" style={{ fontFamily: 'Georgia, serif' }}>{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Report title (shown if oral_presentation or publication) */}
+              {(formData.participation_form === 'oral_presentation' || formData.participation_form === 'publication') && (
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1.5">{t('congress.registrationForm.reportTitle', 'Название доклада / тезисов')}</label>
+                  <input type="text" name="report_title" value={formData.report_title} onChange={handleChange} className="w-full px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all outline-none" style={{ fontFamily: 'Georgia, serif' }} />
+                </div>
+              )}
+
+              {/* Checkboxes */}
+              <div className="flex flex-wrap gap-6 pt-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" name="is_young_scientist" checked={formData.is_young_scientist} onChange={handleChange} className="rounded border-stone-300 text-cyan-500 focus:ring-cyan-500" />
+                  <span className="text-sm text-stone-700" style={{ fontFamily: 'Georgia, serif' }}>{t('congress.registrationForm.youngScientist', 'Молодой ученый (до 35 лет)')}</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" name="needs_hotel" checked={formData.needs_hotel} onChange={handleChange} className="rounded border-stone-300 text-cyan-500 focus:ring-cyan-500" />
+                  <span className="text-sm text-stone-700" style={{ fontFamily: 'Georgia, serif' }}>{t('congress.registrationForm.needsHotel', 'Нужно бронирование отеля')}</span>
+                </label>
+              </div>
+
               <button type="submit" disabled={submitting} className="w-full py-3 bg-gradient-to-r from-cyan-500 to-teal-600 text-white font-medium rounded-xl hover:from-cyan-400 hover:to-teal-500 transition-all shadow-lg shadow-cyan-500/20 disabled:opacity-50">
                 {submitting ? t('common.loading', 'Загрузка...') : t('congress.registrationForm.submit', 'Отправить заявку')}
               </button>
@@ -756,7 +821,7 @@ const Congress = () => {
                 </button>
               </div>
             </div>
-            <div className="prose prose-stone max-w-none" style={{ fontFamily: 'Georgia, serif' }} dangerouslySetInnerHTML={{ __html: Lf('info_letter') }} />
+            <div className="prose prose-stone max-w-none" style={{ fontFamily: 'Georgia, serif' }} dangerouslySetInnerHTML={{ __html: (Lf('info_letter') || '').replace(/\n/g, '<br />') }} />
           </div>
         </div>
       )}

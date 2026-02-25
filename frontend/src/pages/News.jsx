@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { contentAPI } from '../services/api';
+import { contentAPI, getImageUrl } from '../services/api';
 
 const News = () => {
   const { t, i18n } = useTranslation();
@@ -133,7 +133,7 @@ const News = () => {
                 className="absolute inset-0 bg-cover bg-center"
                 style={{
                   backgroundImage: event.background_image_url
-                    ? `url(http://localhost:8000${event.background_image_url})`
+                    ? `url(${getImageUrl(event.background_image_url)})`
                     : 'linear-gradient(135deg, #0891b2 0%, #0d9488 100%)',
                 }}
               >
@@ -147,7 +147,7 @@ const News = () => {
                   {event.image_url && (
                     <div className="w-48 h-48 md:w-64 md:h-64 flex-shrink-0 rounded-xl overflow-hidden shadow-2xl">
                       <img
-                        src={`http://localhost:8000${event.image_url}`}
+                        src={getImageUrl(event.image_url)}
                         alt={getLocalizedField(event, 'title')}
                         className="w-full h-full object-cover"
                       />
@@ -290,7 +290,7 @@ const News = () => {
                 <div className="h-48 bg-gray-200 relative overflow-hidden">
                   {item.image_url ? (
                     <img
-                      src={`http://localhost:8000${item.image_url}`}
+                      src={getImageUrl(item.image_url)}
                       alt={getLocalizedField(item, 'title')}
                       className="w-full h-full object-cover"
                     />

@@ -38,8 +38,8 @@ const Register = () => {
       return;
     }
 
-    if (formData.password.length < 6) {
-      setError('Пароль должен быть не менее 6 символов');
+    if (formData.password.length < 8) {
+      setError('Пароль должен быть не менее 8 символов');
       return;
     }
 
@@ -139,6 +139,7 @@ const Register = () => {
               <input
                 type="email"
                 name="email"
+                autoComplete="email"
                 value={formData.email}
                 onChange={handleChange}
                 required
@@ -154,11 +155,12 @@ const Register = () => {
               <input
                 type="password"
                 name="password"
+                autoComplete="new-password"
                 value={formData.password}
                 onChange={handleChange}
                 required
                 className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-shadow"
-                placeholder="Минимум 6 символов"
+                placeholder="Минимум 8 символов"
               />
             </div>
 
@@ -169,6 +171,7 @@ const Register = () => {
               <input
                 type="password"
                 name="confirmPassword"
+                autoComplete="new-password"
                 value={formData.confirmPassword}
                 onChange={handleChange}
                 required

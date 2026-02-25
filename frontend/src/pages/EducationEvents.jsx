@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { contentAPI } from '../services/api';
+import { contentAPI, getImageUrl } from '../services/api';
 
 const EducationEvents = ({ eventType = 'masterclass' }) => {
   const { t, i18n } = useTranslation();
@@ -149,7 +149,7 @@ const EducationEvents = ({ eventType = 'masterclass' }) => {
                   {event.image_url && (
                     <div className="relative h-48 overflow-hidden">
                       <img
-                        src={`http://localhost:8000${event.image_url}`}
+                        src={getImageUrl(event.image_url)}
                         alt={getField(event, 'title')}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
@@ -176,7 +176,7 @@ const EducationEvents = ({ eventType = 'masterclass' }) => {
 
                     {/* Description */}
                     {getField(event, 'description') && (
-                      <p className="text-stone-500 text-sm leading-relaxed mb-4 line-clamp-3" style={{ fontFamily: 'Georgia, serif' }}>
+                      <p className="text-stone-500 text-sm leading-relaxed mb-4 line-clamp-3 whitespace-pre-line" style={{ fontFamily: 'Georgia, serif' }}>
                         {getField(event, 'description')}
                       </p>
                     )}

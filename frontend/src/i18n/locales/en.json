@@ -186,9 +186,9 @@
     },
     "contacts": {
       "title": "Contacts",
-      "publications": "Publication inquiries",
-      "registration": "Registration inquiries",
-      "participation": "Participation inquiries"
+      "publications": "For Authors",
+      "registration": "For Attendees",
+      "participation": "For Speakers"
     },
     "infoLetter": {
       "title": "Information Letter",

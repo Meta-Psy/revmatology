@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { contentAPI } from '../services/api';
+import { contentAPI, getImageUrl } from '../services/api';
 
 const MediaResources = () => {
   const { t, i18n } = useTranslation();
@@ -159,7 +159,7 @@ const MediaResources = () => {
                   <div className="relative h-56 overflow-hidden bg-gradient-to-br from-slate-100 to-stone-200">
                     {resource.cover_image_url ? (
                       <img
-                        src={`http://localhost:8000${resource.cover_image_url}`}
+                        src={getImageUrl(resource.cover_image_url)}
                         alt={getField(resource, 'title')}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
@@ -189,7 +189,7 @@ const MediaResources = () => {
 
                     {/* Description */}
                     {getField(resource, 'description') && (
-                      <p className="text-stone-500 text-sm leading-relaxed mb-4 line-clamp-3 flex-grow" style={{ fontFamily: 'Georgia, serif' }}>
+                      <p className="text-stone-500 text-sm leading-relaxed mb-4 line-clamp-3 flex-grow whitespace-pre-line" style={{ fontFamily: 'Georgia, serif' }}>
                         {getField(resource, 'description')}
                       </p>
                     )}
@@ -198,7 +198,7 @@ const MediaResources = () => {
                     <div className="flex gap-2 mt-auto">
                       {resource.file_url && (
                         <a
-                          href={`http://localhost:8000${resource.file_url}`}
+                          href={getImageUrl(resource.file_url)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="group/btn flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white text-sm font-medium rounded-lg shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all duration-300"

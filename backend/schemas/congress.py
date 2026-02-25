@@ -371,6 +371,13 @@ class CongressRegistrationCreate(BaseModel):
     phone: Optional[str] = None
     organization: Optional[str] = None
     position: Optional[str] = None
+    academic_degree: Optional[str] = None
+    academic_title: Optional[str] = None
+    institution_address: Optional[str] = None
+    participation_form: Optional[str] = None
+    report_title: Optional[str] = None
+    is_young_scientist: bool = False
+    needs_hotel: bool = False
 
 
 class CongressRegistrationResponse(BaseModel):
@@ -383,6 +390,13 @@ class CongressRegistrationResponse(BaseModel):
     phone: Optional[str] = None
     organization: Optional[str] = None
     position: Optional[str] = None
+    academic_degree: Optional[str] = None
+    academic_title: Optional[str] = None
+    institution_address: Optional[str] = None
+    participation_form: Optional[str] = None
+    report_title: Optional[str] = None
+    is_young_scientist: bool = False
+    needs_hotel: bool = False
     created_at: datetime
 
     class Config:

@@ -218,4 +218,10 @@ export const adminAPI = {
   updateApplicationStatus: (id, status) => api.put(`/admin/school/applications/${id}/status`, null, { params: { status } }),
 };
 
+export const getImageUrl = (path) => {
+  if (!path) return '';
+  if (path.startsWith('http')) return path;
+  return path;
+};
+
 export default api;

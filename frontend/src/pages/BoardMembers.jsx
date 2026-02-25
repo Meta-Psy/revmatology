@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { contentAPI } from '../services/api';
+import { contentAPI, getImageUrl } from '../services/api';
 
 const BoardMembers = () => {
   const { t, i18n } = useTranslation();
@@ -147,7 +147,7 @@ const BoardMembers = () => {
                           <div className="relative aspect-[3/4] bg-stone-100 shadow-lg group-hover/photo:shadow-xl group-hover/photo:shadow-stone-300/50 transition-shadow duration-500">
                             {member.photo_url ? (
                               <img
-                                src={`http://localhost:8000${member.photo_url}`}
+                                src={getImageUrl(member.photo_url)}
                                 alt={`${getField(member, 'last_name')} ${getField(member, 'first_name')}`}
                                 className="w-full h-full object-cover grayscale-[15%] sepia-[5%] group-hover/photo:grayscale-[5%] group-hover/photo:sepia-0 transition-all duration-500"
                               />
@@ -214,7 +214,7 @@ const BoardMembers = () => {
                               &ldquo;
                             </div>
                             <div className="pl-6 border-l-2 border-stone-200">
-                              <p className="text-stone-600 text-base leading-relaxed" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
+                              <p className="text-stone-600 text-base leading-relaxed whitespace-pre-line" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
                                 <em>{getField(member, 'bio')}</em>
                               </p>
                             </div>
@@ -229,7 +229,7 @@ const BoardMembers = () => {
                               <h4 className="text-xs font-medium text-amber-800/70 uppercase tracking-[0.2em] mb-2" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
                                 {lang === 'ru' ? 'Достижения и награды' : lang === 'uz' ? "Yutuqlar va mukofotlar" : 'Achievements and awards'}
                               </h4>
-                              <p className="text-stone-600 text-base leading-relaxed" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
+                              <p className="text-stone-600 text-base leading-relaxed whitespace-pre-line" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
                                 {getField(member, 'achievements')}
                               </p>
                             </div>

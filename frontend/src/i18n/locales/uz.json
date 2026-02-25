@@ -186,9 +186,9 @@
     },
     "contacts": {
       "title": "Kontaktlar",
-      "publications": "Nashr masalalari bo'yicha",
-      "registration": "Ro'yxatdan o'tish masalalari bo'yicha",
-      "participation": "Ishtirok etish masalalari bo'yicha"
+      "publications": "Mualliflar uchun",
+      "registration": "Tinglovchilar uchun",
+      "participation": "Ma'ruzachilar uchun"
     },
     "infoLetter": {
       "title": "Axborot xati",

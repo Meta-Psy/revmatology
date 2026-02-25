@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { contentAPI } from '../services/api';
+import { contentAPI, getImageUrl } from '../services/api';
 
 const History = () => {
   const { t, i18n } = useTranslation();
@@ -159,7 +159,7 @@ const History = () => {
                         <div
                           className="prose prose-stone prose-sm max-w-none mb-4 text-stone-600 leading-relaxed"
                           style={{ fontFamily: 'Georgia, serif' }}
-                          dangerouslySetInnerHTML={{ __html: getField(item, 'content') }}
+                          dangerouslySetInnerHTML={{ __html: (getField(item, 'content') || '').replace(/\n/g, '<br />') }}
                         />
                       )}
 
@@ -167,7 +167,7 @@ const History = () => {
                       {item.image_url && (
                         <div className="mt-4 rounded-xl overflow-hidden border border-stone-200">
                           <img
-                            src={`http://localhost:8000${item.image_url}`}
+                            src={getImageUrl(item.image_url)}
                             alt={getField(item, 'title')}
                             className="w-full h-auto object-cover max-h-[300px]"
                           />

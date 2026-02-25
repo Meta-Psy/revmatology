@@ -137,6 +137,23 @@ const speakerColumns = [
   { key: 'is_active', label: 'Статус', sortable: true, width: 'w-28', render: (val) => <StatusBadge active={val} /> },
 ];
 
+const PARTICIPATION_LABELS = {
+  participation: 'Слушатель',
+  oral_presentation: 'Устный доклад',
+  publication: 'Публикация',
+};
+
+const DEGREE_LABELS = {
+  candidate: 'К.н.',
+  doctor: 'Д.н.',
+  phd: 'PhD',
+};
+
+const TITLE_LABELS = {
+  docent: 'Доцент',
+  professor: 'Профессор',
+};
+
 const registrationColumns = [
   {
     key: 'last_name', label: 'ФИО', sortable: true,
@@ -152,7 +169,21 @@ const registrationColumns = [
     ),
   },
   { key: 'organization', label: 'Организация', sortable: true, render: (val) => <span className="text-slate-600">{val || '--'}</span> },
-  { key: 'position', label: 'Должность', sortable: true, render: (val) => <span className="text-slate-600">{val || '--'}</span> },
+  {
+    key: 'participation_form', label: 'Участие', sortable: true, width: 'w-32',
+    render: (val, row) => (
+      <div>
+        <div className="text-slate-600">{PARTICIPATION_LABELS[val] || val || '--'}</div>
+        {row.is_young_scientist && <span className="text-xs text-blue-500">МУ</span>}
+      </div>
+    ),
+  },
+  {
+    key: 'academic_degree', label: 'Степень/Звание', sortable: true, width: 'w-28',
+    render: (val, row) => (
+      <span className="text-slate-600">{[DEGREE_LABELS[val], TITLE_LABELS[row.academic_title]].filter(Boolean).join(', ') || '--'}</span>
+    ),
+  },
   {
     key: 'created_at', label: 'Дата', sortable: true, width: 'w-28',
     render: (val) => <span className="text-slate-500">{val ? new Date(val).toLocaleDateString('ru-RU') : '--'}</span>,
@@ -163,10 +194,18 @@ const registrationColumns = [
 // CSV EXPORT HELPER
 // ---------------------------------------------------------------------------
 const exportRegistrationsCSV = (registrations) => {
-  const headers = ['Фамилия', 'Имя', 'Отчество', 'Email', 'Телефон', 'Организация', 'Должность', 'Дата'];
+  const headers = ['Фамилия', 'Имя', 'Отчество', 'Email', 'Телефон', 'Организация', 'Должность', 'Ученая степень', 'Ученое звание', 'Адрес учреждения', 'Форма участия', 'Название доклада', 'Молодой ученый', 'Отель', 'Дата'];
   const rows = registrations.map(r => [
     r.last_name, r.first_name, r.patronymic || '', r.email, r.phone || '',
-    r.organization || '', r.position || '', new Date(r.created_at).toLocaleDateString('ru-RU'),
+    r.organization || '', r.position || '',
+    DEGREE_LABELS[r.academic_degree] || r.academic_degree || '',
+    TITLE_LABELS[r.academic_title] || r.academic_title || '',
+    r.institution_address || '',
+    PARTICIPATION_LABELS[r.participation_form] || r.participation_form || '',
+    r.report_title || '',
+    r.is_young_scientist ? 'Да' : 'Нет',
+    r.needs_hotel ? 'Да' : 'Нет',
+    new Date(r.created_at).toLocaleDateString('ru-RU'),
   ]);
   const csvContent = [headers, ...rows].map(row => row.map(c => `"${(c || '').replace(/"/g, '""')}"`).join(',')).join('\n');
   const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -195,9 +234,9 @@ const CONGRESS_TAB_FIELDS = [
 ];
 
 const CONTACT_BLOCKS = [
-  { prefix: 'contact_publications', label: 'По вопросам публикаций' },
-  { prefix: 'contact_registration', label: 'По вопросам регистрации' },
-  { prefix: 'contact_participation', label: 'По вопросам участия' },
+  { prefix: 'contact_publications', label: 'Для авторов' },
+  { prefix: 'contact_registration', label: 'Для слушателей' },
+  { prefix: 'contact_participation', label: 'Для докладчиков' },
 ];
 
 // ---------------------------------------------------------------------------

@@ -186,9 +186,9 @@
     },
     "contacts": {
       "title": "Контакты",
-      "publications": "По вопросам публикаций",
-      "registration": "По вопросам регистрации",
-      "participation": "По вопросам участия"
+      "publications": "Для авторов",
+      "registration": "Для слушателей",
+      "participation": "Для докладчиков"
     },
     "infoLetter": {
       "title": "Информационное письмо",

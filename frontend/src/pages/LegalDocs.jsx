@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { contentAPI } from '../services/api';
+import { contentAPI, getImageUrl } from '../services/api';
 
 const LegalDocs = () => {
   const { t, i18n } = useTranslation();
@@ -166,7 +166,7 @@ const LegalDocs = () => {
                     {charter.file_url && (
                       <div className="pl-[72px]">
                         <a
-                          href={`http://localhost:8000${charter.file_url}`}
+                          href={getImageUrl(charter.file_url)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="group/btn inline-flex items-center gap-2.5 px-5 py-2.5 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white text-sm font-medium rounded-lg shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all duration-300"
