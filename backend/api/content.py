@@ -7,7 +7,7 @@ import os
 import uuid
 from datetime import datetime
 
-from database import get_db, BoardMember, Partner, Charter, ChiefRheumatologist, Disease, DiseaseDocument, News, RheumatologyCenter, CenterStaff, SchoolApplication, EducationEvent, MediaResource, HistoryContent
+from database import get_db, BoardMember, Partner, Charter, ChiefRheumatologist, Disease, DiseaseDocument, News, RheumatologyCenter, CenterStaff, SchoolApplication, EducationEvent, MediaResource, HistoryContent, HeroImage
 from sqlalchemy.orm import selectinload
 from schemas import (
     BoardMemberCreate, BoardMemberUpdate, BoardMemberResponse,
@@ -22,6 +22,7 @@ from schemas import (
     EducationEventCreate, EducationEventUpdate, EducationEventResponse,
     MediaResourceCreate, MediaResourceUpdate, MediaResourceResponse,
     HistoryContentCreate, HistoryContentUpdate, HistoryContentResponse,
+    HeroImageUpdate, HeroImageResponse,
 )
 from schemas.rheumatology import SchoolApplicationCreate, SchoolApplicationResponse
 from functions.auth import get_current_admin
@@ -1039,3 +1040,35 @@ async def delete_history_item(
     await db.delete(item)
     await db.commit()
     return {"message": "History item deleted"}
+
+
+# ==================== HERO-ИЗОБРАЖЕНИЯ ====================
+@router.get("/hero-images", response_model=List[HeroImageResponse])
+async def get_hero_images(db: AsyncSession = Depends(get_db)):
+    """Получить все hero-изображения (публичный эндпоинт)"""
+    result = await db.execute(select(HeroImage))
+    return result.scalars().all()
+
+
+@router.put("/hero-images/{page_key}", response_model=HeroImageResponse)
+async def update_hero_image(
+    page_key: str,
+    data: HeroImageUpdate,
+    db: AsyncSession = Depends(get_db),
+    admin=Depends(get_current_admin)
+):
+    """Создать или обновить hero-изображение для страницы (upsert)"""
+    result = await db.execute(select(HeroImage).where(HeroImage.page_key == page_key))
+    hero = result.scalar_one_or_none()
+
+    if hero:
+        update_data = data.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            setattr(hero, key, value)
+    else:
+        hero = HeroImage(page_key=page_key, **(data.model_dump(exclude_unset=True)))
+        db.add(hero)
+
+    await db.commit()
+    await db.refresh(hero)
+    return hero

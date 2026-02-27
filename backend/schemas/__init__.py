@@ -33,6 +33,8 @@ from .content import (
     MediaResourceCreate, MediaResourceUpdate, MediaResourceResponse,
     # History Content
     HistoryContentCreate, HistoryContentUpdate, HistoryContentResponse,
+    # Hero Images
+    HeroImageUpdate, HeroImageResponse,
 )
 
 __all__ = [
@@ -70,4 +72,6 @@ __all__ = [
     "MediaResourceCreate", "MediaResourceUpdate", "MediaResourceResponse",
     # History Content
     "HistoryContentCreate", "HistoryContentUpdate", "HistoryContentResponse",
+    # Hero Images
+    "HeroImageUpdate", "HeroImageResponse",
 ]

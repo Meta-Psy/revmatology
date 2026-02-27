@@ -20,6 +20,7 @@ from .models import (
     EducationEvent,
     MediaResource,
     HistoryContent,
+    HeroImage,
 )
 
 __all__ = [
@@ -47,4 +48,5 @@ __all__ = [
     "EducationEvent",
     "MediaResource",
     "HistoryContent",
+    "HeroImage",
 ]

@@ -136,12 +136,12 @@ const CharterAdmin = () => {
 
   const handleFileUpload = async (file) => {
     if (!file) {
-      setEditModal({ ...editModal, file_url: '' });
+      setEditModal(prev => ({ ...prev, file_url: '' }));
       return;
     }
     try {
       const res = await contentAPI.uploadFile(file);
-      setEditModal({ ...editModal, file_url: res.data.url });
+      setEditModal(prev => ({ ...prev, file_url: res.data.url }));
       toast.success('Файл загружен');
     } catch {
       toast.error('Ошибка загрузки файла');
@@ -149,7 +149,7 @@ const CharterAdmin = () => {
   };
 
   const updateField = (field, value) => {
-    setEditModal({ ...editModal, [field]: value });
+    setEditModal(prev => ({ ...prev, [field]: value }));
   };
 
   if (loading) return <Skeleton rows={4} cols={4} />;

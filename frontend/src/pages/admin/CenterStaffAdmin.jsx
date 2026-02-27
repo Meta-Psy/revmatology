@@ -181,12 +181,12 @@ const CenterStaffAdmin = () => {
 
   const handlePhotoUpload = async (file) => {
     if (!file) {
-      setEditModal({ ...editModal, photo_url: '' });
+      setEditModal(prev => ({ ...prev, photo_url: '' }));
       return;
     }
     try {
       const res = await contentAPI.uploadFile(file);
-      setEditModal({ ...editModal, photo_url: res.data.url });
+      setEditModal(prev => ({ ...prev, photo_url: res.data.url }));
       toast.success('Фото загружено');
     } catch {
       toast.error('Ошибка загрузки фото');
@@ -194,7 +194,7 @@ const CenterStaffAdmin = () => {
   };
 
   const updateField = (field, value) => {
-    setEditModal({ ...editModal, [field]: value });
+    setEditModal(prev => ({ ...prev, [field]: value }));
   };
 
   if (loading && centers.length === 0) return <Skeleton rows={6} cols={5} />;

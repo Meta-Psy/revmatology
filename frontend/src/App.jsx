@@ -34,6 +34,7 @@ import CenterStaffAdmin from './pages/admin/CenterStaffAdmin';
 import EducationEventsAdmin from './pages/admin/EducationEventsAdmin';
 import MediaResourcesAdmin from './pages/admin/MediaResourcesAdmin';
 import HistoryAdmin from './pages/admin/HistoryAdmin';
+import HeroImagesAdmin from './pages/admin/HeroImagesAdmin';
 
 function App() {
   return (
@@ -60,6 +61,7 @@ function App() {
             <Route path="education-events" element={<EducationEventsAdmin />} />
             <Route path="media-resources" element={<MediaResourcesAdmin />} />
             <Route path="history" element={<HistoryAdmin />} />
+            <Route path="hero-images" element={<HeroImagesAdmin />} />
           </Route>
 
           {/* Public pages with layout */}

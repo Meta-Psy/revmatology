@@ -122,6 +122,10 @@ export const contentAPI = {
   updateNews: (id, data) => api.put(`/content/news/${id}`, data),
   deleteNews: (id) => api.delete(`/content/news/${id}`),
 
+  // Hero Images
+  getHeroImages: () => api.get('/content/hero-images'),
+  updateHeroImage: (pageKey, data) => api.put(`/content/hero-images/${pageKey}`, data),
+
   // File Upload
   uploadFile: (file) => {
     const formData = new FormData();

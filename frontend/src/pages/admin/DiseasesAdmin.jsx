@@ -133,12 +133,12 @@ const DiseasesAdmin = () => {
 
   const handleRecommendationUpload = async (file) => {
     if (!file) {
-      setEditModal({ ...editModal, recommendation_file_url: '' });
+      setEditModal(prev => ({ ...prev, recommendation_file_url: '' }));
       return;
     }
     try {
       const res = await contentAPI.uploadFile(file);
-      setEditModal({ ...editModal, recommendation_file_url: res.data.url });
+      setEditModal(prev => ({ ...prev, recommendation_file_url: res.data.url }));
       toast.success('Файл рекомендаций загружен');
     } catch {
       toast.error('Ошибка загрузки файла');
@@ -147,12 +147,12 @@ const DiseasesAdmin = () => {
 
   const handleProtocolUpload = async (file) => {
     if (!file) {
-      setEditModal({ ...editModal, protocol_file_url: '' });
+      setEditModal(prev => ({ ...prev, protocol_file_url: '' }));
       return;
     }
     try {
       const res = await contentAPI.uploadFile(file);
-      setEditModal({ ...editModal, protocol_file_url: res.data.url });
+      setEditModal(prev => ({ ...prev, protocol_file_url: res.data.url }));
       toast.success('Файл протокола загружен');
     } catch {
       toast.error('Ошибка загрузки файла');
@@ -160,7 +160,7 @@ const DiseasesAdmin = () => {
   };
 
   const updateField = (field, value) => {
-    setEditModal({ ...editModal, [field]: value });
+    setEditModal(prev => ({ ...prev, [field]: value }));
   };
 
   if (loading) return <Skeleton rows={6} cols={4} />;

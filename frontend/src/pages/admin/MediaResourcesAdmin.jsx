@@ -161,12 +161,12 @@ const MediaResourcesAdmin = () => {
 
   const handleImageUpload = async (file) => {
     if (!file) {
-      setEditModal({ ...editModal, image_url: '' });
+      setEditModal(prev => ({ ...prev, image_url: '' }));
       return;
     }
     try {
       const res = await contentAPI.uploadFile(file);
-      setEditModal({ ...editModal, image_url: res.data.url });
+      setEditModal(prev => ({ ...prev, image_url: res.data.url }));
       toast.success('Обложка загружена');
     } catch {
       toast.error('Ошибка загрузки изображения');
@@ -175,12 +175,12 @@ const MediaResourcesAdmin = () => {
 
   const handleFileUpload = async (file) => {
     if (!file) {
-      setEditModal({ ...editModal, file_url: '' });
+      setEditModal(prev => ({ ...prev, file_url: '' }));
       return;
     }
     try {
       const res = await contentAPI.uploadFile(file);
-      setEditModal({ ...editModal, file_url: res.data.url });
+      setEditModal(prev => ({ ...prev, file_url: res.data.url }));
       toast.success('Файл загружен');
     } catch {
       toast.error('Ошибка загрузки файла');
@@ -188,7 +188,7 @@ const MediaResourcesAdmin = () => {
   };
 
   const updateField = (field, value) => {
-    setEditModal({ ...editModal, [field]: value });
+    setEditModal(prev => ({ ...prev, [field]: value }));
   };
 
   if (loading) return <Skeleton rows={6} cols={5} />;

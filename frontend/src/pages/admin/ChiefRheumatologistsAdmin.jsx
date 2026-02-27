@@ -152,19 +152,19 @@ const ChiefRheumatologistsAdmin = () => {
 
   const handlePhotoUpload = async (file) => {
     if (!file) {
-      setEditModal({ ...editModal, photo_url: '' });
+      setEditModal(prev => ({ ...prev, photo_url: '' }));
       return;
     }
     try {
       const res = await contentAPI.uploadFile(file);
-      setEditModal({ ...editModal, photo_url: res.data.url });
+      setEditModal(prev => ({ ...prev, photo_url: res.data.url }));
     } catch {
       toast.error('Ошибка загрузки фото');
     }
   };
 
   const updateField = (field, value) => {
-    setEditModal({ ...editModal, [field]: value });
+    setEditModal(prev => ({ ...prev, [field]: value }));
   };
 
   if (loading) return <Skeleton />;

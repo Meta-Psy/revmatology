@@ -3,6 +3,23 @@ from typing import Optional, List
 from datetime import datetime
 
 
+# ==================== HERO-ИЗОБРАЖЕНИЯ ====================
+class HeroImageUpdate(BaseModel):
+    image_url: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class HeroImageResponse(BaseModel):
+    id: int
+    page_key: str
+    image_url: Optional[str] = None
+    is_active: bool
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
 # ==================== ЧЛЕНЫ ПРАВЛЕНИЯ ====================
 class BoardMemberBase(BaseModel):
     last_name_ru: str

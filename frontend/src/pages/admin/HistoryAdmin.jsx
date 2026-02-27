@@ -117,12 +117,12 @@ const HistoryAdmin = () => {
 
   const handleImageUpload = async (file) => {
     if (!file) {
-      setEditModal({ ...editModal, image_url: '' });
+      setEditModal(prev => ({ ...prev, image_url: '' }));
       return;
     }
     try {
       const res = await contentAPI.uploadFile(file);
-      setEditModal({ ...editModal, image_url: res.data.url });
+      setEditModal(prev => ({ ...prev, image_url: res.data.url }));
       toast.success('Изображение загружено');
     } catch {
       toast.error('Ошибка загрузки файла');
@@ -130,7 +130,7 @@ const HistoryAdmin = () => {
   };
 
   const updateField = (field, value) => {
-    setEditModal({ ...editModal, [field]: value });
+    setEditModal(prev => ({ ...prev, [field]: value }));
   };
 
   if (loading) return <Skeleton rows={6} cols={4} />;

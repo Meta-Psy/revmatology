@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { contentAPI, getImageUrl } from '../services/api';
+import { useHeroImage } from '../hooks/useHeroImage';
 
 const EducationEvents = ({ eventType = 'masterclass' }) => {
   const { t, i18n } = useTranslation();
@@ -10,6 +11,7 @@ const EducationEvents = ({ eventType = 'masterclass' }) => {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const heroImage = useHeroImage('education_events');
   const i18nPrefix = eventType === 'webinar' ? 'webinarsPage' : 'masterclassesPage';
 
   useEffect(() => {
@@ -64,6 +66,12 @@ const EducationEvents = ({ eventType = 'masterclass' }) => {
     <div>
       {/* Hero Section */}
       <section className="relative py-10 md:py-14 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden">
+        {heroImage && (
+          <div className="absolute inset-0">
+            <img src={heroImage} alt="" className="w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-r from-slate-900/90 via-slate-900/70 to-slate-900/50" />
+          </div>
+        )}
         {/* Decorative elements */}
         <div className="absolute inset-0">
           <div className="absolute top-0 right-0 w-64 md:w-80 h-64 md:h-80 bg-sky-500/10 rounded-full blur-3xl"></div>

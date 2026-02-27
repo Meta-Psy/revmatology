@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { contentAPI, getImageUrl } from '../services/api';
+import { useHeroImage } from '../hooks/useHeroImage';
 
 const Congress = () => {
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
   const navigate = useNavigate();
   const { id } = useParams();
+  const heroImage = useHeroImage('congress');
 
   const [congresses, setCongresses] = useState([]);
   const [congress, setCongress] = useState(null);
@@ -143,6 +145,12 @@ const Congress = () => {
     return (
       <div>
         <section className="relative py-10 md:py-14 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden">
+          {heroImage && (
+            <div className="absolute inset-0">
+              <img src={heroImage} alt="" className="w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-r from-slate-900/90 via-slate-900/70 to-slate-900/50" />
+            </div>
+          )}
           <div className="absolute inset-0">
             <div className="absolute top-0 right-0 w-64 md:w-80 h-64 md:h-80 bg-cyan-500/10 rounded-full blur-3xl"></div>
             <div className="absolute bottom-0 left-0 w-48 md:w-64 h-48 md:h-64 bg-teal-500/10 rounded-full blur-3xl"></div>

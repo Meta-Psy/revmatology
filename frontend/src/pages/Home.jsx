@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { contentAPI } from '../services/api';
+import { useHeroImage } from '../hooks/useHeroImage';
 
 // Хук для отслеживания видимости элемента
 const useInView = (options = {}) => {
@@ -39,6 +40,7 @@ const Home = () => {
   const [upcomingEvent, setUpcomingEvent] = useState(null);
   const [charter, setCharter] = useState(null);
   const [loading, setLoading] = useState(true);
+  const heroImage = useHeroImage('home');
 
   // Refs для анимаций секций (только для статичных секций)
   const [aboutRef, aboutInView] = useInView();
@@ -80,7 +82,7 @@ const Home = () => {
       {/* Фоновое изображение */}
       <div className="absolute inset-0">
         <img
-          src="/hero-bg.jpg"
+          src={heroImage || '/hero-bg.jpg'}
           alt=""
           className="w-full h-full object-cover"
         />

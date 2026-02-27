@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Newspaper, Users, UserCircle, Building2,
   Globe, FileText, Clock, Stethoscope, GraduationCap, BookOpen,
   CalendarDays, UserCog, PanelLeftClose, PanelLeftOpen,
-  ExternalLink, Menu, X
+  ExternalLink, Menu, X, Image
 } from 'lucide-react';
 import './admin.css';
 
@@ -42,6 +42,7 @@ const NAV_GROUPS = [
     label: 'Система',
     items: [
       { path: '/admin/congress', label: 'Конгресс', icon: CalendarDays },
+      { path: '/admin/hero-images', label: 'Hero-фоны', icon: Image },
       { path: '/admin/users', label: 'Пользователи', icon: UserCog },
     ],
   },

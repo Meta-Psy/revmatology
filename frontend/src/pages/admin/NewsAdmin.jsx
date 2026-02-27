@@ -182,12 +182,12 @@ const NewsAdmin = () => {
 
   const handleImageUpload = async (file, field) => {
     if (!file) {
-      setEditModal({ ...editModal, [field]: '' });
+      setEditModal(prev => ({ ...prev, [field]: '' }));
       return;
     }
     try {
       const res = await contentAPI.uploadFile(file);
-      setEditModal({ ...editModal, [field]: res.data.url });
+      setEditModal(prev => ({ ...prev, [field]: res.data.url }));
       toast.success('Изображение загружено');
     } catch {
       toast.error('Ошибка загрузки файла');
@@ -195,7 +195,7 @@ const NewsAdmin = () => {
   };
 
   const updateField = (field, value) => {
-    setEditModal({ ...editModal, [field]: value });
+    setEditModal(prev => ({ ...prev, [field]: value }));
   };
 
   if (loading) return <Skeleton rows={6} cols={5} />;
