@@ -133,7 +133,7 @@ const HeroImagesAdmin = () => {
                   {isUploading ? 'Загрузка...' : (imageUrl ? 'Заменить' : 'Загрузить')}
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/*,.heic,.heif"
                     className="hidden"
                     disabled={isUploading}
                     onChange={(e) => handleUpload(key, e.target.files[0])}

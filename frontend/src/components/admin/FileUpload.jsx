@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { Upload, X, FileText, Image as ImageIcon } from 'lucide-react';
 
-const FileUpload = ({ value, onChange, accept = 'image/*', label, preview = true }) => {
+const FileUpload = ({ value, onChange, accept = 'image/*,.heic,.heif', label, preview = true }) => {
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef(null);
 
