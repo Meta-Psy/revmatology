@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { contentAPI } from '../services/api';
+import { contentAPI, getImageUrl } from '../services/api';
 
 const Congress = () => {
   const { t, i18n } = useTranslation();
@@ -186,7 +186,7 @@ const Congress = () => {
                       <div className="flex flex-col md:flex-row">
                         <div className="relative md:w-80 h-48 md:h-auto flex-shrink-0 overflow-hidden">
                           {c.image_url ? (
-                            <img src={c.image_url} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                            <img src={getImageUrl(c.image_url)} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                           ) : (
                             <div className="w-full h-full min-h-[12rem] bg-gradient-to-br from-cyan-500 to-teal-600 flex items-center justify-center">
                               <svg className="w-16 h-16 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
@@ -325,7 +325,7 @@ const Congress = () => {
             {sponsors.filter(s => s.is_active).map((sponsor) => (
               <a key={sponsor.id} href={sponsor.website_url || '#'} target="_blank" rel="noopener noreferrer" className="group flex flex-col items-center p-4 bg-stone-50 rounded-xl border border-stone-100 hover:border-cyan-200 hover:shadow-md transition-all">
                 {sponsor.logo_url ? (
-                  <img src={sponsor.logo_url} alt={L(sponsor, 'name')} className="w-20 h-20 object-contain mb-3" />
+                  <img src={getImageUrl(sponsor.logo_url)} alt={L(sponsor, 'name')} className="w-20 h-20 object-contain mb-3" />
                 ) : (
                   <div className="w-20 h-20 bg-gradient-to-br from-stone-200 to-stone-300 rounded-xl mb-3 flex items-center justify-center">
                     <span className="text-2xl font-bold text-stone-400">{L(sponsor, 'name').charAt(0)}</span>
@@ -473,7 +473,7 @@ const Congress = () => {
                   {sectionSpeakers.map((speaker) => (
                     <div key={speaker.id} className="flex items-start gap-4 p-4 bg-stone-50 rounded-xl border border-stone-100">
                       {speaker.photo_url ? (
-                        <img src={speaker.photo_url} alt="" className="w-14 h-14 rounded-xl object-cover flex-shrink-0" />
+                        <img src={getImageUrl(speaker.photo_url)} alt="" className="w-14 h-14 rounded-xl object-cover flex-shrink-0" />
                       ) : (
                         <div className="w-14 h-14 bg-gradient-to-br from-slate-600 to-slate-800 rounded-xl flex-shrink-0 flex items-center justify-center">
                           <svg className="w-7 h-7 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
@@ -514,7 +514,7 @@ const Congress = () => {
             <div key={speaker.id} className="bg-white rounded-2xl p-5 shadow-sm border border-stone-200/60 hover:shadow-md transition-all">
               <div className="flex items-start gap-4">
                 {speaker.photo_url ? (
-                  <img src={speaker.photo_url} alt="" className="w-16 h-16 rounded-xl object-cover flex-shrink-0" />
+                  <img src={getImageUrl(speaker.photo_url)} alt="" className="w-16 h-16 rounded-xl object-cover flex-shrink-0" />
                 ) : (
                   <div className="w-16 h-16 bg-gradient-to-br from-slate-600 to-slate-800 rounded-xl flex-shrink-0 flex items-center justify-center">
                     <svg className="w-8 h-8 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
@@ -552,10 +552,17 @@ const Congress = () => {
     <div>
       {/* Hero Section */}
       <section className="relative py-10 md:py-14 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden">
-        <div className="absolute inset-0">
-          <div className="absolute top-0 right-0 w-64 md:w-96 h-64 md:h-96 bg-cyan-500/10 rounded-full blur-3xl"></div>
-          <div className="absolute bottom-0 left-0 w-48 md:w-72 h-48 md:h-72 bg-teal-500/10 rounded-full blur-3xl"></div>
-        </div>
+        {congress.image_url ? (
+          <div className="absolute inset-0">
+            <img src={getImageUrl(congress.image_url)} alt="" className="w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-r from-slate-900/95 via-slate-900/80 to-slate-900/60"></div>
+          </div>
+        ) : (
+          <div className="absolute inset-0">
+            <div className="absolute top-0 right-0 w-64 md:w-96 h-64 md:h-96 bg-cyan-500/10 rounded-full blur-3xl"></div>
+            <div className="absolute bottom-0 left-0 w-48 md:w-72 h-48 md:h-72 bg-teal-500/10 rounded-full blur-3xl"></div>
+          </div>
+        )}
         <div className="hidden sm:block absolute top-6 left-6 w-10 h-10 border-t border-l border-cyan-500/20"></div>
         <div className="hidden sm:block absolute top-6 right-6 w-10 h-10 border-t border-r border-cyan-500/20"></div>
         <div className="hidden sm:block absolute bottom-6 left-6 w-10 h-10 border-b border-l border-teal-500/20"></div>
