@@ -36,8 +36,14 @@ if (!i18n.isInitialized) {
   });
 }
 
-// Sync language changes to localStorage
+if (typeof document !== 'undefined') {
+  document.documentElement.lang = i18n.language;
+}
+
 i18n.on('languageChanged', (lng) => {
+  if (typeof document !== 'undefined') {
+    document.documentElement.lang = lng;
+  }
   try {
     localStorage.setItem('language', lng);
   } catch {}
