@@ -36,14 +36,19 @@ if (!i18n.isInitialized) {
   });
 }
 
-if (typeof document !== 'undefined') {
-  document.documentElement.lang = i18n.language;
-}
+const syncDocumentMeta = (lng) => {
+  if (typeof document === 'undefined') return;
+  document.documentElement.lang = lng;
+  const title = i18n.t('hero.title');
+  if (title && title !== 'hero.title') {
+    document.title = title;
+  }
+};
+
+syncDocumentMeta(i18n.language);
 
 i18n.on('languageChanged', (lng) => {
-  if (typeof document !== 'undefined') {
-    document.documentElement.lang = lng;
-  }
+  syncDocumentMeta(lng);
   try {
     localStorage.setItem('language', lng);
   } catch {}
