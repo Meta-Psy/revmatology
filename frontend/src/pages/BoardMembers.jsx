@@ -145,8 +145,8 @@ const BoardMembers = () => {
 
                     <div className={`flex flex-col ${isEven ? 'md:flex-row' : 'md:flex-row-reverse'} gap-6 sm:gap-10 md:gap-12 items-start`}>
                       {/* Portrait */}
-                      <div className="w-full sm:w-3/4 md:w-5/12 flex-shrink-0 mx-auto md:mx-0">
-                        <div className={`relative group/photo mx-auto ${index === 0 ? 'max-w-[280px] sm:max-w-[440px]' : 'max-w-[240px] sm:max-w-[340px]'}`}>
+                      <div className={`w-full sm:w-3/4 ${index === 0 ? 'md:w-5/12' : 'md:w-1/3 lg:w-3/12'} flex-shrink-0 mx-auto md:mx-0`}>
+                        <div className={`relative group/photo mx-auto ${index === 0 ? 'max-w-[280px] sm:max-w-[440px]' : 'max-w-[220px] sm:max-w-[300px]'}`}>
                           {/* Outer frame */}
                           <div className="absolute -inset-2 sm:-inset-3 border border-amber-700/20 rounded-sm group-hover/photo:border-amber-600/30 transition-colors duration-500"></div>
                           <div className="absolute -inset-1 sm:-inset-1.5 border border-stone-300/50 rounded-sm"></div>
@@ -180,7 +180,7 @@ const BoardMembers = () => {
                       </div>
 
                       {/* Info */}
-                      <div className="w-full md:w-7/12 pt-4 sm:pt-6 md:pt-0">
+                      <div className={`w-full ${index === 0 ? 'md:w-7/12' : 'md:w-2/3 lg:w-9/12'} pt-4 sm:pt-6 md:pt-0`}>
                         {/* Name */}
                         <h3 className="text-xl sm:text-2xl md:text-3xl text-stone-800 mb-2 leading-snug tracking-tight text-center md:text-left" style={{ fontFamily: 'Georgia, "Times New Roman", serif', fontWeight: 400 }}>
                           {getField(member, 'last_name')}{' '}
