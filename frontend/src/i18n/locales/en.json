@@ -176,6 +176,9 @@
     "noContent": "Information will be added later",
     "registrationSuccess": "Application submitted successfully!",
     "registrationError": "Error submitting application",
+    "successTitle": "Registration successful!",
+    "yourId": "Your registration ID",
+    "saveIdNotice": "Please save this ID — you will need it when contacting the organizers and to check your application status.",
     "tabs": {
       "main": "Main",
       "about": "About Congress",

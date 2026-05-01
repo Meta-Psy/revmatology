@@ -176,6 +176,9 @@
     "noContent": "Ma'lumot keyinroq qo'shiladi",
     "registrationSuccess": "Ariza muvaffaqiyatli yuborildi!",
     "registrationError": "Ariza yuborishda xatolik",
+    "successTitle": "Ro'yxatdan muvaffaqiyatli o'tdingiz!",
+    "yourId": "Sizning ro'yxatdan o'tish ID raqamingiz",
+    "saveIdNotice": "Iltimos, ushbu ID raqamni saqlab qo'ying — u tashkilotchilar bilan bog'lanishda va arizangiz holatini tekshirishda kerak bo'ladi.",
     "tabs": {
       "main": "Asosiy",
       "about": "Kongress haqida",

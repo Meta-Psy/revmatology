@@ -19,6 +19,7 @@ const Congress = () => {
   const [selectedSectionId, setSelectedSectionId] = useState(null);
   const [showRegistration, setShowRegistration] = useState(false);
   const [showInfoLetter, setShowInfoLetter] = useState(false);
+  const [registrationSuccess, setRegistrationSuccess] = useState(null);
   const [formData, setFormData] = useState({
     last_name: '', first_name: '', patronymic: '',
     email: '', phone: '', organization: '', position: '',
@@ -100,9 +101,9 @@ const Congress = () => {
     if (!congress) return;
     setSubmitting(true);
     try {
-      await contentAPI.registerForCongress(congress.id, { ...formData, congress_id: congress.id });
-      alert(t('congress.registrationSuccess', 'Заявка отправлена!'));
+      const res = await contentAPI.registerForCongress(congress.id, { ...formData, congress_id: congress.id });
       setShowRegistration(false);
+      setRegistrationSuccess({ id: res.data?.id });
       setFormData({ last_name: '', first_name: '', patronymic: '', email: '', phone: '', organization: '', position: '', academic_degree: '', academic_title: '', institution_address: '', participation_form: 'participation', report_title: '', is_young_scientist: false, needs_hotel: false });
     } catch (err) {
       alert(t('congress.registrationError', 'Ошибка при отправке заявки'));
@@ -837,6 +838,49 @@ const Congress = () => {
               </div>
             </div>
             <div className="prose prose-stone max-w-none" style={{ fontFamily: 'Georgia, serif' }} dangerouslySetInnerHTML={{ __html: (Lf('info_letter') || '').replace(/\n/g, '<br />') }} />
+          </div>
+        </div>
+      )}
+
+      {/* Registration Success Modal */}
+      {registrationSuccess && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 md:p-8 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-green-500 to-emerald-600"></div>
+            <button
+              onClick={() => setRegistrationSuccess(null)}
+              aria-label={t('common.close', 'Закрыть')}
+              className="absolute top-4 right-4 w-8 h-8 rounded-lg bg-stone-100 flex items-center justify-center text-stone-400 hover:text-stone-600 hover:bg-stone-200 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+
+            <div className="flex flex-col items-center text-center pt-2">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-green-500/30 mb-5">
+                <svg className="w-9 h-9 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+
+              <h2 className="text-xl md:text-2xl text-stone-800 mb-2" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
+                {t('congress.successTitle', 'Регистрация прошла успешно!')}
+              </h2>
+
+              {registrationSuccess.id && (
+                <div className="w-full mt-5 p-4 bg-stone-50 border border-stone-200 rounded-xl">
+                  <div className="text-xs uppercase tracking-wider text-stone-500 mb-1" style={{ fontFamily: 'Georgia, serif' }}>
+                    {t('congress.yourId', 'Ваш ID регистрации')}
+                  </div>
+                  <div className="text-3xl font-medium text-cyan-700 select-all" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
+                    #{registrationSuccess.id}
+                  </div>
+                </div>
+              )}
+
+              <p className="mt-5 text-sm text-stone-600 leading-relaxed" style={{ fontFamily: 'Georgia, serif' }}>
+                {t('congress.saveIdNotice', 'Пожалуйста, сохраните этот ID — он понадобится при обращении к организаторам и для проверки статуса заявки.')}
+              </p>
+            </div>
           </div>
         </div>
       )}

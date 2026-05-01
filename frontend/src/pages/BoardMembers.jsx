@@ -146,7 +146,7 @@ const BoardMembers = () => {
                     <div className={`flex flex-col ${isEven ? 'md:flex-row' : 'md:flex-row-reverse'} gap-6 sm:gap-10 md:gap-12 items-start`}>
                       {/* Portrait */}
                       <div className="w-full sm:w-3/4 md:w-5/12 flex-shrink-0 mx-auto md:mx-0">
-                        <div className="relative group/photo max-w-[280px] sm:max-w-none mx-auto">
+                        <div className={`relative group/photo mx-auto ${index === 0 ? 'max-w-[280px] sm:max-w-[440px]' : 'max-w-[240px] sm:max-w-[340px]'}`}>
                           {/* Outer frame */}
                           <div className="absolute -inset-2 sm:-inset-3 border border-amber-700/20 rounded-sm group-hover/photo:border-amber-600/30 transition-colors duration-500"></div>
                           <div className="absolute -inset-1 sm:-inset-1.5 border border-stone-300/50 rounded-sm"></div>
