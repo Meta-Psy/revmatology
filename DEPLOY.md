@@ -175,8 +175,10 @@ docker compose -f docker-compose.prod.yml logs -f
 ```bash
 cd ~/apps/revmatology
 
-# Получить сертификат
-docker compose -f docker-compose.prod.yml run --rm certbot certonly \
+# Получить сертификат.
+# --entrypoint certbot обязателен: штатный entrypoint сервиса — петля
+# автопродления, без переопределения аргументы certonly уйдут в неё впустую.
+docker compose -f docker-compose.prod.yml run --rm --entrypoint certbot certbot certonly \
   --webroot -w /var/www/certbot \
   -d rheumassociation.uz -d www.rheumassociation.uz \
   --email ваш@email.com \
@@ -197,10 +199,11 @@ docker compose -f docker-compose.prod.yml restart nginx
 - `nginx` раз в 6ч делает `reload` и подхватывает продлённый серт из общего тома.
 
 Механизм поднимается сам при `docker compose up -d` и переживает пересоздание сервера.
-Проверить, что продление рабочее (без реального выпуска):
+Проверить, что продление рабочее (без реального выпуска) — `--entrypoint certbot`
+обходит штатную петлю и запускает разовый прогон:
 
 ```bash
-docker compose -f docker-compose.prod.yml run --rm certbot renew --dry-run
+docker compose -f docker-compose.prod.yml run --rm --entrypoint certbot certbot renew --dry-run
 ```
 
 ---

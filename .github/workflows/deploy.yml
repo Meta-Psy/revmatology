@@ -79,7 +79,7 @@ jobs:
           target: ~/apps/revmatology/
           overwrite: true
 
-      - name: Set permissions and restart nginx
+      - name: Set permissions and apply stack
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -88,4 +88,7 @@ jobs:
           script: |
             chmod -R 755 ~/apps/revmatology/frontend/dist
             cd ~/apps/revmatology
-            docker compose -f docker-compose.prod.yml restart nginx
+            # up -d, а не restart: применяет изменения command/entrypoint из
+            # compose (петли автопродления certbot/nginx) и поднимает certbot.
+            # Пересоздаются только сервисы с изменившимся конфигом.
+            docker compose -f docker-compose.prod.yml up -d

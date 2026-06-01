@@ -57,15 +57,21 @@
 
 **Почему renew без аргументов работает:** webroot-конфиг (`authenticator=webroot`, `webroot-path=/var/www/certbot`) уже записан в `/etc/letsencrypt/renewal/rheumassociation.uz.conf` при ручном продлении 2026-06-02. nginx уже отдаёт `/.well-known/acme-challenge/` на 80-м порту (nginx.conf не трогаем).
 
+**Важный нюанс (footgun):** раз `entrypoint` сервиса — петля, одноразовые команды через `docker compose run --rm certbot <args>` ломаются: `<args>` уходят позиционными параметрами в `sh -c`, который их игнорирует, и контейнер просто зацикливается. Для разовых вызовов (`certonly` первичный, `renew --dry-run`) обязательно `--entrypoint certbot`: `docker compose run --rm --entrypoint certbot certbot <args>`. Это отражено в DEPLOY.md.
+
 ### 2. `DEPLOY.md`
 
 - IP `138.68.59.141` → `157.245.165.136` (везде).
 - SSH: юзер `sardor`, ключ `~/.ssh/id_ed_rheum` (убрать путаницу `deploy`/`sardor` из этапа 1.6).
 - Этап 6 «Автопродление через crontab» → заменить: продление автоматическое внутри compose, ручной cron не нужен. Оставить команду первичного выпуска (`certonly`) — она нужна на чистом сервере до появления серта.
 
+### 3. `.github/workflows/deploy.yml`
+
+Финальный шаг деплоя делал `docker compose restart nginx` — `restart` **не перечитывает** изменённые `command`/`entrypoint` из compose, а certbot CI вообще не трогал. Значит петли не активировались бы при merge. Меняю на `docker compose up -d` по стеку: пересоздаёт только сервисы с изменившимся конфигом (certbot/nginx), бэкенд/БД не трогает. Без этого нужен был бы ручной `up -d` на сервере после merge.
+
 ## Что НЕ делаем (YAGNI)
 
-- Проверку срока серта в CI `deploy.yml` — при рабочей петле избыточно.
+- Проверку срока серта в CI — при рабочей петле избыточно.
 - systemd-уровень, мониторинг/алерты на истечение — вне объёма.
 - `nginx.conf` не трогаем — webroot-блок уже есть.
 
