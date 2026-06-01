@@ -36,6 +36,9 @@ services:
     image: nginx:alpine
     container_name: rheumatology_nginx
     restart: always
+    # Reload раз в 6ч, чтобы подхватывать продлённый certbot'ом сертификат
+    # из общего тома certbot_data. nginx остаётся главным процессом контейнера.
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
     ports:
       - "80:80"
       - "443:443"
@@ -53,6 +56,11 @@ services:
   certbot:
     image: certbot/certbot
     container_name: rheumatology_certbot
+    restart: always
+    # Петля автопродления: раз в 12ч проверяет срок и продлевает при необходимости.
+    # certbot renew — no-op, если до истечения > 30 дней. Конфиг webroot уже
+    # записан в /etc/letsencrypt/renewal/ при первичном выпуске.
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done'"
     volumes:
       - certbot_data:/etc/letsencrypt
       - certbot_www:/var/www/certbot
