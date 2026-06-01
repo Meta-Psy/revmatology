@@ -1,8 +1,9 @@
 # Деплой rheumassociation.uz
-Да
-**Сервер:** 138.68.59.141
+
+**Сервер:** 157.245.165.136
 **Домен:** rheumassociation.uz
 **Стек:** React (Vite) + FastAPI + PostgreSQL + Nginx + Docker
+**SSH:** `ssh -i ~/.ssh/id_ed_rheum sardor@157.245.165.136`
 
 ---
 
@@ -11,7 +12,7 @@
 ### 1.1 Подключиться к серверу
 
 ```bash
-ssh -i путь/к/ключу root@138.68.59.141
+ssh -i путь/к/ключу root@157.245.165.136
 ```
 
 ### 1.2 Обновить систему
@@ -20,18 +21,18 @@ ssh -i путь/к/ключу root@138.68.59.141
 apt update && apt upgrade -y
 ```
 
-### 1.3 Создать пользователя deploy (не работать под root)
+### 1.3 Создать пользователя sardor (не работать под root)
 
 ```bash
-adduser deploy
-usermod -aG sudo deploy
+adduser sardor
+usermod -aG sudo sardor
 
 # Скопировать SSH-ключ
-mkdir -p /home/deploy/.ssh
-cp ~/.ssh/authorized_keys /home/deploy/.ssh/
-chown -R deploy:deploy /home/deploy/.ssh
-chmod 700 /home/deploy/.ssh
-chmod 600 /home/deploy/.ssh/authorized_keys
+mkdir -p /home/sardor/.ssh
+cp ~/.ssh/authorized_keys /home/sardor/.ssh/
+chown -R sardor:sardor /home/sardor/.ssh
+chmod 700 /home/sardor/.ssh
+chmod 600 /home/sardor/.ssh/authorized_keys
 ```
 
 ### 1.4 Настроить файрвол
@@ -58,7 +59,7 @@ PermitRootLogin no
 systemctl restart sshd
 ```
 
-> После этого проверьте, что вы можете войти как `deploy` в **новом** терминале, прежде чем закрывать текущую сессию root!
+> После этого проверьте, что вы можете войти как `sardor` в **новом** терминале, прежде чем закрывать текущую сессию root!
 
 ### 1.6 Установить Docker
 
@@ -68,10 +69,10 @@ systemctl enable docker
 usermod -aG docker sardor
 ```
 
-Перезайти как deploy:
+Перезайти как sardor:
 
 ```bash
-ssh -i путь/к/ключу deploy@138.68.59.141
+ssh -i путь/к/ключу sardor@157.245.165.136
 ```
 
 ---
@@ -82,8 +83,8 @@ ssh -i путь/к/ключу deploy@138.68.59.141
 
 | Тип | Имя  | Значение        |
 |-----|------|-----------------|
-| A   | @    | 138.68.59.141   |
-| A   | www  | 138.68.59.141   |
+| A   | @    | 157.245.165.136   |
+| A   | www  | 157.245.165.136   |
 
 Проверить распространение DNS:
 
@@ -111,7 +112,7 @@ cd revmatology
 С вашего компьютера (Windows):
 
 ```powershell
-scp -i путь\к\ключу -r C:\Users\Alex\revmatology deploy@138.68.59.141:~/apps/revmatology
+scp -i путь\к\ключу -r C:\Users\Alex\revmatology sardor@157.245.165.136:~/apps/revmatology
 ```
 
 ---
@@ -163,7 +164,7 @@ docker compose -f docker-compose.prod.yml ps
 docker compose -f docker-compose.prod.yml logs -f
 ```
 
-Сайт должен открываться по `http://rheumassociation.uz` (или по IP: `http://138.68.59.141`).
+Сайт должен открываться по `http://rheumassociation.uz` (или по IP: `http://157.245.165.136`).
 
 ---
 
@@ -190,14 +191,16 @@ docker compose -f docker-compose.prod.yml restart nginx
 
 ### Автопродление сертификата
 
-Добавить в crontab:
+Продление **автоматическое** и живёт внутри `docker-compose.prod.yml` — ручной crontab не нужен:
+
+- сервис `certbot` крутит петлю `certbot renew` раз в 12ч (no-op, пока до истечения > 30 дней);
+- `nginx` раз в 6ч делает `reload` и подхватывает продлённый серт из общего тома.
+
+Механизм поднимается сам при `docker compose up -d` и переживает пересоздание сервера.
+Проверить, что продление рабочее (без реального выпуска):
 
 ```bash
-crontab -e
-```
-
-```
-0 3 * * * cd ~/apps/revmatology && docker compose -f docker-compose.prod.yml run --rm certbot renew && docker compose -f docker-compose.prod.yml restart nginx
+docker compose -f docker-compose.prod.yml run --rm certbot renew --dry-run
 ```
 
 ---
