@@ -57,6 +57,8 @@
 
 **Почему renew без аргументов работает:** webroot-конфиг (`authenticator=webroot`, `webroot-path=/var/www/certbot`) уже записан в `/etc/letsencrypt/renewal/rheumassociation.uz.conf` при ручном продлении 2026-06-02. nginx уже отдаёт `/.well-known/acme-challenge/` на 80-м порту (nginx.conf не трогаем).
 
+**Важный нюанс (footgun):** раз `entrypoint` сервиса — петля, одноразовые команды через `docker compose run --rm certbot <args>` ломаются: `<args>` уходят позиционными параметрами в `sh -c`, который их игнорирует, и контейнер просто зацикливается. Для разовых вызовов (`certonly` первичный, `renew --dry-run`) обязательно `--entrypoint certbot`: `docker compose run --rm --entrypoint certbot certbot <args>`. Это отражено в DEPLOY.md.
+
 ### 2. `DEPLOY.md`
 
 - IP `138.68.59.141` → `157.245.165.136` (везде).
