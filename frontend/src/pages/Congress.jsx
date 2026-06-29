@@ -295,7 +295,11 @@ const Congress = () => {
     );
   }
 
-  const isUpcoming = congress.date_start && new Date(congress.date_start) >= new Date();
+  // Конгресс считается актуальным (предстоящим/идущим), пока не прошла дата окончания.
+  // Раньше статус был завязан на date_start, из-за чего у многодневного конгресса
+  // регистрация и бейдж «пропадали» в день старта, хотя мероприятие ещё идёт.
+  const congressEnd = congress.date_end || congress.date_start;
+  const isUpcoming = congressEnd && new Date(congressEnd) >= new Date();
   const sponsors = congress.sponsors || [];
   const programDays = congress.program_days || [];
   const allSpeakers = congress.speakers || [];
