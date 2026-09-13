@@ -52,6 +52,7 @@
     - backend/schemas/congress.py
     - backend/api/congress.py
     - frontend/src/pages/admin/CongressAdmin.jsx
+    - frontend/src/pages/Congress.jsx
     - frontend/src/pages/CongressProgram.jsx
   tests:
     api: backend/tests/workflows/test_p01_congress_program.py::test_p01
