@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { contentAPI, getImageUrl } from '../services/api';
 import { useHeroImage } from '../hooks/useHeroImage';
 import { makeGetField } from '../utils/getField';
+import { formatDate as fmtDate, formatDateRange as fmtDateRange } from '../utils/dates';
 
 const Congress = () => {
   const { t, i18n } = useTranslation();
@@ -79,23 +80,8 @@ const Congress = () => {
   const L = makeGetField(lang);
   const Lf = (field) => L(congress, field);
 
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '';
-    return new Date(dateStr).toLocaleDateString(lang === 'ru' ? 'ru-RU' : lang === 'uz' ? 'uz-UZ' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' });
-  };
-
-  const formatDateRange = (startStr, endStr) => {
-    if (!startStr) return '';
-    const start = new Date(startStr);
-    const end = endStr ? new Date(endStr) : null;
-    const locale = lang === 'ru' ? 'ru-RU' : lang === 'uz' ? 'uz-UZ' : 'en-US';
-    if (end && start.getMonth() === end.getMonth()) {
-      return `${start.getDate()}-${end.getDate()} ${start.toLocaleDateString(locale, { month: 'long', year: 'numeric' })}`;
-    } else if (end) {
-      return `${start.toLocaleDateString(locale, { day: 'numeric', month: 'long' })} - ${end.toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' })}`;
-    }
-    return start.toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' });
-  };
+  const formatDate = (dateStr) => fmtDate(dateStr, lang);
+  const formatDateRange = (startStr, endStr) => fmtDateRange(startStr, endStr, lang);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

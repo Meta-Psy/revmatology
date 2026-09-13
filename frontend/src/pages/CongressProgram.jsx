@@ -3,9 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router-dom';
 import { contentAPI, getImageUrl } from '../services/api';
 import { makeGetField } from '../utils/getField';
-
-/** Спикер считается активным, пока его явно не отключили в админке. */
-const isActiveSpeaker = (speaker) => speaker?.is_active !== false;
+import { formatDate as fmtDate, formatDateRange as fmtDateRange } from '../utils/dates';
 
 const formatTimeRange = (speaker) => {
   if (!speaker.time_start && !speaker.time_end) return '';
@@ -44,25 +42,8 @@ const CongressProgram = () => {
   const L = makeGetField(lang);
   const Lf = (field) => L(congress, field);
 
-  const locale = lang === 'ru' ? 'ru-RU' : lang === 'uz' ? 'uz-UZ' : 'en-US';
-
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '';
-    return new Date(dateStr).toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' });
-  };
-
-  const formatDateRange = (startStr, endStr) => {
-    if (!startStr) return '';
-    const start = new Date(startStr);
-    const end = endStr ? new Date(endStr) : null;
-    if (end && start.getMonth() === end.getMonth()) {
-      return `${start.getDate()}-${end.getDate()} ${start.toLocaleDateString(locale, { month: 'long', year: 'numeric' })}`;
-    }
-    if (end) {
-      return `${start.toLocaleDateString(locale, { day: 'numeric', month: 'long' })} - ${end.toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' })}`;
-    }
-    return start.toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' });
-  };
+  const formatDate = (dateStr) => fmtDate(dateStr, lang);
+  const formatDateRange = (startStr, endStr) => fmtDateRange(startStr, endStr, lang);
 
   if (loading) {
     return (
@@ -89,7 +70,7 @@ const CongressProgram = () => {
   }
 
   const programDays = congress.program_days || [];
-  const allSpeakers = (congress.speakers || []).filter(isActiveSpeaker);
+  const allSpeakers = (congress.speakers || []).filter((s) => s.is_active);
 
   // Спикеры, уже показанные внутри секций, не дублируются в блоке «вне секций».
   const speakerIdsInSections = new Set(
@@ -98,9 +79,9 @@ const CongressProgram = () => {
   const looseSpeakers = allSpeakers.filter((s) => !speakerIdsInSections.has(s.id));
 
   const programText = Lf('program');
-  const programFile = Lf('info_letter_file');
+  const infoLetterFile = Lf('info_letter_file');
   const hasStructuredProgram = programDays.length > 0 || looseSpeakers.length > 0;
-  const hasAnything = hasStructuredProgram || Boolean(programText) || Boolean(programFile);
+  const hasAnything = hasStructuredProgram || Boolean(programText) || Boolean(infoLetterFile);
 
   const renderSpeaker = (speaker) => {
     const fullName = [L(speaker, 'last_name'), L(speaker, 'first_name'), L(speaker, 'patronymic')]
@@ -207,7 +188,7 @@ const CongressProgram = () => {
               ) : (
                 <div className="space-y-8">
                   {(day.sections || []).map((section) => {
-                    const speakers = (section.speakers || []).filter(isActiveSpeaker);
+                    const speakers = (section.speakers || []).filter((s) => s.is_active);
                     return (
                       <section key={section.id}>
                         <h3 className="text-lg text-stone-800 leading-snug" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>{L(section, 'title')}</h3>
@@ -248,16 +229,16 @@ const CongressProgram = () => {
             </article>
           )}
 
-          {programFile && (
+          {infoLetterFile && (
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/60">
               <a
-                href={programFile}
+                href={infoLetterFile}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-4 py-2.5 text-sm bg-cyan-500 text-white rounded-xl hover:bg-cyan-600 transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                {t('congress.program.downloadFile', 'Скачать программу (файл)')}
+                {t('congress.program.downloadInfoLetter', 'Информационное письмо (файл)')}
               </a>
             </div>
           )}

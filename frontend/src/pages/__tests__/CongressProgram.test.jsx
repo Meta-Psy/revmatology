@@ -1,34 +1,16 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
-import { I18nextProvider, initReactI18next } from 'react-i18next';
-import i18next from 'i18next';
+import { I18nextProvider } from 'react-i18next';
 
 import CongressProgram from '../CongressProgram';
 import { contentAPI } from '../../services/api';
-import ru from '../../i18n/locales/ru.json';
-import uz from '../../i18n/locales/uz.json';
-import en from '../../i18n/locales/en.json';
+import { createTestI18n } from '../../test/i18n-test-utils';
 
 vi.mock('../../services/api', () => ({
   contentAPI: { getCongressDetail: vi.fn() },
   getImageUrl: (path) => path,
 }));
-
-// Тот же способ инициализации, что в src/test/i18n-test-utils.js
-// (там файл с JSX под расширением .js, поэтому импортировать его нельзя).
-const createTestI18n = (lng = 'ru') => {
-  const instance = i18next.createInstance();
-  instance.use(initReactI18next).init({
-    resources: { ru: { translation: ru }, uz: { translation: uz }, en: { translation: en } },
-    lng,
-    fallbackLng: 'ru',
-    supportedLngs: ['ru', 'uz', 'en'],
-    interpolation: { escapeValue: false },
-    react: { useSuspense: false },
-  });
-  return instance;
-};
 
 const speaker = (id, overrides = {}) => ({
   id,
@@ -72,6 +54,9 @@ const renderProgram = ({ lng = 'ru' } = {}) => {
   );
 };
 
+/** Сколько раз имя спикера встречается в отрендеренном тексте страницы. */
+const countOccurrences = (text, fragment) => text.split(fragment).length - 1;
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -90,16 +75,16 @@ describe('CongressProgram — структурированная програм�
           {
             id: 11,
             title_ru: 'Секция А',
-            title_uz: 'A bo\'limi',
+            title_uz: "A bo'limi",
             description_ru: 'Ревматоидный артрит',
-            speakers: [speaker(101), speaker(102)],
+            speakers: [speaker(101, { section_id: 11 }), speaker(102, { section_id: 11 })],
           },
           {
             id: 12,
             title_ru: 'Секция Б',
             title_uz: '',
             description_ru: '',
-            speakers: [speaker(103)],
+            speakers: [speaker(103, { section_id: 12 })],
           },
         ],
       },
@@ -115,12 +100,18 @@ describe('CongressProgram — структурированная програм�
             title_ru: 'Секция В',
             title_uz: '',
             description_ru: '',
-            speakers: [speaker(201)],
+            speakers: [speaker(201, { section_id: 21 })],
           },
         ],
       },
     ],
-    speakers: [speaker(101), speaker(102), speaker(103), speaker(201)],
+    // плоский список дублирует тех же спикеров — так отдаёт API
+    speakers: [
+      speaker(101, { section_id: 11 }),
+      speaker(102, { section_id: 11 }),
+      speaker(103, { section_id: 12 }),
+      speaker(201, { section_id: 21 }),
+    ],
   };
 
   it('рисует дни → секции → доклады в исходном порядке (RU)', async () => {
@@ -144,6 +135,9 @@ describe('CongressProgram — структурированная програм�
 
     expect(order.every((idx) => idx >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
+
+    // все спикеры разложены по секциям → блока «вне секций» быть не должно
+    expect(screen.queryByText('Доклады вне секций')).not.toBeInTheDocument();
 
     // время доклада и тема выводятся
     expect(screen.getAllByText('10:00 – 10:20').length).toBe(4);
@@ -177,6 +171,53 @@ describe('CongressProgram — деградация без дней програ�
     }
   });
 
+  it('в блок «вне секций» попадают только непривязанные спикеры, без дублей', async () => {
+    contentAPI.getCongressDetail.mockResolvedValue({
+      data: {
+        ...baseCongress,
+        program_days: [
+          {
+            id: 1,
+            title_ru: 'Первый день',
+            description_ru: '',
+            date: '2026-09-25',
+            sections: [
+              {
+                id: 11,
+                title_ru: 'Секция А',
+                description_ru: '',
+                speakers: [speaker(1, { section_id: 11 }), speaker(2, { section_id: 11 })],
+              },
+            ],
+          },
+        ],
+        speakers: [
+          speaker(1, { section_id: 11 }),
+          speaker(2, { section_id: 11 }),
+          speaker(3),
+          speaker(4),
+        ],
+      },
+    });
+    const { container } = renderProgram();
+
+    expect(await screen.findByText('Доклады вне секций')).toBeInTheDocument();
+
+    const text = container.textContent;
+    // секционные спикеры показаны ровно один раз — внутри секции
+    expect(countOccurrences(text, 'Фамилия1 Имя1')).toBe(1);
+    expect(countOccurrences(text, 'Фамилия2 Имя2')).toBe(1);
+    // непривязанные — ровно один раз, в блоке «вне секций»
+    expect(countOccurrences(text, 'Фамилия3 Имя3')).toBe(1);
+    expect(countOccurrences(text, 'Фамилия4 Имя4')).toBe(1);
+
+    const outsideIdx = text.indexOf('Доклады вне секций');
+    expect(text.indexOf('Фамилия1 Имя1')).toBeLessThan(outsideIdx);
+    expect(text.indexOf('Фамилия2 Имя2')).toBeLessThan(outsideIdx);
+    expect(text.indexOf('Фамилия3 Имя3')).toBeGreaterThan(outsideIdx);
+    expect(text.indexOf('Фамилия4 Имя4')).toBeGreaterThan(outsideIdx);
+  });
+
   it('показывает пустое состояние, когда нет ни дней, ни спикеров, ни текста и файла', async () => {
     contentAPI.getCongressDetail.mockResolvedValue({ data: { ...baseCongress } });
     renderProgram();
@@ -185,15 +226,15 @@ describe('CongressProgram — деградация без дней програ�
   });
 });
 
-describe('CongressProgram — файл программы', () => {
+describe('CongressProgram — файл информационного письма', () => {
   it('рисует ссылку на скачивание, когда задан info_letter_file_ru', async () => {
     contentAPI.getCongressDetail.mockResolvedValue({
-      data: { ...baseCongress, info_letter_file_ru: '/uploads/program.pdf' },
+      data: { ...baseCongress, info_letter_file_ru: '/uploads/info-letter.pdf' },
     });
     renderProgram();
 
-    const link = await screen.findByRole('link', { name: 'Скачать программу (файл)' });
-    expect(link).toHaveAttribute('href', '/uploads/program.pdf');
+    const link = await screen.findByRole('link', { name: 'Информационное письмо (файл)' });
+    expect(link).toHaveAttribute('href', '/uploads/info-letter.pdf');
   });
 
   it('не рисует ссылку на скачивание, когда файла нет', async () => {
@@ -201,6 +242,6 @@ describe('CongressProgram — файл программы', () => {
     renderProgram();
 
     await screen.findByText('Программа будет опубликована позже');
-    expect(screen.queryByRole('link', { name: 'Скачать программу (файл)' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Информационное письмо (файл)' })).not.toBeInTheDocument();
   });
 });
