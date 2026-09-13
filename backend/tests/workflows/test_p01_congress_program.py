@@ -18,13 +18,27 @@ SECTION_2_TITLE_UZ = "2-seksiya"
 MISSING_ID = 999999
 
 
+async def _create_section(client, day_id, *, ru, uz, en, order=0):
+    """POST секции программы: три языка обязательны, так что вырожденного вызова нет."""
+    return await client.post(
+        "/api/congress/congress-program-sections",
+        json={
+            "day_id": day_id,
+            "title_ru": ru,
+            "title_uz": uz,
+            "title_en": en,
+            "order": order,
+        },
+    )
+
+
 async def test_p01(journey, client):
     j = journey(PROCESS_ID)
 
     # --- create_congress -----------------------------------------------------
     created = await j.step(
         "create_congress",
-        client.post(
+        lambda: client.post(
             "/api/congress/congresses",
             json={
                 "title_ru": "XII съезд ревматологов",
@@ -43,7 +57,7 @@ async def test_p01(journey, client):
     # пустая строка не должна ломать ни запись, ни публичную отдачу.
     day_1_response = await j.step(
         "create_days",
-        client.post(
+        lambda: client.post(
             "/api/congress/congress-program-days",
             json={
                 "congress_id": congress_id,
@@ -86,7 +100,7 @@ async def test_p01(journey, client):
     # --- days_in_list --------------------------------------------------------
     days_response = await j.step(
         "days_in_list",
-        client.get(f"/api/congress/congress-program-days?congress_id={congress_id}"),
+        lambda: client.get(f"/api/congress/congress-program-days?congress_id={congress_id}"),
     )
     assert days_response.status_code == 200, (
         f"[days_in_list] {days_response.status_code}: {days_response.text}"
@@ -105,29 +119,24 @@ async def test_p01(journey, client):
     # --- create_sections -----------------------------------------------------
     section_1_response = await j.step(
         "create_sections",
-        client.post(
-            "/api/congress/congress-program-sections",
-            json={
-                "day_id": day_1_id,
-                "title_ru": "Секция ранней диагностики",
-                "title_uz": SECTION_1_TITLE_UZ,
-                "title_en": "Early diagnosis session",
-                "order": 0,
-            },
+        lambda: _create_section(
+            client,
+            day_1_id,
+            ru="Секция ранней диагностики",
+            uz=SECTION_1_TITLE_UZ,
+            en="Early diagnosis session",
         ),
     )
     assert section_1_response.status_code == 200, (
         f"[create_sections] секция дня 1: {section_1_response.status_code}: {section_1_response.text}"
     )
-    section_2_response = await client.post(
-        "/api/congress/congress-program-sections",
-        json={
-            "day_id": day_2_id,
-            "title_ru": "Секция терапии",
-            "title_uz": SECTION_2_TITLE_UZ,
-            "title_en": "Therapy session",
-            "order": 1,
-        },
+    section_2_response = await _create_section(
+        client,
+        day_2_id,
+        ru="Секция терапии",
+        uz=SECTION_2_TITLE_UZ,
+        en="Therapy session",
+        order=1,
     )
     assert section_2_response.status_code == 200, (
         f"[create_sections] секция дня 2: {section_2_response.status_code}: {section_2_response.text}"
@@ -163,15 +172,12 @@ async def test_p01(journey, client):
     assert other_day_response.status_code == 200, (
         f"[sections_by_congress] день чужого конгресса: {other_day_response.text}"
     )
-    other_section_response = await client.post(
-        "/api/congress/congress-program-sections",
-        json={
-            "day_id": other_day_response.json()["id"],
-            "title_ru": "Чужая секция",
-            "title_uz": "Begona seksiya",
-            "title_en": "Other session",
-            "order": 0,
-        },
+    other_section_response = await _create_section(
+        client,
+        other_day_response.json()["id"],
+        ru="Чужая секция",
+        uz="Begona seksiya",
+        en="Other session",
     )
     assert other_section_response.status_code == 200, (
         f"[sections_by_congress] секция чужого конгресса: {other_section_response.text}"
@@ -180,7 +186,7 @@ async def test_p01(journey, client):
 
     sections_response = await j.step(
         "sections_by_congress",
-        client.get(f"/api/congress/congress-program-sections?congress_id={congress_id}"),
+        lambda: client.get(f"/api/congress/congress-program-sections?congress_id={congress_id}"),
     )
     assert sections_response.status_code == 200, (
         f"[sections_by_congress] {sections_response.status_code}: {sections_response.text}"
@@ -199,7 +205,7 @@ async def test_p01(journey, client):
     # Пустые строки времени — ровно то, что шлёт форма админки за незаполненное поле.
     speaker_response = await j.step(
         "create_speaker_in_day2",
-        client.post(
+        lambda: client.post(
             "/api/congress/congress-speakers",
             json={
                 "congress_id": congress_id,
@@ -236,7 +242,7 @@ async def test_p01(journey, client):
     # --- move_section --------------------------------------------------------
     moved = await j.step(
         "move_section",
-        client.put(
+        lambda: client.put(
             f"/api/congress/congress-program-sections/{section_1_id}",
             json={"day_id": day_2_id},
         ),
@@ -255,14 +261,12 @@ async def test_p01(journey, client):
     # --- reject_orphan -------------------------------------------------------
     orphan_section = await j.step(
         "reject_orphan",
-        client.post(
-            "/api/congress/congress-program-sections",
-            json={
-                "day_id": MISSING_ID,
-                "title_ru": "Секция-сирота",
-                "title_uz": "Yetim seksiya",
-                "title_en": "Orphan session",
-            },
+        lambda: _create_section(
+            client,
+            MISSING_ID,
+            ru="Секция-сирота",
+            uz="Yetim seksiya",
+            en="Orphan session",
         ),
     )
     assert orphan_section.status_code == 404, (
@@ -290,7 +294,7 @@ async def test_p01(journey, client):
     # --- public_detail_readback ----------------------------------------------
     detail_response = await j.step(
         "public_detail_readback",
-        client.get(f"/api/congress/congresses/{congress_id}/detail"),
+        lambda: client.get(f"/api/congress/congresses/{congress_id}/detail"),
     )
     assert detail_response.status_code == 200, (
         f"[public_detail_readback] {detail_response.status_code}: {detail_response.text}"

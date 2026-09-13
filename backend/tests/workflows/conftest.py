@@ -8,7 +8,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable, Iterable
+import inspect
+from collections.abc import Callable, Iterable
 from typing import Any
 
 import pytest
@@ -33,11 +34,18 @@ class Journey:
         self._visited: list[str] = []
         self._controlled: set[str] = set()
 
-    async def step(self, key: str, awaitable: Awaitable[Any]) -> Any:
+    async def step(self, key: str, call: Callable[[], Any]) -> Any:
+        """Отметить звено и выполнить его вызов: `await j.step(key, lambda: client.get(...))`.
+
+        Вызов передаётся замыканием, а не готовым awaitable: отвергнутое звено
+        тогда вообще не доходит до запроса и не оставляет незавершённой корутины.
+        """
         self.spec.link(key)  # KeyError, если звена нет в реестре
         if key in self._visited:
             raise JourneyViolation(f"{self.spec.id}: звено {key!r} пройдено повторно")
-        result = await awaitable
+        result = call()
+        if inspect.isawaitable(result):
+            result = await result
         self._visited.append(key)
         return result
 
@@ -100,8 +108,11 @@ def journey(request):
     yield _make
 
     call_report = getattr(request.node, "rep_call", None)
-    if call_report is not None and call_report.failed:
-        # Тест уже упал по своей причине — не подменяем её жалобой харнесса.
+    if call_report is None or not call_report.passed:
+        # Отчёта нет — тело теста не выполнялось (упала фикстура в setup).
+        # Отчёт не passed — тест упал по своей причине либо был пропущен.
+        # Цепочка оборвана не по вине прогона, и жалоба харнесса заслонила бы
+        # настоящую причину.
         return
     for instance in created:
         instance.verify()

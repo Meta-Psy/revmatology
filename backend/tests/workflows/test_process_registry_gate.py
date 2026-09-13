@@ -64,11 +64,17 @@ def test_every_declared_test_path_exists():
             assert path.is_file(), f"{spec.id}/{layer}: файла {path} нет"
 
 
-def test_declared_test_functions_exist_in_their_files():
-    """Проверяем разбором AST, а не запуском pytest внутри pytest."""
+def test_declared_python_test_functions_exist_in_their_files():
+    """Проверяем разбором AST, а не запуском pytest внутри pytest.
+
+    Только питоновские пути: браузерная спека — не модуль Python, и `ast.parse`
+    упал бы на ней SyntaxError вместо внятного сообщения.
+    """
     for spec in load_registry().values():
         for layer, ref in spec.tests.items():
             file_ref, _, node = ref.partition("::")
+            if not file_ref.endswith(".py"):
+                continue
             assert node, f"{spec.id}/{layer}: в пути нет узла после '::'"
             source = (REPO_ROOT / file_ref).read_text(encoding="utf-8")
             names = {
@@ -77,6 +83,20 @@ def test_declared_test_functions_exist_in_their_files():
                 if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
             }
             assert node in names, f"{spec.id}/{layer}: в {file_ref} нет функции {node}"
+
+
+def test_browser_spec_mentions_its_process_id():
+    """Браузерный слой привязан к процессу по id внутри спеки.
+
+    Пока браузерных прогонов нет, проверка вакуумная — она встанет на ноги в
+    тот момент, когда в реестре появится первый слой browser.
+    """
+    for spec in load_registry().values():
+        ref = spec.tests.get("browser")
+        if not ref:
+            continue
+        source = (REPO_ROOT / ref.split("::")[0]).read_text(encoding="utf-8")
+        assert spec.id in source, f"{spec.id}: спека {ref} не упоминает id процесса"
 
 
 def test_touched_paths_exist():
