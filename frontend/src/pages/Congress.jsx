@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { contentAPI, getImageUrl } from '../services/api';
 import { useHeroImage } from '../hooks/useHeroImage';
+import { makeGetField } from '../utils/getField';
 
 const Congress = () => {
   const { t, i18n } = useTranslation();
@@ -75,8 +76,8 @@ const Congress = () => {
     }
   };
 
-  const L = (item, field) => item?.[`${field}_${lang}`] || item?.[`${field}_ru`] || '';
-  const Lf = (field) => congress?.[`${field}_${lang}`] || congress?.[`${field}_ru`] || '';
+  const L = makeGetField(lang);
+  const Lf = (field) => L(congress, field);
 
   const formatDate = (dateStr) => {
     if (!dateStr) return '';
@@ -105,7 +106,7 @@ const Congress = () => {
       setShowRegistration(false);
       setRegistrationSuccess({ id: res.data?.id });
       setFormData({ last_name: '', first_name: '', patronymic: '', email: '', phone: '', organization: '', position: '', academic_degree: '', academic_title: '', institution_address: '', participation_form: 'participation', report_title: '', is_young_scientist: false, needs_hotel: false });
-    } catch (err) {
+    } catch {
       alert(t('congress.registrationError', 'Ошибка при отправке заявки'));
     } finally {
       setSubmitting(false);
@@ -168,9 +169,9 @@ const Congress = () => {
             </div>
             <h1 className="text-2xl sm:text-3xl md:text-4xl text-white mb-3 leading-tight" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
               <span className="font-light text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-teal-400">
-                {lang === 'ru' ? 'Научные' : lang === 'uz' ? 'Ilmiy' : 'Scientific'}
+                {t('congress.heroAccent', 'Научные')}
               </span>{' '}
-              <span className="font-normal">{lang === 'ru' ? 'Конгрессы' : lang === 'uz' ? 'Kongresslar' : 'Congresses'}</span>
+              <span className="font-normal">{t('congress.heroMain', 'Конгрессы')}</span>
             </h1>
             <p className="text-sm sm:text-base text-slate-400 leading-relaxed max-w-2xl" style={{ fontFamily: 'Georgia, serif' }}>
               {t('congress.subtitle', 'Научно-практические мероприятия Ассоциации ревматологов Узбекистана')}
@@ -312,6 +313,18 @@ const Congress = () => {
   // ==================== TAB CONTENT RENDERERS ====================
   const renderMainTab = () => (
     <div className="space-y-6">
+      {/* Ссылка на полную программу */}
+      <Link
+        to={`/congress/${congress.id}/program`}
+        className="group flex items-center justify-between gap-4 bg-gradient-to-r from-cyan-500 to-teal-600 text-white rounded-2xl p-5 md:p-6 shadow-lg shadow-cyan-500/20 hover:from-cyan-400 hover:to-teal-500 transition-all"
+      >
+        <span className="flex items-center gap-3">
+          <svg className="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+          <span className="text-base md:text-lg" style={{ fontFamily: 'Georgia, serif' }}>{t('congress.program.openPage', 'Открыть программу')}</span>
+        </span>
+        <svg className="w-5 h-5 flex-shrink-0 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+      </Link>
+
       {/* Description */}
       {Lf('description') && (
         <div className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-stone-200/60">
@@ -421,7 +434,7 @@ const Congress = () => {
     </div>
   );
 
-  const renderRichTextTab = (field, fallbackTitle) => {
+  const renderRichTextTab = (field) => {
     const content = Lf(field);
     if (!content) return (
       <div className="bg-white rounded-2xl p-12 shadow-sm border border-stone-200/60 text-center">
@@ -435,8 +448,46 @@ const Congress = () => {
     );
   };
 
+  // Карточка спикера: крупный портрет 3:4 сверху, текст под ним — как на странице правления.
+  const renderSpeakerCard = (speaker) => {
+    const fullName = [L(speaker, 'last_name'), L(speaker, 'first_name'), L(speaker, 'patronymic')].filter(Boolean).join(' ');
+    const timeStart = speaker.time_start ? speaker.time_start.substring(0, 5) : '';
+    const timeEnd = speaker.time_end ? speaker.time_end.substring(0, 5) : '';
+    const time = timeStart && timeEnd ? `${timeStart} – ${timeEnd}` : (timeStart || timeEnd);
+    return (
+      <div key={speaker.id} className="group bg-white rounded-2xl p-4 shadow-sm border border-stone-200/60 hover:shadow-md transition-all">
+        <div className="aspect-[3/4] w-full bg-stone-100 rounded-xl overflow-hidden mb-4">
+          {speaker.photo_url ? (
+            <img src={getImageUrl(speaker.photo_url)} alt={fullName} className="w-full h-full object-cover grayscale-[15%] group-hover:grayscale-0 transition-all duration-500" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-gradient-to-b from-stone-100 to-stone-200">
+              <svg className="w-16 h-16 text-stone-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={0.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            </div>
+          )}
+        </div>
+        {time && <p className="text-xs text-stone-400 mb-1 tabular-nums">{time}</p>}
+        <h3 className="text-base md:text-lg font-medium text-stone-800 leading-snug" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>{fullName}</h3>
+        {L(speaker, 'degree') && (
+          <p className="text-sm text-amber-900/70 mt-1" style={{ fontFamily: 'Georgia, serif' }}><em>{L(speaker, 'degree')}</em></p>
+        )}
+        {L(speaker, 'workplace') && (
+          <p className="text-sm text-stone-500 mt-1" style={{ fontFamily: 'Georgia, serif' }}>{L(speaker, 'workplace')}</p>
+        )}
+        {L(speaker, 'topic') && (
+          <p className="text-sm text-stone-700 mt-2" style={{ fontFamily: 'Georgia, serif' }}>{L(speaker, 'topic')}</p>
+        )}
+      </div>
+    );
+  };
+
   const renderProgramTab = () => (
     <div className="space-y-6">
+      <Link to={`/congress/${congress.id}/program`} className="flex items-center justify-between gap-4 bg-white rounded-2xl p-5 shadow-sm border border-stone-200/60 hover:border-cyan-200 hover:shadow-md transition-all">
+        <span className="text-stone-800" style={{ fontFamily: 'Georgia, serif' }}>{t('congress.program.openPage', 'Открыть программу')}</span>
+        <svg className="w-5 h-5 text-cyan-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+      </Link>
       {programDays.length === 0 ? (
         <div className="bg-white rounded-2xl p-12 shadow-sm border border-stone-200/60 text-center">
           <p className="text-stone-400" style={{ fontFamily: 'Georgia, serif' }}>{t('congress.noContent', 'Информация будет добавлена позже')}</p>
@@ -482,28 +533,8 @@ const Congress = () => {
                 <p className="text-stone-500 mb-6" style={{ fontFamily: 'Georgia, serif' }}>{L(selectedSection, 'description')}</p>
               )}
               {sectionSpeakers.length > 0 ? (
-                <div className="space-y-4">
-                  {sectionSpeakers.map((speaker) => (
-                    <div key={speaker.id} className="flex items-start gap-4 p-4 bg-stone-50 rounded-xl border border-stone-100">
-                      {speaker.photo_url ? (
-                        <img src={getImageUrl(speaker.photo_url)} alt="" className="w-14 h-14 rounded-xl object-cover flex-shrink-0" />
-                      ) : (
-                        <div className="w-14 h-14 bg-gradient-to-br from-slate-600 to-slate-800 rounded-xl flex-shrink-0 flex items-center justify-center">
-                          <svg className="w-7 h-7 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-medium text-stone-800" style={{ fontFamily: 'Georgia, serif' }}>
-                          {L(speaker, 'last_name')} {L(speaker, 'first_name')} {L(speaker, 'patronymic')}
-                        </h4>
-                        {L(speaker, 'degree') && <p className="text-sm text-cyan-600">{L(speaker, 'degree')}</p>}
-                        {L(speaker, 'topic') && <p className="text-sm text-stone-600 mt-1" style={{ fontFamily: 'Georgia, serif' }}>{L(speaker, 'topic')}</p>}
-                        {(speaker.time_start || speaker.time_end) && (
-                          <p className="text-xs text-stone-400 mt-1">{speaker.time_start?.substring(0, 5)}{speaker.time_end ? ` - ${speaker.time_end.substring(0, 5)}` : ''}</p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6">
+                  {sectionSpeakers.map(renderSpeakerCard)}
                 </div>
               ) : (
                 <p className="text-stone-400 text-sm" style={{ fontFamily: 'Georgia, serif' }}>{t('congress.program.noSpeakers', 'Спикеры будут добавлены позже')}</p>
@@ -522,28 +553,8 @@ const Congress = () => {
           <p className="text-stone-400" style={{ fontFamily: 'Georgia, serif' }}>{t('congress.noContent', 'Информация будет добавлена позже')}</p>
         </div>
       ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {allSpeakers.filter(s => s.is_active).map((speaker) => (
-            <div key={speaker.id} className="bg-white rounded-2xl p-5 shadow-sm border border-stone-200/60 hover:shadow-md transition-all">
-              <div className="flex items-start gap-4">
-                {speaker.photo_url ? (
-                  <img src={getImageUrl(speaker.photo_url)} alt="" className="w-16 h-16 rounded-xl object-cover flex-shrink-0" />
-                ) : (
-                  <div className="w-16 h-16 bg-gradient-to-br from-slate-600 to-slate-800 rounded-xl flex-shrink-0 flex items-center justify-center">
-                    <svg className="w-8 h-8 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                  </div>
-                )}
-                <div className="min-w-0">
-                  <h3 className="font-medium text-stone-800" style={{ fontFamily: 'Georgia, serif' }}>
-                    {L(speaker, 'last_name')} {L(speaker, 'first_name')} {L(speaker, 'patronymic')}
-                  </h3>
-                  {L(speaker, 'degree') && <p className="text-sm text-cyan-600">{L(speaker, 'degree')}</p>}
-                  {L(speaker, 'workplace') && <p className="text-sm text-stone-500 mt-1">{L(speaker, 'workplace')}</p>}
-                  {L(speaker, 'topic') && <p className="text-sm text-stone-600 mt-2 italic">{L(speaker, 'topic')}</p>}
-                </div>
-              </div>
-            </div>
-          ))}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6">
+          {allSpeakers.filter(s => s.is_active).map(renderSpeakerCard)}
         </div>
       )}
     </div>
@@ -552,11 +563,11 @@ const Congress = () => {
   const renderTabContent = () => {
     switch (activeTab) {
       case 'main': return renderMainTab();
-      case 'about': return renderRichTextTab('about', t('congress.tabs.about'));
-      case 'organizers': return renderRichTextTab('organizers', t('congress.tabs.organizers'));
+      case 'about': return renderRichTextTab('about');
+      case 'organizers': return renderRichTextTab('organizers');
       case 'program': return renderProgramTab();
       case 'speakers': return renderSpeakersTab();
-      case 'youngScientists': return renderRichTextTab('young_scientists', t('congress.tabs.youngScientists'));
+      case 'youngScientists': return renderRichTextTab('young_scientists');
       default: return renderMainTab();
     }
   };

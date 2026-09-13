@@ -6,6 +6,7 @@ import Activities from './pages/Activities';
 import Rheumatology from './pages/Rheumatology';
 import Schools from './pages/Schools';
 import Congress from './pages/Congress';
+import CongressProgram from './pages/CongressProgram';
 import News from './pages/News';
 import NewsDetail from './pages/NewsDetail';
 import Login from './pages/Login';
@@ -95,6 +96,7 @@ function App() {
                   {/* Конгресс */}
                   <Route path="/congress" element={<Congress />} />
                   <Route path="/congress/:id" element={<Congress />} />
+                  <Route path="/congress/:id/program" element={<CongressProgram />} />
 
                   {/* Новости */}
                   <Route path="/news" element={<News />} />

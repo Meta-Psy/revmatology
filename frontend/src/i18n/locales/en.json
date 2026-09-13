@@ -209,7 +209,13 @@
       "selectSection": "Select a section",
       "noSections": "Sections will be added later",
       "noSpeakers": "Speakers will be added later",
-      "empty": "Program will be published later"
+      "empty": "Program will be published later",
+      "openPage": "Open programme",
+      "pageTitle": "Congress programme",
+      "backToCongress": "Back to the congress",
+      "outsideSections": "Talks outside sections",
+      "downloadFile": "Download programme (file)",
+      "notFound": "Congress not found"
     },
     "speakers": {
       "empty": "Speaker list will be published later"
@@ -223,8 +229,25 @@
       "phone": "Phone",
       "organization": "Organization",
       "position": "Position",
-      "submit": "Submit Application"
-    }
+      "submit": "Submit Application",
+      "academicDegree": "Academic degree",
+      "academicTitle": "Academic title",
+      "institutionAddress": "Institution address",
+      "participationForm": "Form of participation",
+      "participationType": "Attendance (listener)",
+      "oralPresentation": "Oral presentation",
+      "publication": "Abstract publication",
+      "reportTitle": "Title of the report / abstract",
+      "youngScientist": "Young scientist (under 35)",
+      "needsHotel": "Hotel booking required",
+      "notSelected": "— Not selected —",
+      "candidate": "Candidate of Sciences",
+      "doctor": "Doctor of Sciences",
+      "docent": "Associate Professor",
+      "professor": "Professor"
+    },
+    "heroAccent": "Scientific",
+    "heroMain": "Congresses"
   },
   "activities": {
     "label": "Activities",
@@ -360,6 +383,7 @@
     "next": "Next",
     "search": "Search",
     "learnMore": "Learn more",
-    "visitWebsite": "Visit website"
+    "visitWebsite": "Visit website",
+    "close": "Close"
   }
 }
