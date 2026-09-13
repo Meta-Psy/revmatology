@@ -227,6 +227,31 @@ const exportRegistrationsCSV = (registrations) => {
 };
 
 // ---------------------------------------------------------------------------
+// SELECTORS (на уровне модуля: объявленные внутри компонента, они были бы
+// новым типом на каждый рендер, и <select> размонтировался бы при любом
+// изменении состояния — вместе с потерей фокуса и открытого списка)
+// ---------------------------------------------------------------------------
+const SELECTOR_CLASS = 'px-3 py-1.5 text-sm border border-slate-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500';
+
+const CongressSelector = ({ congresses, value, onChange }) => (
+  <div className="flex items-center gap-2 mb-4">
+    <span className="text-xs font-medium text-slate-500">Конгресс:</span>
+    <select aria-label="Конгресс" value={value || ''} onChange={onChange} className={SELECTOR_CLASS}>
+      {congresses.map(c => <option key={c.id} value={c.id}>{c.title_ru}</option>)}
+    </select>
+  </div>
+);
+
+const DaySelector = ({ days, value, onChange }) => (
+  <div className="flex items-center gap-2 mb-4">
+    <span className="text-xs font-medium text-slate-500">День:</span>
+    <select aria-label="День программы" value={value || ''} onChange={onChange} className={SELECTOR_CLASS}>
+      {days.map(d => <option key={d.id} value={d.id}>{dayLabel(d)}</option>)}
+    </select>
+  </div>
+);
+
+// ---------------------------------------------------------------------------
 // CONGRESS FORM SUB-TABS
 // ---------------------------------------------------------------------------
 const CONGRESS_FORM_TABS = [
@@ -497,9 +522,12 @@ const CongressAdmin = () => {
     apply(allSec, 'секций конгресса', setAllSections);
     apply(spk, 'спикеров', setSpeakers);
     apply(regs, 'регистраций', setRegistrations);
+    // Выбор дня сохраняем, пока он есть в списке; исчез (удалили) — берём первый.
+    // Обновление функциональное: читать selectedDayId из замыкания нельзя, оно
+    // протухает (колбэк мемоизирован по конгрессу) и сбрасывает выбор на день 1.
     apply(days, 'дней программы', (list) => {
       setProgramDays(list);
-      if (list.length > 0 && !selectedDayId) setSelectedDayId(list[0].id);
+      setSelectedDayId(prev => (prev != null && list.some(d => d.id === prev)) ? prev : (list[0]?.id ?? null));
     });
   }, [selectedCongressId]);
 
@@ -524,7 +552,15 @@ const CongressAdmin = () => {
   }, [selectedCongressId]);
 
   useEffect(() => { loadCongresses(); }, []);
-  useEffect(() => { if (selectedCongressId) loadCongressData(); }, [selectedCongressId]);
+  useEffect(() => {
+    if (!selectedCongressId) return;
+    // Данные прошлого конгресса не должны оставаться на экране, даже если
+    // запрос за новыми упадёт
+    setProgramDays([]);
+    setSections([]);
+    setAllSections([]);
+    loadCongressData();
+  }, [selectedCongressId]);
   useEffect(() => { loadSections(); }, [selectedDayId]);
 
   // ---------------------------------------------------------------------------
@@ -626,49 +662,6 @@ const CongressAdmin = () => {
   };
 
   // ---------------------------------------------------------------------------
-  // CONGRESS SELECTOR (shown for all tabs except congresses)
-  // ---------------------------------------------------------------------------
-  const CongressSelector = () => {
-    if (activeTab === 'congresses' || congresses.length === 0) return null;
-    return (
-      <div className="flex items-center gap-2 mb-4">
-        <span className="text-xs font-medium text-slate-500">Конгресс:</span>
-        <select
-          aria-label="Конгресс"
-          value={selectedCongressId || ''}
-          onChange={(e) => {
-            setSelectedCongressId(parseInt(e.target.value));
-            setSelectedDayId(null);
-          }}
-          className="px-3 py-1.5 text-sm border border-slate-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-        >
-          {congresses.map(c => <option key={c.id} value={c.id}>{c.title_ru}</option>)}
-        </select>
-      </div>
-    );
-  };
-
-  // ---------------------------------------------------------------------------
-  // DAY SELECTOR (shown only for sections tab)
-  // ---------------------------------------------------------------------------
-  const DaySelector = () => {
-    if (activeTab !== 'sections' || programDays.length === 0) return null;
-    return (
-      <div className="flex items-center gap-2 mb-4">
-        <span className="text-xs font-medium text-slate-500">День:</span>
-        <select
-          aria-label="День программы"
-          value={selectedDayId || ''}
-          onChange={(e) => setSelectedDayId(parseInt(e.target.value))}
-          className="px-3 py-1.5 text-sm border border-slate-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-        >
-          {programDays.map(d => <option key={d.id} value={d.id}>{dayLabel(d)}</option>)}
-        </select>
-      </div>
-    );
-  };
-
-  // ---------------------------------------------------------------------------
   // DELETE NAME HELPER
   // ---------------------------------------------------------------------------
   const getDeleteName = () => {
@@ -713,8 +706,23 @@ const CongressAdmin = () => {
         ))}
       </div>
 
-      <CongressSelector />
-      <DaySelector />
+      {activeTab !== 'congresses' && congresses.length > 0 && (
+        <CongressSelector
+          congresses={congresses}
+          value={selectedCongressId}
+          onChange={(e) => {
+            setSelectedCongressId(parseInt(e.target.value));
+            setSelectedDayId(null);
+          }}
+        />
+      )}
+      {activeTab === 'sections' && programDays.length > 0 && (
+        <DaySelector
+          days={programDays}
+          value={selectedDayId}
+          onChange={(e) => setSelectedDayId(parseInt(e.target.value))}
+        />
+      )}
 
       {/* ===== Empty state when no congress selected ===== */}
       {needsCongress && (

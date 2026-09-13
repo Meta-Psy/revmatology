@@ -35,7 +35,7 @@ const { store, contentAPI } = vi.hoisted(() => {
     getCongressRegistrations: vi.fn(() => ok([])),
 
     // Дни программы
-    getCongressProgramDays: vi.fn(() => ok([...store.days])),
+    getCongressProgramDays: vi.fn((congressId) => ok(store.days.filter(d => d.congress_id === congressId))),
     createCongressProgramDay: vi.fn((data) => {
       const row = { id: nextId(), congress_id: 1, ...data };
       store.days.push(row);
@@ -53,7 +53,10 @@ const { store, contentAPI } = vi.hoisted(() => {
 
     // Секции
     getCongressProgramSections: vi.fn((dayId) => ok(store.sections.filter(s => s.day_id === dayId))),
-    getCongressProgramSectionsByCongress: vi.fn(() => ok([...store.sections])),
+    getCongressProgramSectionsByCongress: vi.fn((congressId) => {
+      const dayIds = store.days.filter(d => d.congress_id === congressId).map(d => d.id);
+      return ok(store.sections.filter(s => dayIds.includes(s.day_id)));
+    }),
     createCongressProgramSection: vi.fn((data) => {
       const row = { id: nextId(), ...data };
       store.sections.push(row);
@@ -104,7 +107,21 @@ const setField = (label, value) =>
 
 const save = (user) => user.click(screen.getByRole('button', { name: 'Сохранить' }));
 
+// Кнопка «Удалить» есть и в строке таблицы, и в диалоге подтверждения;
+// диалог рендерится последним — берём последнюю.
+const confirmDelete = async (user) => {
+  const buttons = await screen.findAllByRole('button', { name: 'Удалить' });
+  await user.click(buttons[buttons.length - 1]);
+};
+
+const deleteRow = async (user, rowText) => {
+  const row = screen.getByText(rowText).closest('tr');
+  await user.click(within(row).getByTitle('Удалить'));
+  await confirmDelete(user);
+};
+
 beforeEach(() => {
+  store.congresses = [{ id: 1, title_ru: 'Конгресс ревматологов 2026', is_active: true, registration_open: true }];
   store.days = [];
   store.sections = [];
   store.speakers = [];
@@ -219,6 +236,102 @@ describe('CongressAdmin — сценарий администратора', () =
     expect(contentAPI.updateCongressProgramSection.mock.calls[0][1]).not.toHaveProperty('congress_id');
     // Секция уехала на второй день — в первом её больше нет
     expect(await screen.findByText('Секций пока нет')).toBeInTheDocument();
+  }, 30000);
+
+  it('выбранный день не сбрасывается на первый после сохранения спикера', async () => {
+    store.days = [
+      { id: 11, congress_id: 1, title_ru: 'День 1', date: '2026-09-25', order: 0 },
+      { id: 12, congress_id: 1, title_ru: 'День 2', date: '2026-09-26', order: 1 },
+    ];
+
+    const user = userEvent.setup();
+    renderAdmin();
+
+    await openTab(user, 'Секции');
+    await user.selectOptions(await screen.findByLabelText('День программы'), '12');
+
+    // Любое действие с другой сущностью перезагружает данные конгресса
+    await openTab(user, 'Спикеры');
+    await user.click(await screen.findByRole('button', { name: /Добавить спикера/ }));
+    await user.type(await screen.findByLabelText(/^Фамилия \(RU\)/), 'Петров');
+    await user.type(screen.getByLabelText(/^Имя \(RU\)/), 'Сергей');
+    await save(user);
+    expect(await screen.findByText(/Петров Сергей/)).toBeInTheDocument();
+
+    // Выбор дня должен уцелеть, иначе секция уедет не в тот день
+    await openTab(user, 'Секции');
+    expect(await screen.findByLabelText('День программы')).toHaveValue('12');
+
+    await user.click(await screen.findByRole('button', { name: /Добавить секцию/ }));
+    await user.type(await screen.findByLabelText(/^Название \(RU\)/), 'Секция второго дня');
+    await save(user);
+
+    expect(contentAPI.createCongressProgramSection).toHaveBeenLastCalledWith(
+      expect.objectContaining({ title_ru: 'Секция второго дня', day_id: 12 })
+    );
+  }, 30000);
+
+  it('удаление выбранного дня не оставляет выбор на удалённом дне', async () => {
+    store.days = [
+      { id: 11, congress_id: 1, title_ru: 'День 1', date: '2026-09-25', order: 0 },
+      { id: 12, congress_id: 1, title_ru: 'День 2', date: '2026-09-26', order: 1 },
+    ];
+    store.sections = [
+      { id: 21, day_id: 11, title_ru: 'Секция первого дня', order: 0 },
+      { id: 22, day_id: 12, title_ru: 'Секция второго дня', order: 0 },
+    ];
+
+    const user = userEvent.setup();
+    renderAdmin();
+
+    await openTab(user, 'Секции');
+    await user.selectOptions(await screen.findByLabelText('День программы'), '12');
+    expect(await screen.findByText('Секция второго дня')).toBeInTheDocument();
+
+    // Удаляем день, который сейчас выбран
+    await openTab(user, 'Дни программы');
+    await deleteRow(user, 'День 2');
+
+    await openTab(user, 'Секции');
+    expect(await screen.findByLabelText('День программы')).toHaveValue('11');
+    expect(await screen.findByText('Секция первого дня')).toBeInTheDocument();
+    expect(screen.queryByText('Секция второго дня')).not.toBeInTheDocument();
+
+    // Удаляем последний оставшийся день — выбор должен сброситься в null
+    await openTab(user, 'Дни программы');
+    await deleteRow(user, 'День 1');
+
+    await openTab(user, 'Секции');
+    expect(await screen.findByText('Нет дней программы')).toBeInTheDocument();
+    expect(screen.queryByText('Секция первого дня')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('День программы')).not.toBeInTheDocument();
+  }, 30000);
+
+  it('смена конгресса не оставляет дни предыдущего, если запрос упал', async () => {
+    store.congresses = [
+      { id: 1, title_ru: 'Конгресс 2026', is_active: true },
+      { id: 2, title_ru: 'Конгресс 2027', is_active: true },
+    ];
+    store.days = [{ id: 11, congress_id: 1, title_ru: 'День первого конгресса', date: '2026-09-25', order: 0 }];
+    store.sections = [{ id: 21, day_id: 11, title_ru: 'Секция первого конгресса', order: 0 }];
+
+    const user = userEvent.setup();
+    renderAdmin();
+
+    await openTab(user, 'Дни программы');
+    expect(await screen.findByText('День первого конгресса')).toBeInTheDocument();
+
+    contentAPI.getCongressProgramDays.mockRejectedValueOnce({ response: { data: { detail: 'нет связи' } } });
+    await user.selectOptions(screen.getByLabelText('Конгресс'), '2');
+
+    expect(await screen.findByText(/Ошибка загрузки дней программы: нет связи/)).toBeInTheDocument();
+    // Данные предыдущего конгресса не должны «протекать» в новый
+    expect(await screen.findByText('Дней программы пока нет')).toBeInTheDocument();
+    expect(screen.queryByText('День первого конгресса')).not.toBeInTheDocument();
+
+    await openTab(user, 'Спикеры');
+    await user.click(await screen.findByRole('button', { name: /Добавить спикера/ }));
+    expect(screen.queryByText('Секция первого конгресса')).not.toBeInTheDocument();
   }, 30000);
 
   it('падение одного запроса не ломает остальную вкладку', async () => {
