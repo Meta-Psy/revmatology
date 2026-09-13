@@ -1,0 +1,146 @@
+# Машинный реестр сквозных процессов revmatology.
+# Схема один в один с Mentis (mentis.uz/_specs/processes.yaml), дизайн —
+# Mentis/mentis.uz/_specs/2026-08-13-workflow-testing-design.md. Узел древа: Т-01 (_specs/PLAN.md).
+#
+# Процесс = путь одной функции через роли от первого действия до того, что видит адресат.
+# Экран — не процесс. Функция — не процесс.
+#
+# status: active   — прогон обязан существовать для каждого слоя из layers (гейт в tests/workflows)
+#         planned  — прогона ещё нет
+#         retired  — процесс снят с продукта
+# kind:   mutation — шаг меняет состояние
+#         list     — шаг отдаёт коллекцию, обязателен positive_control
+#         readback — шаг читает результат обратно
+# Правило голой базы: journey строит состояние только через HTTP, никаких ORM-фикстур.
+
+- id: P-01
+  title: Секретарь собирает программу конгресса, участник видит её на своём языке
+  status: active
+  roles: [admin, visitor]
+  layers: [api]
+  chain:
+    - key: create_congress
+      step: админ создаёт конгресс с датами
+      kind: mutation
+    - key: create_days
+      step: админ создаёт два дня программы с датами
+      kind: mutation
+    - key: days_in_list
+      step: дни видны в списке дней конгресса
+      kind: list
+      positive_control: ровно два дня, отсортированы по order, у каждого дата не null
+    - key: create_sections
+      step: админ создаёт секцию в каждом дне (RU + UZ названия)
+      kind: mutation
+    - key: sections_by_congress
+      step: секции обоих дней видны одним запросом по congress_id
+      kind: list
+      positive_control: две секции, порядок день→секция, чужой конгресс не попадает
+    - key: create_speaker_in_day2
+      step: админ создаёт спикера без времени и привязывает к секции второго дня
+      kind: mutation
+    - key: move_section
+      step: админ переносит секцию из дня 1 в день 2
+      kind: mutation
+    - key: reject_orphan
+      step: секция с несуществующим днём и спикер с несуществующей секцией отклонены (404)
+      kind: mutation
+    - key: public_detail_readback
+      step: посетитель без токена читает /detail и видит дни → секции → спикеров с UZ/EN-полями
+      kind: readback
+  touches:
+    - backend/schemas/congress.py
+    - backend/api/congress.py
+    - frontend/src/pages/admin/CongressAdmin.jsx
+    - frontend/src/pages/CongressProgram.jsx
+  tests:
+    api: backend/tests/workflows/test_p01_congress_program.py::test_p01
+
+- id: P-02
+  title: Участник регистрируется на конгресс, секретарь видит регистрацию и выгружает список
+  status: planned
+  roles: [visitor, admin]
+  layers: [api]
+  chain:
+    - key: public_congress
+      step: посетитель читает конгресс с registration_open = true
+      kind: readback
+    - key: register
+      step: посетитель отправляет регистрацию без токена
+      kind: mutation
+    - key: register_closed
+      step: регистрация на закрытый конгресс отклонена
+      kind: mutation
+    - key: admin_sees_registration
+      step: админ видит регистрацию в списке по congress_id
+      kind: list
+      positive_control: содержит созданную регистрацию с тем же email
+  touches:
+    - backend/api/congress.py
+    - backend/api/admin.py
+    - frontend/src/pages/Congress.jsx
+  tests: {}
+
+- id: P-03
+  title: Секретарь публикует новость, посетитель читает её на своём языке
+  status: planned
+  roles: [admin, visitor]
+  layers: [api]
+  chain:
+    - key: create_news
+      step: админ создаёт новость с RU и UZ текстом
+      kind: mutation
+    - key: news_in_public_list
+      step: новость видна в публичном списке
+      kind: list
+      positive_control: содержит созданную новость; неактивная новость не содержится
+    - key: news_detail
+      step: посетитель читает новость по id
+      kind: readback
+  touches:
+    - backend/api/content.py
+    - frontend/src/pages/News.jsx
+    - frontend/src/pages/NewsDetail.jsx
+  tests: {}
+
+- id: P-04
+  title: Секретарь загружает фото и оно отображается у сущности
+  status: planned
+  roles: [admin, visitor]
+  layers: [api]
+  chain:
+    - key: upload
+      step: админ загружает изображение, получает url
+      kind: mutation
+    - key: reject_type
+      step: файл недопустимого типа отклонён
+      kind: mutation
+    - key: attach
+      step: url записан спикеру
+      kind: mutation
+    - key: public_readback
+      step: посетитель видит photo_url у спикера
+      kind: readback
+  touches:
+    - backend/api/content.py
+    - frontend/src/components/admin/FileUpload.jsx
+  tests: {}
+
+- id: P-05
+  title: Абитуриент подаёт заявку в школу ревматологии, секретарь её видит
+  status: planned
+  roles: [visitor, admin]
+  layers: [api]
+  chain:
+    - key: apply
+      step: посетитель отправляет заявку без токена
+      kind: mutation
+    - key: admin_sees_application
+      step: админ видит заявку в списке
+      kind: list
+      positive_control: содержит созданную заявку
+  touches:
+    - backend/api/content.py
+    - backend/api/admin.py
+    - frontend/src/pages/Schools.jsx
+  tests: {}
