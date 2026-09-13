@@ -23,6 +23,13 @@ from functions.auth import get_current_admin
 router = APIRouter()
 
 
+async def _ensure_exists(db: AsyncSession, model, obj_id: int, detail: str):
+    """Проверить существование родительской записи, иначе 404."""
+    result = await db.execute(select(model.id).where(model.id == obj_id))
+    if result.scalar_one_or_none() is None:
+        raise HTTPException(status_code=404, detail=detail)
+
+
 # ==================== КОНГРЕСС CRUD ====================
 
 @router.get("/congresses", response_model=List[CongressResponse])
@@ -203,6 +210,7 @@ async def create_congress_program_day(
     db: AsyncSession = Depends(get_db),
     admin=Depends(get_current_admin)
 ):
+    await _ensure_exists(db, Congress, data.congress_id, "Congress not found")
     day = CongressProgramDay(**data.model_dump())
     db.add(day)
     await db.commit()
@@ -252,9 +260,19 @@ async def delete_congress_program_day(
 @router.get("/congress-program-sections", response_model=List[CongressProgramSectionResponse])
 async def get_congress_program_sections(
     db: AsyncSession = Depends(get_db),
-    day_id: Optional[int] = None
+    day_id: Optional[int] = None,
+    congress_id: Optional[int] = None
 ):
-    query = select(CongressProgramSection).order_by(CongressProgramSection.order)
+    query = select(CongressProgramSection)
+    if congress_id is not None:
+        # Секции всех дней конгресса, по порядку дней и секций внутри дня
+        query = (
+            query.join(CongressProgramDay, CongressProgramSection.day_id == CongressProgramDay.id)
+            .where(CongressProgramDay.congress_id == congress_id)
+            .order_by(CongressProgramDay.order, CongressProgramSection.order)
+        )
+    else:
+        query = query.order_by(CongressProgramSection.order)
     if day_id:
         query = query.where(CongressProgramSection.day_id == day_id)
     result = await db.execute(query)
@@ -267,6 +285,7 @@ async def create_congress_program_section(
     db: AsyncSession = Depends(get_db),
     admin=Depends(get_current_admin)
 ):
+    await _ensure_exists(db, CongressProgramDay, data.day_id, "Program day not found")
     section = CongressProgramSection(**data.model_dump())
     db.add(section)
     await db.commit()
@@ -287,6 +306,8 @@ async def update_congress_program_section(
         raise HTTPException(status_code=404, detail="Program section not found")
 
     update_data = data.model_dump(exclude_unset=True)
+    if update_data.get("day_id") is not None:
+        await _ensure_exists(db, CongressProgramDay, update_data["day_id"], "Program day not found")
     for key, value in update_data.items():
         setattr(section, key, value)
 
@@ -337,6 +358,9 @@ async def create_congress_speaker(
     db: AsyncSession = Depends(get_db),
     admin=Depends(get_current_admin)
 ):
+    await _ensure_exists(db, Congress, data.congress_id, "Congress not found")
+    if data.section_id is not None:
+        await _ensure_exists(db, CongressProgramSection, data.section_id, "Program section not found")
     speaker = CongressSpeaker(**data.model_dump())
     db.add(speaker)
     await db.commit()
@@ -357,6 +381,10 @@ async def update_congress_speaker(
         raise HTTPException(status_code=404, detail="Speaker not found")
 
     update_data = data.model_dump(exclude_unset=True)
+    if update_data.get("section_id") is not None:
+        await _ensure_exists(
+            db, CongressProgramSection, update_data["section_id"], "Program section not found"
+        )
     for key, value in update_data.items():
         setattr(speaker, key, value)
 

@@ -1,10 +1,31 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional, List
-from datetime import datetime, date, time
+# Типы импортируются под алиасами: поле `date` в моделях дней программы
+# затеняет имя типа `date`, из-за чего аннотация резолвилась в NoneType.
+from datetime import datetime, date as date_type, time as time_type
+
+
+def _empty_str_to_none(value):
+    """Формы админки шлют '' для незаполненных дат/времени — это None."""
+    if isinstance(value, str) and value.strip() == "":
+        return None
+    return value
+
+
+class BlankDatesToNone(BaseModel):
+    """Базовый класс для входных схем: '' в полях дат/времени трактуется как None."""
+
+    @field_validator(
+        "date", "date_start", "date_end", "time_start", "time_end",
+        mode="before", check_fields=False
+    )
+    @classmethod
+    def _blank_to_none(cls, value):
+        return _empty_str_to_none(value)
 
 
 # ==================== CONGRESS ====================
-class CongressCreate(BaseModel):
+class CongressCreate(BlankDatesToNone):
     title_ru: str
     title_uz: str
     title_en: str
@@ -48,7 +69,7 @@ class CongressCreate(BaseModel):
     info_letter_file_en: Optional[str] = None
 
 
-class CongressUpdate(BaseModel):
+class CongressUpdate(BlankDatesToNone):
     title_ru: Optional[str] = None
     title_uz: Optional[str] = None
     title_en: Optional[str] = None
@@ -182,9 +203,9 @@ class CongressSponsorResponse(BaseModel):
 
 
 # ==================== CONGRESS PROGRAM DAY ====================
-class CongressProgramDayCreate(BaseModel):
+class CongressProgramDayCreate(BlankDatesToNone):
     congress_id: int
-    date: Optional[date] = None
+    date: Optional[date_type] = None
     title_ru: str
     title_uz: str
     title_en: str
@@ -194,8 +215,8 @@ class CongressProgramDayCreate(BaseModel):
     order: int = 0
 
 
-class CongressProgramDayUpdate(BaseModel):
-    date: Optional[date] = None
+class CongressProgramDayUpdate(BlankDatesToNone):
+    date: Optional[date_type] = None
     title_ru: Optional[str] = None
     title_uz: Optional[str] = None
     title_en: Optional[str] = None
@@ -208,7 +229,7 @@ class CongressProgramDayUpdate(BaseModel):
 class CongressProgramDayResponse(BaseModel):
     id: int
     congress_id: int
-    date: Optional[date] = None
+    date: Optional[date_type] = None
     title_ru: str
     title_uz: str
     title_en: str
@@ -234,6 +255,7 @@ class CongressProgramSectionCreate(BaseModel):
 
 
 class CongressProgramSectionUpdate(BaseModel):
+    day_id: Optional[int] = None
     title_ru: Optional[str] = None
     title_uz: Optional[str] = None
     title_en: Optional[str] = None
@@ -259,7 +281,7 @@ class CongressProgramSectionResponse(BaseModel):
 
 
 # ==================== CONGRESS SPEAKER ====================
-class CongressSpeakerCreate(BaseModel):
+class CongressSpeakerCreate(BlankDatesToNone):
     congress_id: int
     section_id: Optional[int] = None
     last_name_ru: str
@@ -280,14 +302,14 @@ class CongressSpeakerCreate(BaseModel):
     topic_ru: Optional[str] = None
     topic_uz: Optional[str] = None
     topic_en: Optional[str] = None
-    time_start: Optional[time] = None
-    time_end: Optional[time] = None
+    time_start: Optional[time_type] = None
+    time_end: Optional[time_type] = None
     photo_url: Optional[str] = None
     order: int = 0
     is_active: bool = True
 
 
-class CongressSpeakerUpdate(BaseModel):
+class CongressSpeakerUpdate(BlankDatesToNone):
     section_id: Optional[int] = None
     last_name_ru: Optional[str] = None
     last_name_uz: Optional[str] = None
@@ -307,8 +329,8 @@ class CongressSpeakerUpdate(BaseModel):
     topic_ru: Optional[str] = None
     topic_uz: Optional[str] = None
     topic_en: Optional[str] = None
-    time_start: Optional[time] = None
-    time_end: Optional[time] = None
+    time_start: Optional[time_type] = None
+    time_end: Optional[time_type] = None
     photo_url: Optional[str] = None
     order: Optional[int] = None
     is_active: Optional[bool] = None
@@ -336,8 +358,8 @@ class CongressSpeakerResponse(BaseModel):
     topic_ru: Optional[str] = None
     topic_uz: Optional[str] = None
     topic_en: Optional[str] = None
-    time_start: Optional[time] = None
-    time_end: Optional[time] = None
+    time_start: Optional[time_type] = None
+    time_end: Optional[time_type] = None
     photo_url: Optional[str] = None
     order: int
     is_active: bool
