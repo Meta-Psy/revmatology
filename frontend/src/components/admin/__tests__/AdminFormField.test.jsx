@@ -13,6 +13,11 @@ describe('AdminFormField', () => {
     expect(screen.getByText('*')).toBeInTheDocument();
   });
 
+  it('passes required down to the input (browser blocks empty submit)', () => {
+    render(<AdminFormField label="Email" name="email" required value="" onChange={() => {}} />);
+    expect(screen.getByRole('textbox')).toBeRequired();
+  });
+
   it('renders text input by default', () => {
     render(<AdminFormField label="Name" name="name" value="John" onChange={() => {}} />);
     const input = screen.getByRole('textbox');

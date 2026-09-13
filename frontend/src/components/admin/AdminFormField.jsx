@@ -28,6 +28,7 @@ const AdminFormField = ({ label, name, type = 'text', value, onChange, placehold
           onChange={handleChange}
           placeholder={placeholder}
           rows={rows || 3}
+          required={required}
           className={`${baseInput} ${errorInput} resize-y`}
         />
       ) : type === 'select' ? (
@@ -36,6 +37,7 @@ const AdminFormField = ({ label, name, type = 'text', value, onChange, placehold
           name={name}
           value={value || ''}
           onChange={handleChange}
+          required={required}
           className={`${baseInput} ${errorInput}`}
         >
           {options?.map(opt => (
@@ -64,6 +66,7 @@ const AdminFormField = ({ label, name, type = 'text', value, onChange, placehold
           onChange={handleChange}
           placeholder={placeholder}
           accept={accept}
+          required={required}
           className={`${baseInput} ${errorInput}`}
         />
       )}
