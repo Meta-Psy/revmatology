@@ -306,7 +306,10 @@ async def update_congress_program_section(
         raise HTTPException(status_code=404, detail="Program section not found")
 
     update_data = data.model_dump(exclude_unset=True)
-    if update_data.get("day_id") is not None:
+    if "day_id" in update_data:
+        # day_id — NOT NULL: без явной проверки null дошёл бы до БД как IntegrityError (500)
+        if update_data["day_id"] is None:
+            raise HTTPException(status_code=422, detail="day_id не может быть пустым")
         await _ensure_exists(db, CongressProgramDay, update_data["day_id"], "Program day not found")
     for key, value in update_data.items():
         setattr(section, key, value)

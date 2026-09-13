@@ -13,7 +13,9 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
+TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+
+os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 
 # main.py создаёт папку uploads относительно cwd — фиксируем cwd на backend/
@@ -29,8 +31,6 @@ from database.connection import Base  # noqa: E402
 from database.models import Congress, CongressProgramDay, CongressProgramSection, User, UserRole  # noqa: E402
 from functions.auth import get_current_admin, get_current_admin_user  # noqa: E402
 from main import app  # noqa: E402
-
-TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 
 @pytest_asyncio.fixture
@@ -96,17 +96,22 @@ async def client(session_factory):
 
 
 @pytest_asyncio.fixture
-async def congress(db_session):
+async def make_congress(db_session):
+    """Фабрика конгрессов (через ORM)."""
+    async def _make_congress(title_ru="Тестовый конгресс"):
+        item = Congress(title_ru=title_ru, title_uz=title_ru, title_en=title_ru)
+        db_session.add(item)
+        await db_session.commit()
+        await db_session.refresh(item)
+        return item
+
+    return _make_congress
+
+
+@pytest_asyncio.fixture
+async def congress(make_congress):
     """Конгресс, созданный напрямую через ORM."""
-    item = Congress(
-        title_ru="Тестовый конгресс",
-        title_uz="Test kongress",
-        title_en="Test congress",
-    )
-    db_session.add(item)
-    await db_session.commit()
-    await db_session.refresh(item)
-    return item
+    return await make_congress()
 
 
 @pytest_asyncio.fixture

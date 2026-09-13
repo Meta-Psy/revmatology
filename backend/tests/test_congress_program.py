@@ -187,26 +187,26 @@ async def test_create_speaker_unknown_section(client, congress):
 
 # ==================== ВЫБОРКА СЕКЦИЙ И ПЕРЕНОС МЕЖДУ ДНЯМИ ====================
 
-async def test_list_sections_by_congress(client, congress, make_day, make_section):
-    """congress_id собирает секции всех дней конгресса; day_id продолжает работать."""
-    day1 = await make_day(congress.id, title_ru="День 1", order=0)
-    day2 = await make_day(congress.id, title_ru="День 2", order=1)
-    await make_section(day1.id, title_ru="Секция 1")
-    await make_section(day2.id, title_ru="Секция 2")
+async def test_list_sections_by_congress(client, make_congress, make_day, make_section):
+    """congress_id отбирает секции только своего конгресса; day_id работает как раньше."""
+    first = await make_congress("Первый конгресс")
+    second = await make_congress("Второй конгресс")
+    first_day = await make_day(first.id, title_ru="День первого", order=0)
+    second_day = await make_day(second.id, title_ru="День второго", order=0)
+    first_section = await make_section(first_day.id, title_ru="Секция первого")
+    await make_section(second_day.id, title_ru="Секция второго")
 
     response = await client.get(
-        "/api/congress/congress-program-sections", params={"congress_id": congress.id}
+        "/api/congress/congress-program-sections", params={"congress_id": first.id}
     )
     assert response.status_code == 200, response.text
-    assert len(response.json()) == 2
+    assert [s["id"] for s in response.json()] == [first_section.id]
 
     response = await client.get(
-        "/api/congress/congress-program-sections", params={"day_id": day1.id}
+        "/api/congress/congress-program-sections", params={"day_id": first_day.id}
     )
     assert response.status_code == 200, response.text
-    sections = response.json()
-    assert len(sections) == 1
-    assert sections[0]["day_id"] == day1.id
+    assert [s["day_id"] for s in response.json()] == [first_day.id]
 
 
 async def test_update_section_day_id(client, congress, make_day, make_section):
@@ -230,3 +230,14 @@ async def test_update_section_unknown_day_id(client, congress, make_day, make_se
         f"/api/congress/congress-program-sections/{section.id}", json={"day_id": 999}
     )
     assert response.status_code == 404, response.text
+
+
+async def test_update_section_null_day_id(client, congress, make_day, make_section):
+    """day_id=null не должен уходить в NOT NULL колонку и валить запрос 500-й."""
+    day = await make_day(congress.id, title_ru="День 1")
+    section = await make_section(day.id)
+
+    response = await client.put(
+        f"/api/congress/congress-program-sections/{section.id}", json={"day_id": None}
+    )
+    assert response.status_code == 422, response.text
