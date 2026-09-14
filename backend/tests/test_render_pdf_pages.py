@@ -1,8 +1,13 @@
 """scripts/render_pdf_pages.py: рисование одного PDF и добор (--backfill) по БД (К-08)."""
 import asyncio
 import json
+import os
 import subprocess
 import sys
+import tempfile
+import threading
+import time
+from pathlib import Path
 
 import pytest
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -25,6 +30,10 @@ def uploads(tmp_path):
 
 def _args(uploads, *extra):
     return [*map(str, extra), "--uploads-dir", str(uploads)]
+
+
+def _listing(directory):
+    return sorted(p.name for p in directory.iterdir())
 
 
 # ---------- один файл ----------
@@ -77,8 +86,25 @@ def test_path_and_backfill_are_mutually_exclusive(uploads):
         main(_args(uploads))
 
 
+def _hold_lock_for(seconds):
+    """Держит замок рисования из другого потока (flock — на открытый файл,
+    так что второй open() в этом же процессе честно ждёт)."""
+    import fcntl
+
+    holder = open(render_pdf_pages.LOCK_PATH, "a")
+    fcntl.flock(holder, fcntl.LOCK_EX)
+
+    def release():
+        time.sleep(seconds)
+        holder.close()
+
+    thread = threading.Thread(target=release)
+    thread.start()
+    return thread
+
+
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="flock — только Linux")
-def test_single_file_renders_under_lock(uploads, monkeypatch):
+def test_single_file_renders_under_lock_outside_uploads(uploads, monkeypatch):
     import fcntl
 
     samples.write_pdf(uploads / "doc.pdf", [samples.STRIP])
@@ -86,7 +112,7 @@ def test_single_file_renders_under_lock(uploads, monkeypatch):
     lock_was_held = []
 
     def render_checking_lock(*args, **kwargs):
-        with open(uploads / render_pdf_pages.LOCK_NAME, "a") as other:
+        with open(render_pdf_pages.LOCK_PATH, "a") as other:
             try:
                 fcntl.flock(other, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
@@ -97,18 +123,62 @@ def test_single_file_renders_under_lock(uploads, monkeypatch):
 
     assert main(_args(uploads, uploads / "doc.pdf")) == 0
     assert lock_was_held == [True]
+    # nginx отдаёт всё из uploads/ — замку там не место
+    assert render_pdf_pages.LOCK_PATH.parent == Path(tempfile.gettempdir())
+    assert _listing(uploads) == ["doc.pages", "doc.pdf"]
 
 
-@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="RLIMIT_AS — только Linux")
-def test_memory_limit_is_address_space(monkeypatch):
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="flock — только Linux")
+def test_waiting_in_queue_does_not_eat_render_deadline(uploads, monkeypatch, capsys):
+    """Файл, стоящий за замком дольше дедлайна, рисуется полностью: время
+    рисования считается с момента получения замка."""
+    monkeypatch.setattr(pdf_pages, "RENDER_TIMEOUT", 1.0)
+    samples.write_pdf(uploads / "queued.pdf", [samples.STRIP] * 2)
+    holder = _hold_lock_for(2.0)
+    started = time.monotonic()
+
+    code = main(_args(uploads, uploads / "queued.pdf"))
+
+    holder.join()
+    assert time.monotonic() - started >= 2.0, "замок не ждали — тест ничего не проверил"
+    assert code == 0, capsys.readouterr().out
+    manifest = pdf_pages.read_manifest(uploads / "queued.pdf")
+    assert (manifest["rendered"], manifest["truncated"]) == (2, False)
+    assert not (uploads / "queued.pages.error.json").exists()
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="rlimit и nice — только Linux")
+def test_resource_limits_for_render_process(monkeypatch):
     import resource
 
-    limits = []
+    limits, nice = [], []
     monkeypatch.setattr(resource, "setrlimit", lambda kind, value: limits.append((kind, value)))
+    monkeypatch.setattr(render_pdf_pages.os, "nice", lambda inc: nice.append(inc))
 
-    render_pdf_pages._limit_memory()
+    render_pdf_pages._limit_resources()
 
-    assert limits == [(resource.RLIMIT_AS, (render_pdf_pages.MEMORY_LIMIT, render_pdf_pages.MEMORY_LIMIT))]
+    cpu = pdf_pages.RENDER_TIMEOUT + 30
+    assert sorted(limits) == sorted([
+        (resource.RLIMIT_AS, (render_pdf_pages.MEMORY_LIMIT, render_pdf_pages.MEMORY_LIMIT)),
+        (resource.RLIMIT_CPU, (cpu, cpu + 10)),  # SIGXCPU убивает и внутри PDFium; сон на замке не в счёт
+        (resource.RLIMIT_CORE, (0, 0)),
+    ])
+    assert nice == [10]
+
+
+def test_limits_only_for_single_file_from_command_line(uploads, database, monkeypatch):
+    calls = []
+    monkeypatch.setattr(render_pdf_pages, "_limit_resources", lambda: calls.append("limits"))
+    samples.write_pdf(uploads / "doc.pdf", [samples.STRIP])
+    database({})
+
+    assert main(_args(uploads, uploads / "doc.pdf")) == 0
+    assert calls == []  # тесты и прочие вызовы main() pytest не ограничивают
+    assert main(_args(uploads, "--backfill"), limit_resources=True) == 0
+    assert calls == []  # оркестратор добора сам не рисует
+    (uploads / "doc.pages" / "manifest.json").unlink()
+    assert main(_args(uploads, uploads / "doc.pdf"), limit_resources=True) == 0
+    assert calls == ["limits"]
 
 
 # ---------- добор по БД ----------
@@ -196,3 +266,34 @@ def test_backfill_kills_hung_render_and_marks_timeout(uploads, database, capsys,
     error = json.loads((uploads / "hang.pages.error.json").read_text(encoding="utf-8"))
     assert error["error"] == "timeout"
     assert "hang.pdf" in capsys.readouterr().out
+
+
+def test_backfill_marks_child_killed_without_error_json(uploads, database, capsys, monkeypatch):
+    """Процесс рисования убит (OOM, SIGKILL) и сам error.json не записал —
+    иначе админ вечно видит «Готовятся…»."""
+    samples.write_pdf(uploads / "killed.pdf", [samples.STRIP])
+    database({"program_file_ru": "/uploads/killed.pdf"})
+    monkeypatch.setattr(
+        render_pdf_pages.subprocess, "run",
+        lambda cmd, **kwargs: subprocess.CompletedProcess(cmd, -9, stdout="", stderr=""),
+    )
+
+    assert main(_args(uploads, "--backfill")) == 1
+
+    error = json.loads((uploads / "killed.pages.error.json").read_text(encoding="utf-8"))
+    assert error["error"] == "internal"
+    assert "killed.pdf" in capsys.readouterr().out
+
+
+def test_backfill_removes_orphaned_tmp_dirs_older_than_hour(uploads, database, capsys):
+    database({})
+    old, fresh = uploads / ".x.pages.tmp-dead", uploads / ".y.pages.tmp-running"
+    old.mkdir()
+    fresh.mkdir()
+    two_hours_ago = time.time() - 2 * 3600
+    os.utime(old, (two_hours_ago, two_hours_ago))
+
+    assert main(_args(uploads, "--backfill")) == 0
+
+    assert _listing(uploads) == [".y.pages.tmp-running"]
+    assert "временных каталогов: 1" in capsys.readouterr().out

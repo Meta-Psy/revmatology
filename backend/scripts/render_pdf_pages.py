@@ -11,9 +11,12 @@
 
     python -m scripts.render_pdf_pages --backfill
 
-Одновременно рисуется один PDF (замок-файл в каталоге загрузок, flock на
-Linux; на Windows — без замка, это только разработка). На Linux процесс
-рисования ограничен по памяти (RLIMIT_AS).
+Одновременно рисуется один PDF (flock на файле-замке во временном каталоге
+системы — не в uploads/, его отдаёт nginx; на Windows без замка, это только
+разработка). Процесс рисования одного файла на Linux ограничен: RLIMIT_CPU
+(SIGXCPU обрывает и тяжёлую страницу внутри PDFium, а сон в очереди на замке
+не считается), RLIMIT_AS, без core-файлов, nice 10 — сайт и Postgres на
+1 vCPU важнее.
 """
 import argparse
 import asyncio
@@ -21,6 +24,7 @@ import contextlib
 import os
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -34,34 +38,41 @@ try:
 except ImportError:  # Windows
     fcntl = None
 
-LOCK_NAME = ".render_pdf_pages.lock"
+# Оба воркера uvicorn живут в одном контейнере — общий временный каталог им общий
+LOCK_PATH = Path(tempfile.gettempdir()) / "rheum-render-pdf-pages.lock"
 MEMORY_LIMIT = 1536 * 1024 * 1024  # 1,5 ГБ адресного пространства на процесс рисования
-# Жёсткий тайм-аут процесса одного файла при доборе: рисование обрывается
-# само через RENDER_TIMEOUT, запас — на запуск, замок и последнюю страницу
-PROCESS_TIMEOUT = pdf_pages.RENDER_TIMEOUT + 60
+CPU_LIMIT = pdf_pages.RENDER_TIMEOUT + 30  # мягкий предел, секунд процессора; жёсткий — на 10 выше
+NICE = 10
+PROCESS_TIMEOUT = pdf_pages.PROCESS_TIMEOUT  # у родителя — только последняя страховка
 FILE_FIELDS = tuple(
     f"{kind}_file_{lang}" for kind in ("program", "young_scientists") for lang in ("ru", "uz", "en")
 )
 
 
 @contextlib.contextmanager
-def _render_lock(uploads_dir: Path):
+def _render_lock():
     if fcntl is None:
         yield
         return
-    with open(uploads_dir / LOCK_NAME, "a") as lock_file:
+    with open(LOCK_PATH, "a") as lock_file:
         fcntl.flock(lock_file, fcntl.LOCK_EX)  # снимается при закрытии файла или смерти процесса
         yield
 
 
-def _limit_memory() -> None:
-    """Только для запуска из командной строки: предел наследуется дочерними
-    процессами и не поднимается обратно, поэтому main() его не ставит —
-    иначе тесты ограничили бы им сам pytest."""
+def _limit_resources() -> None:
+    """Пределы процесса рисования одного файла. Ставятся только при запуске
+    из командной строки: пределы не поднять обратно, в main() по умолчанию
+    они ограничили бы сам pytest."""
     if sys.platform.startswith("linux"):
         import resource
 
         resource.setrlimit(resource.RLIMIT_AS, (MEMORY_LIMIT, MEMORY_LIMIT))
+        # SIGXCPU по умолчанию убивает процесс — и посреди страницы в PDFium;
+        # родитель по коду -SIGXCPU пишет error.json «timeout»
+        resource.setrlimit(resource.RLIMIT_CPU, (CPU_LIMIT, CPU_LIMIT + 10))
+        resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+    if hasattr(os, "nice"):
+        os.nice(NICE)
 
 
 def render_one(path: Path, uploads_dir: Path) -> int:
@@ -75,7 +86,7 @@ def render_one(path: Path, uploads_dir: Path) -> int:
         print(f"{pdf.name}: страницы уже есть — {manifest['rendered']} стр.")
         return 0
 
-    with _render_lock(uploads_dir):
+    with _render_lock():
         started = time.monotonic()
         try:
             manifest = pdf_pages.render(pdf, uploads_dir)
@@ -119,19 +130,24 @@ def _render_in_child(pdf: Path, uploads_dir: Path) -> bool:
             timeout=PROCESS_TIMEOUT,
         )
     except subprocess.TimeoutExpired:
-        if pdf.is_file() and pdf_pages.read_manifest(pdf) is None:
-            pdf_pages.write_error(pdf, "timeout")
+        pdf_pages.mark_failed_run(pdf, timed_out=True)
         print(f"ОШИБКА {pdf.name}: процесс рисования убит через {PROCESS_TIMEOUT} с")
         return False
     output = (result.stdout + result.stderr).strip()
     if output:
         print(output)
-    if result.returncode != 0 and not output:
-        print(f"ОШИБКА {pdf.name}: процесс рисования завершился с кодом {result.returncode}")
+    if result.returncode != 0:
+        written = pdf_pages.mark_failed_run(pdf, returncode=result.returncode)
+        if written or not output:
+            print(f"ОШИБКА {pdf.name}: процесс рисования завершился с кодом {result.returncode}"
+                  + (f", записано {written}" if written else ""))
     return result.returncode == 0
 
 
 def backfill(uploads_dir: Path) -> int:
+    removed = pdf_pages.remove_stale_tmp_dirs(uploads_dir)
+    if removed:
+        print(f"Удалено осиротевших временных каталогов: {removed}")
     paths = []
     for url in asyncio.run(_file_urls()):
         path = pdf_pages.upload_url_to_path(url, uploads_dir)
@@ -151,7 +167,7 @@ def backfill(uploads_dir: Path) -> int:
     return 1 if errors else 0
 
 
-def main(argv=None) -> int:
+def main(argv=None, *, limit_resources: bool = False) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("path", nargs="?", type=Path, help="PDF в каталоге загрузок")
     parser.add_argument("--backfill", action="store_true", help="дорисовать все PDF конгрессов из БД")
@@ -167,10 +183,11 @@ def main(argv=None) -> int:
 
     uploads_dir = args.uploads_dir.resolve()
     if args.backfill:
-        return backfill(uploads_dir)
+        return backfill(uploads_dir)  # оркестратор сам не рисует — пределы у дочерних процессов
+    if limit_resources:
+        _limit_resources()
     return render_one(args.path, uploads_dir)
 
 
 if __name__ == "__main__":
-    _limit_memory()
-    sys.exit(main())
+    sys.exit(main(limit_resources=True))

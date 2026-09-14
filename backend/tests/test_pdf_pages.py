@@ -168,8 +168,7 @@ def test_zero_page_pdf_is_empty(uploads):
 
     assert result.returncode == 1, result.stdout
     assert _error(pdf)["error"] == "empty"
-    # замок-файл скрипта (на Linux) — не в счёт
-    assert [n for n in _listing(uploads) if not n.endswith(".lock")] == ["bad.pages.error.json", "bad.pdf"]
+    assert _listing(uploads) == ["bad.pages.error.json", "bad.pdf"]  # замок живёт не в uploads/
 
 
 def test_timeout_before_first_page_writes_error_and_no_pages(uploads):
