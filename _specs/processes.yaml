@@ -52,6 +52,7 @@
     - backend/schemas/congress.py
     - backend/api/congress.py
     - frontend/src/pages/admin/CongressAdmin.jsx
+    - frontend/src/pages/admin/AdminApp.jsx
     - frontend/src/pages/Congress.jsx
     - frontend/src/pages/CongressProgram.jsx
   tests:
@@ -125,6 +126,7 @@
   touches:
     - backend/api/content.py
     - frontend/src/components/admin/FileUpload.jsx
+    - frontend/src/pages/admin/AdminApp.jsx
   tests: {}
 
 - id: P-05
@@ -177,6 +179,7 @@
     - backend/pdf_pages.py
     - backend/scripts/render_pdf_pages.py
     - frontend/src/pages/admin/CongressAdmin.jsx
+    - frontend/src/pages/admin/AdminApp.jsx
     - frontend/src/pages/Congress.jsx
     - frontend/src/pages/CongressYoungScientists.jsx
     - frontend/src/components/pdf/PdfPages.jsx
