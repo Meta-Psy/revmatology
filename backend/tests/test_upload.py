@@ -2,6 +2,7 @@
 
 Каталог загрузок подменяется на tmp_path, чтобы тесты не писали в backend/uploads.
 """
+import logging
 import random
 from io import BytesIO
 from pathlib import Path
@@ -10,9 +11,11 @@ import pillow_heif
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from PIL import ExifTags, Image
+from PIL import ExifTags, Image, ImageDraw, JpegImagePlugin
 
 import api.content as content_module
+from image_processing import compress_for_upload
+from tests import image_samples as samples
 from database import get_db
 from database.models import User, UserRole
 from functions.auth import get_current_user
@@ -139,8 +142,9 @@ async def test_png_with_transparency_stays_png(client, upload_dir):
         assert out.getchannel("A").getextrema()[0] == 0
 
 
-async def test_png_without_transparency_becomes_jpeg(client, upload_dir):
-    data = _image_bytes((2000, 1000), fmt="PNG", mode="RGBA", color=(10, 20, 30, 255))
+async def test_photo_png_without_transparency_becomes_jpeg(client, upload_dir):
+    # альфа-канал есть, но целиком непрозрачный — как у экспортов из редакторов
+    data = samples.to_bytes(samples.noise((2000, 1000), "RGBA"))
 
     response = await _upload(client, "banner.png", data, "image/png")
 
@@ -149,6 +153,117 @@ async def test_png_without_transparency_becomes_jpeg(client, upload_dir):
     with Image.open(_saved(upload_dir, response)) as out:
         assert out.format == "JPEG"
         assert out.size == (1600, 800)
+
+
+async def test_flat_opaque_logo_png_stays_png(client, upload_dir):
+    # плоский логотип: PNG меньше JPEG и без ореолов вокруг букв
+    logo = Image.new("RGB", (1200, 400), "white")
+    draw = ImageDraw.Draw(logo)
+    draw.rectangle((40, 100, 600, 250), fill=(200, 0, 40))
+    draw.rectangle((40, 300, 1160, 330), fill=(0, 70, 160))
+    data = samples.to_bytes(logo, optimize=True)
+
+    response = await _upload(client, "sponsor.png", data, "image/png")
+
+    assert response.status_code == 200, response.text
+    assert response.json()["url"].endswith(".png")
+    with Image.open(_saved(upload_dir, response)) as out:
+        assert out.format == "PNG"
+        assert out.size == (1200, 400)
+        assert len(out.convert("RGB").getcolors(1 << 24)) == 3  # цвета не «поплыли»
+
+
+@pytest.mark.parametrize("mode", ["P", "RGB", "L"])
+async def test_png_key_transparency_is_preserved(client, upload_dir, mode):
+    data = samples.key_transparent_png(mode, (400, 200))
+
+    response = await _upload(client, f"logo-{mode}.png", data, "image/png")
+
+    assert response.status_code == 200, response.text
+    assert response.json()["url"].endswith(".png")
+    with Image.open(_saved(upload_dir, response)) as out:
+        assert out.format == "PNG"
+        samples.assert_left_transparent_right_opaque(out)
+
+
+async def test_16bit_png_is_not_whitened(client, upload_dir):
+    response = await _upload(client, "scan16.png", samples.i16_png((300, 200), 30000), "image/png")
+
+    assert response.status_code == 200, response.text
+    with Image.open(_saved(upload_dir, response)) as out:
+        gray = out.convert("L").getpixel((150, 100))
+    assert 110 <= gray <= 125  # 30000 / 256 ≈ 117, а не 255
+
+
+@pytest.mark.parametrize(
+    ("filename", "fmt"),
+    [("photo.jfif", "JPEG"), ("photo.jpe", "JPEG"), ("photo.avif", "AVIF"),
+     ("scan.bmp", "BMP"), ("scan.tif", "TIFF"), ("scan.tiff", "TIFF")],
+)
+async def test_more_image_formats_are_accepted(client, upload_dir, filename, fmt):
+    data = samples.to_bytes(samples.noise((2000, 1000)), fmt)
+
+    response = await _upload(client, filename, data)
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert Path(body["url"]).suffix in (".jpg", ".png")
+    assert (body["width"], body["height"]) == (1600, 800)
+    with Image.open(_saved(upload_dir, response)) as out:
+        assert out.format in ("JPEG", "PNG")
+
+
+async def test_animated_webp_saved_as_is(client, upload_dir):
+    frames = [Image.new("RGB", (60, 40), (i * 80, 0, 0)) for i in range(3)]
+    data = samples.to_bytes(frames[0], "WEBP", save_all=True, append_images=frames[1:], duration=100)
+
+    response = await _upload(client, "anim.webp", data, "image/webp")
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["url"].endswith(".webp")
+    assert (body["width"], body["height"]) == (60, 40)
+    assert _saved(upload_dir, response).read_bytes() == data
+
+
+def test_large_jpeg_is_decoded_at_reduced_scale(monkeypatch):
+    """8064×6048 не должен декодироваться целиком: draft до thumbnail."""
+    decoded = []
+    original_draft = JpegImagePlugin.JpegImageFile.draft
+
+    def spy(self, mode, size):
+        result = original_draft(self, mode, size)
+        decoded.append(self.size)
+        return result
+
+    monkeypatch.setattr(JpegImagePlugin.JpegImageFile, "draft", spy)
+    data = samples.to_bytes(Image.new("L", (8064, 6048), 128), "JPEG")
+
+    image = compress_for_upload(data)
+
+    assert decoded and decoded[0] == (4032, 3024)  # масштаб 1/2 при декодировании
+    assert (image.width, image.height) == (1600, 1200)
+
+
+async def test_image_over_50_megapixels_rejected_with_clear_message(client, upload_dir):
+    data = samples.to_bytes(Image.new("1", (8000, 7000)))  # 56 Мп, файл — десятки КБ
+
+    response = await _upload(client, "huge.png", data, "image/png")
+
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert "слишком большое" in detail and "50 Мп" in detail
+    assert list(upload_dir.iterdir()) == []
+
+
+async def test_decompression_bomb_rejected_with_clear_message(client, upload_dir, monkeypatch):
+    monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", 1000)  # порог «бомбы» Pillow — 2×1000 пикселей
+
+    response = await _upload(client, "bomb.png", samples.to_bytes(Image.new("1", (100, 100))), "image/png")
+
+    assert response.status_code == 400
+    assert "слишком большое" in response.json()["detail"]
+    assert list(upload_dir.iterdir()) == []
 
 
 async def test_webp_stays_webp(client, upload_dir):
@@ -193,12 +308,14 @@ async def test_uppercase_extension_is_normalized(client, upload_dir):
     ],
     ids=["garbage", "truncated"],
 )
-async def test_broken_image_rejected_400(client, upload_dir, data):
-    response = await _upload(client, "broken.jpg", data, "image/jpeg")
+async def test_broken_image_rejected_400(client, upload_dir, data, caplog):
+    with caplog.at_level(logging.WARNING, logger="api.content"):
+        response = await _upload(client, "broken.jpg", data, "image/jpeg")
 
     assert response.status_code == 400
     assert "изображени" in response.json()["detail"]
     assert list(upload_dir.iterdir()) == []
+    assert any("broken.jpg" in r.getMessage() for r in caplog.records)  # причина — в лог
 
 
 # ---------------------------------------------------------------- документы

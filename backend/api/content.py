@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 from typing import List, Optional
+import logging
 import os
 import uuid
 from datetime import datetime
@@ -27,9 +28,10 @@ from schemas import (
 from schemas.rheumatology import SchoolApplicationCreate, SchoolApplicationResponse
 from functions.auth import get_current_admin
 from fastapi.concurrency import run_in_threadpool
-from image_processing import InvalidImageError, compress_for_upload, probe_size
+from image_processing import ImageTooLargeError, InvalidImageError, compress_for_upload, probe_size
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # Путь для загрузки файлов
 UPLOAD_DIR = "uploads"
@@ -39,7 +41,11 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 # Белый список собран по фактическому использованию в админке (accept у FileUpload):
 # фото — image/* (+ .heic/.heif), документы — .pdf (устав), .pdf/.doc/.docx
 # (документы болезней, медиаресурсы). SVG не пускаем: он может исполнять скрипты.
-COMPRESSED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"}
+# jfif/jpe/avif/bmp/tif/tiff тоже приходят через image/* — пережимаются в JPEG/PNG.
+COMPRESSED_IMAGE_EXTENSIONS = {
+    ".jpg", ".jpeg", ".jfif", ".jpe", ".png", ".webp", ".heic", ".heif",
+    ".avif", ".bmp", ".tif", ".tiff",
+}
 AS_IS_IMAGE_EXTENSIONS = {".gif"}  # анимация — сохраняем как есть
 DOCUMENT_EXTENSIONS = {".pdf", ".doc", ".docx"}
 ALLOWED_UPLOAD_EXTENSIONS = COMPRESSED_IMAGE_EXTENSIONS | AS_IS_IMAGE_EXTENSIONS | DOCUMENT_EXTENSIONS
@@ -85,7 +91,8 @@ async def upload_file(
     """Загрузка файла (изображения или документа).
 
     Изображения уменьшаются до 1600 px по длинной стороне и пережимаются
-    (HEIC → JPEG), EXIF удаляется; GIF и документы сохраняются байт-в-байт.
+    (HEIC → JPEG), EXIF удаляется; GIF, анимированный WEBP и документы
+    сохраняются байт-в-байт.
     """
     ext = os.path.splitext(file.filename or "")[1].lower()
     if ext not in ALLOWED_UPLOAD_EXTENSIONS:
@@ -98,7 +105,11 @@ async def upload_file(
     data = await _read_limited(file)
     try:
         return await run_in_threadpool(_store_upload, data, ext)
-    except InvalidImageError:
+    except ImageTooLargeError as exc:
+        logger.warning("Загрузка отклонена, %s: %s", file.filename, exc)
+        raise HTTPException(status_code=400, detail=str(exc))
+    except InvalidImageError as exc:
+        logger.warning("Загрузка отклонена, %s: %s", file.filename, exc)
         raise HTTPException(status_code=400, detail="Файл повреждён или не является изображением")
 
 

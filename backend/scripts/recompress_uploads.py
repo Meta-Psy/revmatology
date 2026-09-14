@@ -2,8 +2,9 @@
 
 Имя и формат файла сохраняются, поэтому ссылки в БД остаются рабочими:
 поворот по EXIF, EXIF/GPS удаляются, длинная сторона не больше 1600 px,
-JPEG q85 / PNG optimize / WEBP q85. Если результат не меньше исходника —
-остаётся исходник. GIF, HEIC и документы не трогаются.
+JPEG q85 / PNG optimize / WEBP q85. Если результат меньше исходника менее
+чем на 5 % — остаётся исходник. GIF, HEIC, анимация и документы не трогаются.
+Сбой на одном файле попадает в отчёт, прогон продолжается (код выхода 1).
 
 По умолчанию — пробный прогон (ничего не пишет). Пример в прод-контейнере:
 
@@ -22,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from image_processing import InvalidImageError, recompress_same_format  # noqa: E402
 
 EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+MIN_GAIN = 0.05  # меньший выигрыш не стоит повторной потери качества JPEG
 
 
 def _mb(size: int) -> str:
@@ -60,25 +62,25 @@ def main(argv=None) -> int:
     for path in sorted(args.directory.iterdir()):
         if not path.is_file() or path.suffix.lower() not in EXTENSIONS:
             continue
-        before = path.stat().st_size
-        total_before += before
         try:
-            data = recompress_same_format(path.read_bytes())
-        except InvalidImageError as exc:
+            before = path.stat().st_size
+            original = path.read_bytes()
+            data = recompress_same_format(original)
+            gain = 1 - len(data) / before if before else 0
+            if gain < MIN_GAIN:
+                data = original
+                print(f"{path.name}: {_mb(before)} → {_mb(before)}, выигрыш меньше 5% — оставлен исходник")
+            else:
+                print(f"{path.name}: {_mb(before)} → {_mb(len(data))} (−{round(gain * 100)}%)")
+                if args.apply:
+                    _replace_atomically(path, data)
+        except (InvalidImageError, OSError) as exc:
+            # один сбойный файл (битый, нет места, нет прав) не обрывает прогон
             errors += 1
-            total_after += before
             print(f"ОШИБКА {path.name}: {exc}")
             continue
-
-        if len(data) >= before:
-            total_after += before
-            print(f"{path.name}: {_mb(before)} → {_mb(len(data))}, не меньше — оставлен исходник")
-            continue
-
+        total_before += before
         total_after += len(data)
-        print(f"{path.name}: {_mb(before)} → {_mb(len(data))} (−{100 - len(data) * 100 // before}%)")
-        if args.apply:
-            _replace_atomically(path, data)
 
     print(f"ИТОГО: {_mb(total_before)} → {_mb(total_after)}" + ("" if args.apply else " (не записано)"))
     if errors:

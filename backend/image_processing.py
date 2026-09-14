@@ -14,6 +14,7 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 pillow_heif.register_heif_opener()
 
 MAX_SIDE = 1600
+MAX_PIXELS = 50_000_000  # больше не декодируем: PNG/HEIC раскрываются в память целиком
 JPEG_QUALITY = 85
 WEBP_QUALITY = 85
 
@@ -21,10 +22,19 @@ WEBP_QUALITY = 85
 # (CMYK и прочие переводятся в RGB — их профиль к результату не подходит).
 _ICC_SAFE_MODES = {"RGB", "RGBA", "L", "LA", "P"}
 _FORMAT_EXT = {"JPEG": ".jpg", "PNG": ".png", "WEBP": ".webp"}
+# Источники без потерь: плоская графика (логотипы) в PNG меньше и без ореолов,
+# фото — меньше в JPEG; пробуем оба и берём меньший.
+_LOSSLESS_SOURCES = {"PNG", "BMP", "TIFF"}
+_DECODE_ERRORS = (UnidentifiedImageError, OSError, SyntaxError, ValueError)
+_TOO_LARGE = f"Изображение слишком большое по разрешению — уменьшите до {MAX_PIXELS // 1_000_000} Мп"
 
 
 class InvalidImageError(ValueError):
     """Файл не читается как изображение (битый, обрезанный, не картинка)."""
+
+
+class ImageTooLargeError(InvalidImageError):
+    """Разрешение больше MAX_PIXELS или «декомпрессионная бомба» по мнению Pillow."""
 
 
 @dataclass(frozen=True)
@@ -35,28 +45,59 @@ class CompressedImage:
     height: int
 
 
+def _open(data: bytes) -> Image.Image:
+    """Открывает (читается только заголовок) и проверяет разрешение."""
+    try:
+        im = Image.open(BytesIO(data))
+    except Image.DecompressionBombError as exc:
+        raise ImageTooLargeError(_TOO_LARGE) from exc
+    except _DECODE_ERRORS as exc:
+        raise InvalidImageError(str(exc)) from exc
+    if im.width * im.height > MAX_PIXELS:
+        size = f"{im.width}×{im.height}, {im.width * im.height / 1_000_000:.0f} Мп"
+        im.close()
+        raise ImageTooLargeError(f"{_TOO_LARGE} (сейчас {size})")
+    return im
+
+
 def _load(data: bytes) -> tuple[Image.Image, str]:
     """Декодирует, уменьшает и поворачивает по EXIF.
 
     Возвращает копию без метаданных (кроме ICC) и исходный формат.
     """
-    try:
-        with Image.open(BytesIO(data)) as im:
+    with _open(data) as im:
+        try:
             source_format = "JPEG" if im.format == "MPO" else im.format  # MPO — JPEG с телефона
             icc = im.info.get("icc_profile") if im.mode in _ICC_SAFE_MODES else None
-            if im.mode not in ("RGB", "RGBA", "L", "LA"):
-                # палитру/CMYK/16 бит — в полноцвет до ресайза (палитра ресайзится «ступеньками»)
-                has_alpha = "A" in im.getbands() or "transparency" in im.info
-                im = im.convert("RGBA" if has_alpha else "RGB")
-            # thumbnail до поворота: для JPEG он декодирует сразу в уменьшенном
-            # масштабе (draft), не раздувая память; рамка квадратная — поворот
-            # после неё не нарушает предел длинной стороны
+            if source_format == "JPEG":
+                # JPEG умеет декодироваться сразу в 1/2…1/8 масштаба. thumbnail просит
+                # у draft квадрат 2×MAX_SIDE, и у фото 4:3 масштаб не срабатывает —
+                # просим по пропорциям кадра (8064×6048 декодируется как 4032×3024)
+                k = MAX_SIDE * 2 / max(im.size)
+                if k < 1:
+                    im.draft(None, (int(im.width * k), int(im.height * k)))
+            if im.mode.startswith("I;16") or im.mode == "I":
+                # 16 бит → 8 бит; простой convert обрезал бы всё выше 255 в белое
+                im = im.point(lambda v: v / 256).convert("L")
+                im.info.pop("transparency", None)  # 16-битный ключ к 8 битам не подходит
+            # прозрачность по ключу цвета (tRNS) у P/RGB/L — перевести в альфа-канал,
+            # иначе после ресайза и пересохранения прозрачный фон станет цветным
+            key_transparency = "transparency" in im.info and "A" not in im.getbands()
+            if im.mode not in ("RGB", "RGBA", "L", "LA") or key_transparency:
+                if "A" in im.getbands() or "transparency" in im.info:
+                    im = im.convert("LA" if im.mode == "L" else "RGBA")
+                else:
+                    im = im.convert("RGB")
+            # thumbnail до поворота: рамка квадратная — поворот после неё не
+            # нарушает предел длинной стороны
             im.thumbnail((MAX_SIDE, MAX_SIDE))
             im = ImageOps.exif_transpose(im)
             # только пиксели: EXIF, GPS, XMP и прочее из im.info не переносим
             clean = Image.frombytes(im.mode, im.size, im.tobytes())
-    except (UnidentifiedImageError, OSError, SyntaxError, ValueError, Image.DecompressionBombError) as exc:
-        raise InvalidImageError(str(exc)) from exc
+        except Image.DecompressionBombError as exc:
+            raise ImageTooLargeError(_TOO_LARGE) from exc
+        except _DECODE_ERRORS as exc:
+            raise InvalidImageError(str(exc)) from exc
     if icc:
         clean.info["icc_profile"] = icc
     return clean, source_format
@@ -78,6 +119,8 @@ def _encode(im: Image.Image, fmt: str) -> bytes:
             im = im.convert("RGB")
         im.save(buf, "JPEG", quality=JPEG_QUALITY, progressive=True, optimize=True, **extra)
     elif fmt == "PNG":
+        if im.mode in ("RGBA", "LA") and not _has_transparency(im):
+            im = im.convert(im.mode[:-1])  # альфа из одних 255 — лишний канал
         im.save(buf, "PNG", optimize=True, **extra)
     elif fmt == "WEBP":
         if im.mode not in ("RGB", "RGBA"):
@@ -88,22 +131,39 @@ def _encode(im: Image.Image, fmt: str) -> bytes:
     return buf.getvalue()
 
 
+def _animated_size(data: bytes) -> tuple[int, int] | None:
+    """Размер, если в файле больше одного кадра (анимация), иначе None."""
+    with _open(data) as im:
+        return im.size if getattr(im, "n_frames", 1) > 1 else None
+
+
 def compress_for_upload(data: bytes) -> CompressedImage:
-    """Сжатие при загрузке: WEBP → WEBP; с прозрачностью → PNG; остальное
-    (JPEG, HEIC/HEIF, PNG без прозрачности) → JPEG."""
+    """Сжатие при загрузке: WEBP → WEBP (анимированный — как есть);
+    с прозрачностью → PNG; PNG/BMP/TIFF без прозрачности → меньший из PNG и
+    JPEG; остальное (JPEG, HEIC/HEIF, AVIF) → JPEG."""
+    with _open(data) as im:
+        if im.format == "WEBP" and getattr(im, "n_frames", 1) > 1:
+            return CompressedImage(data, ".webp", *im.size)
+
     im, source_format = _load(data)
     if source_format == "WEBP":
-        fmt = "WEBP"
+        candidates = ["WEBP"]
     elif _has_transparency(im):
-        fmt = "PNG"
+        candidates = ["PNG"]
+    elif source_format in _LOSSLESS_SOURCES:
+        candidates = ["PNG", "JPEG"]
     else:
-        fmt = "JPEG"
-    return CompressedImage(_encode(im, fmt), _FORMAT_EXT[fmt], im.width, im.height)
+        candidates = ["JPEG"]
+    encoded, fmt = min(((_encode(im, f), f) for f in candidates), key=lambda item: len(item[0]))
+    return CompressedImage(encoded, _FORMAT_EXT[fmt], im.width, im.height)
 
 
 def recompress_same_format(data: bytes) -> bytes:
     """Пережатие с сохранением формата (для уже загруженных файлов: имя и
-    ссылки в БД не меняются). Поддерживаются JPEG, PNG, WEBP."""
+    ссылки в БД не меняются). Поддерживаются JPEG, PNG, WEBP; анимация
+    возвращается как есть — первый кадр вместо неё на месте недопустим."""
+    if _animated_size(data):
+        return data
     im, source_format = _load(data)
     if source_format not in _FORMAT_EXT:
         raise InvalidImageError(f"формат {source_format} не пережимается")
@@ -113,9 +173,11 @@ def recompress_same_format(data: bytes) -> bytes:
 def probe_size(data: bytes) -> tuple[int, int]:
     """Проверяет, что файл читается как изображение (первый кадр), и
     возвращает его размер. Сам файл не меняется — так сохраняются GIF."""
-    try:
-        with Image.open(BytesIO(data)) as im:
+    with _open(data) as im:
+        try:
             im.load()
-            return im.size
-    except (UnidentifiedImageError, OSError, SyntaxError, ValueError, Image.DecompressionBombError) as exc:
-        raise InvalidImageError(str(exc)) from exc
+        except Image.DecompressionBombError as exc:
+            raise ImageTooLargeError(_TOO_LARGE) from exc
+        except _DECODE_ERRORS as exc:
+            raise InvalidImageError(str(exc)) from exc
+        return im.size
