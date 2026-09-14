@@ -13,10 +13,32 @@ const formatTimeRange = (speaker) => {
   return start || end;
 };
 
+// Встроенный просмотр PDF — только от брейкпоинта md: Tailwind. На телефонах он
+// бесполезен (Android Chrome не рисует PDF в странице, iOS — только первую
+// страницу) и лишь тянул бы весь файл, поэтому там не рендерится вовсе.
+const WIDE_SCREEN_QUERY = '(min-width: 768px)';
+
+const matchesWideScreen = () =>
+  typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    && window.matchMedia(WIDE_SCREEN_QUERY).matches;
+
+const useIsWideScreen = () => {
+  const [isWide, setIsWide] = useState(matchesWideScreen);
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return undefined;
+    const query = window.matchMedia(WIDE_SCREEN_QUERY);
+    const onChange = () => setIsWide(query.matches);
+    query.addEventListener?.('change', onChange);
+    return () => query.removeEventListener?.('change', onChange);
+  }, []);
+  return isWide;
+};
+
 const CongressProgram = () => {
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
   const { id } = useParams();
+  const isWideScreen = useIsWideScreen();
 
   const [congress, setCongress] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -79,9 +101,10 @@ const CongressProgram = () => {
   const looseSpeakers = allSpeakers.filter((s) => !speakerIdsInSections.has(s.id));
 
   const programText = Lf('program');
+  const programFile = Lf('program_file');
   const infoLetterFile = Lf('info_letter_file');
   const hasStructuredProgram = programDays.length > 0 || looseSpeakers.length > 0;
-  const hasAnything = hasStructuredProgram || Boolean(programText) || Boolean(infoLetterFile);
+  const hasAnything = hasStructuredProgram || Boolean(programText) || Boolean(programFile) || Boolean(infoLetterFile);
 
   const renderSpeaker = (speaker) => {
     const fullName = [L(speaker, 'last_name'), L(speaker, 'first_name'), L(speaker, 'patronymic')]
@@ -170,6 +193,51 @@ const CongressProgram = () => {
             <div className="bg-white rounded-2xl p-12 shadow-sm border border-stone-200/60 text-center">
               <p className="text-stone-400" style={{ fontFamily: 'Georgia, serif' }}>{t('congress.program.empty', 'Программа будет опубликована позже')}</p>
             </div>
+          )}
+
+          {/* PDF программы на языке страницы (без перевода — русский файл) */}
+          {programFile && (
+            <article className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-stone-200/60">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <h2 className="text-xl md:text-2xl text-stone-800 leading-snug" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
+                  {t('congress.program.pdfTitle', 'Программа конгресса (PDF)')}
+                </h2>
+                <div className="flex flex-wrap gap-3">
+                  <a
+                    href={programFile}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 text-sm bg-cyan-500 text-white rounded-xl hover:bg-cyan-600 transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                    {t('congress.program.pdfOpen', 'Открыть')}
+                  </a>
+                  <a
+                    href={programFile}
+                    download
+                    className="inline-flex items-center gap-2 px-4 py-2.5 text-sm bg-white text-cyan-700 border border-cyan-500 rounded-xl hover:bg-cyan-50 transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                    {t('congress.program.pdfDownload', 'Скачать')}
+                  </a>
+                </div>
+              </div>
+              {isWideScreen && (
+                <object
+                  data={programFile}
+                  type="application/pdf"
+                  title={t('congress.program.pdfTitle', 'Программа конгресса (PDF)')}
+                  className="mt-6 w-full h-[80vh] rounded-xl border border-stone-200 bg-stone-50"
+                >
+                  <p className="p-6 text-sm text-stone-600" style={{ fontFamily: 'Georgia, serif' }}>
+                    {t('congress.program.pdfFallback', 'Браузер не может показать PDF на странице.')}{' '}
+                    <a href={programFile} target="_blank" rel="noopener noreferrer" className="text-cyan-600 hover:text-cyan-700 underline">
+                      {t('congress.program.pdfOpenNewTab', 'Открыть в новой вкладке')}
+                    </a>
+                  </p>
+                </object>
+              )}
+            </article>
           )}
 
           {/* Дни → секции → доклады. Все дни развёрнуты, кликать не нужно. */}

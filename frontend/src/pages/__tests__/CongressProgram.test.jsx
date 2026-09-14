@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { I18nextProvider } from 'react-i18next';
@@ -223,6 +223,113 @@ describe('CongressProgram — деградация без дней програ�
     renderProgram();
 
     expect(await screen.findByText('Программа будет опубликована позже')).toBeInTheDocument();
+  });
+});
+
+describe('CongressProgram — PDF программы', () => {
+  // jsdom не реализует matchMedia; подменяем, чтобы проверить широкий и узкий экран
+  const mockMatchMedia = (matches) => {
+    window.matchMedia = vi.fn().mockImplementation((query) => ({
+      matches,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+  };
+
+  afterEach(() => {
+    delete window.matchMedia;
+  });
+
+  const withPdf = { ...baseCongress, program_file_ru: '/uploads/program-ru.pdf' };
+
+  it('без PDF блока нет', async () => {
+    contentAPI.getCongressDetail.mockResolvedValue({
+      data: { ...baseCongress, speakers: [speaker(1)] },
+    });
+    renderProgram();
+
+    await screen.findByText('Доклады вне секций');
+    expect(screen.queryByText('Программа конгресса (PDF)')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Открыть' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Скачать' })).not.toBeInTheDocument();
+  });
+
+  it('рисует кнопки «Открыть» (новая вкладка) и «Скачать» с правильной ссылкой', async () => {
+    contentAPI.getCongressDetail.mockResolvedValue({ data: withPdf });
+    renderProgram();
+
+    expect(await screen.findByText('Программа конгресса (PDF)')).toBeInTheDocument();
+
+    const open = screen.getByRole('link', { name: 'Открыть' });
+    expect(open).toHaveAttribute('href', '/uploads/program-ru.pdf');
+    expect(open).toHaveAttribute('target', '_blank');
+    expect(open).toHaveAttribute('rel', 'noopener noreferrer');
+
+    const download = screen.getByRole('link', { name: 'Скачать' });
+    expect(download).toHaveAttribute('href', '/uploads/program-ru.pdf');
+    expect(download).toHaveAttribute('download');
+  });
+
+  it('страница с одним PDF не показывает «программа будет опубликована позже»', async () => {
+    contentAPI.getCongressDetail.mockResolvedValue({ data: withPdf });
+    renderProgram();
+
+    await screen.findByText('Программа конгресса (PDF)');
+    expect(screen.queryByText('Программа будет опубликована позже')).not.toBeInTheDocument();
+  });
+
+  it('на узбекском берёт program_file_uz', async () => {
+    contentAPI.getCongressDetail.mockResolvedValue({
+      data: { ...withPdf, program_file_uz: '/uploads/program-uz.pdf' },
+    });
+    renderProgram({ lng: 'uz' });
+
+    expect(await screen.findByText('Kongress dasturi (PDF)')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Ochish' })).toHaveAttribute('href', '/uploads/program-uz.pdf');
+  });
+
+  it('на узбекском без program_file_uz откатывается на RU-файл', async () => {
+    contentAPI.getCongressDetail.mockResolvedValue({ data: { ...withPdf, program_file_uz: '' } });
+    renderProgram({ lng: 'uz' });
+
+    await screen.findByText('Kongress dasturi (PDF)');
+    expect(screen.getByRole('link', { name: 'Ochish' })).toHaveAttribute('href', '/uploads/program-ru.pdf');
+    expect(screen.getByRole('link', { name: 'Yuklab olish' })).toHaveAttribute('href', '/uploads/program-ru.pdf');
+  });
+
+  it('PDF идёт первым блоком, над днями и докладами', async () => {
+    contentAPI.getCongressDetail.mockResolvedValue({
+      data: { ...withPdf, speakers: [speaker(1)] },
+    });
+    const { container } = renderProgram();
+
+    await screen.findByText('Доклады вне секций');
+    const text = container.textContent;
+    expect(text.indexOf('Программа конгресса (PDF)')).toBeGreaterThanOrEqual(0);
+    expect(text.indexOf('Программа конгресса (PDF)')).toBeLessThan(text.indexOf('Доклады вне секций'));
+  });
+
+  it('на широком экране встраивает PDF с запасной ссылкой внутри', async () => {
+    mockMatchMedia(true);
+    contentAPI.getCongressDetail.mockResolvedValue({ data: withPdf });
+    const { container } = renderProgram();
+
+    await screen.findByText('Программа конгресса (PDF)');
+    const viewer = container.querySelector('object[type="application/pdf"]');
+    expect(viewer).not.toBeNull();
+    expect(viewer).toHaveAttribute('data', '/uploads/program-ru.pdf');
+    expect(viewer.querySelector('a')).toHaveAttribute('href', '/uploads/program-ru.pdf');
+  });
+
+  it('на узком экране (телефон) встроенного просмотра нет, только кнопки', async () => {
+    mockMatchMedia(false);
+    contentAPI.getCongressDetail.mockResolvedValue({ data: withPdf });
+    const { container } = renderProgram();
+
+    await screen.findByText('Программа конгресса (PDF)');
+    expect(container.querySelector('object')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Открыть' })).toBeInTheDocument();
   });
 });
 

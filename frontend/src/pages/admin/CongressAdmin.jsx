@@ -35,6 +35,7 @@ const EMPTY_CONGRESS = {
   contact_participation_phone: '', contact_participation_email: '',
   info_letter_ru: '', info_letter_uz: '', info_letter_en: '',
   info_letter_file_ru: '', info_letter_file_uz: '', info_letter_file_en: '',
+  program_file_ru: '', program_file_uz: '', program_file_en: '',
 };
 
 const EMPTY_SPONSOR = {
@@ -256,6 +257,7 @@ const DaySelector = ({ days, value, onChange }) => (
 // ---------------------------------------------------------------------------
 const CONGRESS_FORM_TABS = [
   { key: 'basic', label: 'Основное' },
+  { key: 'program', label: 'Программа' },
   { key: 'tabs', label: 'Вкладки' },
   { key: 'contacts', label: 'Контакты' },
   { key: 'infoLetter', label: 'Инфо-письмо' },
@@ -274,9 +276,44 @@ const CONTACT_BLOCKS = [
 ];
 
 // ---------------------------------------------------------------------------
+// PDF-ПОЛЕ: загрузка файла, ссылка на текущий и кнопка «Убрать файл».
+// Ранее вписанные вручную ссылки (https://...) показываются и сохраняются как есть.
+// ---------------------------------------------------------------------------
+const PdfFileField = ({ label, value, onUpload, onRemove, uploading }) => (
+  <div>
+    <FileUpload
+      label={label}
+      value={value}
+      onChange={(file) => (file ? onUpload(file) : onRemove())}
+      accept=".pdf"
+      preview={false}
+    />
+    {uploading ? (
+      <p className="mt-2 text-xs text-blue-600">Загрузка файла…</p>
+    ) : value ? (
+      <div className="mt-2 flex items-center gap-3 text-xs">
+        <a
+          href={value}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:text-blue-700 truncate max-w-[320px]"
+        >
+          Текущий файл: {value.split('/').pop()}
+        </a>
+        <button type="button" onClick={onRemove} className="text-red-600 hover:text-red-700 shrink-0">
+          Убрать файл
+        </button>
+      </div>
+    ) : (
+      <p className="mt-2 text-xs text-slate-400">Файл не загружен</p>
+    )}
+  </div>
+);
+
+// ---------------------------------------------------------------------------
 // CONGRESS FORM MODAL CONTENT
 // ---------------------------------------------------------------------------
-const CongressFormContent = ({ form, updateField, onImageUpload }) => {
+const CongressFormContent = ({ form, updateField, onImageUpload, onPdfUpload, uploadingPdf }) => {
   const [formTab, setFormTab] = useState('basic');
 
   return (
@@ -378,6 +415,26 @@ const CongressFormContent = ({ form, updateField, onImageUpload }) => {
         </>
       )}
 
+      {formTab === 'program' && (
+        <>
+          <p className="text-xs text-slate-500">
+            PDF программы для каждого языка. Если для UZ или EN файла нет, на сайте откроется русский.
+          </p>
+          <LangTabs>
+            {(lang) => (
+              <PdfFileField
+                key={lang}
+                label={`PDF программы (${lang.toUpperCase()})`}
+                value={form[`program_file_${lang}`]}
+                onUpload={(file) => onPdfUpload(file, `program_file_${lang}`)}
+                onRemove={() => updateField(`program_file_${lang}`, '')}
+                uploading={uploadingPdf}
+              />
+            )}
+          </LangTabs>
+        </>
+      )}
+
       {formTab === 'tabs' && (
         <>
           {CONGRESS_TAB_FIELDS.map(({ field, label }) => (
@@ -441,12 +498,13 @@ const CongressFormContent = ({ form, updateField, onImageUpload }) => {
           </LangTabs>
           <LangTabs>
             {(lang) => (
-              <AdminFormField
-                label={`PDF файл URL (${lang.toUpperCase()})`}
-                name={`info_letter_file_${lang}`}
+              <PdfFileField
+                key={lang}
+                label={`PDF файл (${lang.toUpperCase()})`}
                 value={form[`info_letter_file_${lang}`]}
-                onChange={(e) => updateField(`info_letter_file_${lang}`, e.target.value)}
-                placeholder="https://..."
+                onUpload={(file) => onPdfUpload(file, `info_letter_file_${lang}`)}
+                onRemove={() => updateField(`info_letter_file_${lang}`, '')}
+                uploading={uploadingPdf}
               />
             )}
           </LangTabs>
@@ -482,6 +540,7 @@ const CongressAdmin = () => {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [uploadingPdf, setUploadingPdf] = useState(false);
 
   // ---------------------------------------------------------------------------
   // DATA LOADING
@@ -649,6 +708,21 @@ const CongressAdmin = () => {
       toast.success('Файл загружен');
     } catch (err) {
       toast.error('Ошибка загрузки файла: ' + errDetail(err));
+    }
+  };
+
+  // PDF программы/инфо-письма бывает тяжёлым: пока он грузится, сохранение
+  // заблокировано, иначе форма уйдёт без файла.
+  const handlePdfUpload = async (file, field) => {
+    if (!/\.pdf$/i.test(file.name)) {
+      toast.error('Нужен файл в формате PDF');
+      return;
+    }
+    setUploadingPdf(true);
+    try {
+      await handleImageUpload(file, field);
+    } finally {
+      setUploadingPdf(false);
     }
   };
 
@@ -906,7 +980,7 @@ const CongressAdmin = () => {
         size="lg"
       >
         {editModal && (
-          <AdminForm onSubmit={handleSave} loading={saving} onCancel={() => setEditModal(null)}>
+          <AdminForm onSubmit={handleSave} loading={saving || uploadingPdf} onCancel={() => setEditModal(null)}>
 
             {/* ---------- CONGRESS FORM ---------- */}
             {editModal._tab === 'congresses' && (
@@ -914,6 +988,8 @@ const CongressAdmin = () => {
                 form={editModal}
                 updateField={updateField}
                 onImageUpload={(file) => handleImageUpload(file, 'image_url')}
+                onPdfUpload={handlePdfUpload}
+                uploadingPdf={uploadingPdf}
               />
             )}
 
