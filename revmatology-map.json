@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "scanned_at": "2026-09-13",
+  "scanned_by": "рукой; сканера нет — узел О-06 в _specs/PLAN.md",
+  "contract": [
+    "Каждый каталог в корне репозитория описан здесь: назначение и куда его содержимое едет.",
+    "Каталог не в карте — красное. Каталог в карте, но не на диске — заметка.",
+    "Планы живут в _specs/PLAN.md, процессы — в _specs/processes.yaml, состояние сервера — в памяти Claude (project-server-infra)."
+  ],
+  "repos": [
+    {
+      "name": "revmatology",
+      "path": ".",
+      "trunk": "main",
+      "remote": "https://github.com/Meta-Psy/revmatology",
+      "pr_source": "github",
+      "deploy": "push в main → .github/workflows/deploy.yml → rheumassociation.uz (157.245.165.136)",
+      "worktrees": "C:/Users/Alex/10_Projects/_wt/revmatology-*",
+      "role": "единственный репозиторий проекта; фронт и бэк вместе"
+    }
+  ],
+  "directories": [
+    { "dir": ".github", "kind": "plain", "state": "live", "purpose": "workflows/deploy.yml — деплой на push в main; CI на PR — узел О-02", "destination": "обвязка" },
+    { "dir": "_specs", "kind": "plain", "state": "live", "purpose": "PLAN.md (ствол планов), processes.yaml (реестр процессов), design-doc'и по датам", "destination": "планы" },
+    { "dir": "backend", "kind": "plain", "state": "live", "purpose": "FastAPI + SQLAlchemy async + Alembic; tests/ — pytest, tests/workflows/ — journey по процессам. venv/ и __pycache__ отслеживаются по ошибке — узел О-05", "destination": "код" },
+    { "dir": "backend/migrations", "kind": "plain", "state": "legacy", "purpose": "одноразовые скрипты до Alembic; новых не добавлять", "destination": "мусор" },
+    { "dir": "frontend", "kind": "plain", "state": "live", "purpose": "React 19 + Vite; src/pages — публичные страницы, src/pages/admin — админка, src/components/admin — общий набор, vitest", "destination": "код" },
+    { "dir": "nginx", "kind": "plain", "state": "live", "purpose": "nginx.conf прода: TLS, /api → backend, /uploads статика", "destination": "обвязка" },
+    { "dir": "uploads", "kind": "plain", "state": "runtime", "purpose": "загруженные админом файлы на сервере; в git не живут", "destination": "данные" }
+  ],
+  "junk": {
+    "tracked_venv_files": 4128,
+    "tracked_db_files": ["backend/rheumatology.db"],
+    "note": "база для сравнения при узле О-05"
+  },
+  "destinations": ["код", "планы", "обвязка", "данные", "мусор"]
+}
