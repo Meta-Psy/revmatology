@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { I18nextProvider } from 'react-i18next';
 
@@ -227,18 +227,20 @@ describe('CongressProgram — деградация без дней програ�
 });
 
 describe('CongressProgram — PDF программы', () => {
-  // jsdom не реализует matchMedia; подменяем, чтобы проверить широкий и узкий экран
-  const mockMatchMedia = (matches) => {
-    window.matchMedia = vi.fn().mockImplementation((query) => ({
-      matches,
-      media: query,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    }));
-  };
+  // Манифест страниц (К-08): по умолчанию страниц ещё нет — 404
+  let manifests = {};
+  const fetchMock = vi.fn(async (url) => (url in manifests
+    ? { ok: true, status: 200, json: async () => manifests[url] }
+    : { ok: false, status: 404, json: async () => ({}) }));
+
+  beforeEach(() => {
+    manifests = {};
+    fetchMock.mockClear();
+    vi.stubGlobal('fetch', fetchMock);
+  });
 
   afterEach(() => {
-    delete window.matchMedia;
+    vi.unstubAllGlobals();
   });
 
   const withPdf = { ...baseCongress, program_file_ru: '/uploads/program-ru.pdf' };
@@ -251,17 +253,18 @@ describe('CongressProgram — PDF программы', () => {
 
     await screen.findByText('Доклады вне секций');
     expect(screen.queryByText('Программа конгресса (PDF)')).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Открыть' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Открыть PDF' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Скачать' })).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('рисует кнопки «Открыть» (новая вкладка) и «Скачать» с правильной ссылкой', async () => {
+  it('рисует кнопки «Открыть PDF» (новая вкладка) и «Скачать» с правильной ссылкой', async () => {
     contentAPI.getCongressDetail.mockResolvedValue({ data: withPdf });
     renderProgram();
 
     expect(await screen.findByText('Программа конгресса (PDF)')).toBeInTheDocument();
 
-    const open = screen.getByRole('link', { name: 'Открыть' });
+    const open = screen.getByRole('link', { name: 'Открыть PDF' });
     expect(open).toHaveAttribute('href', '/uploads/program-ru.pdf');
     expect(open).toHaveAttribute('target', '_blank');
     expect(open).toHaveAttribute('rel', 'noopener noreferrer');
@@ -287,7 +290,7 @@ describe('CongressProgram — PDF программы', () => {
     renderProgram({ lng: 'uz' });
 
     expect(await screen.findByText('Kongress dasturi (PDF)')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Ochish' })).toHaveAttribute('href', '/uploads/program-uz.pdf');
+    expect(screen.getByRole('link', { name: 'PDF ochish' })).toHaveAttribute('href', '/uploads/program-uz.pdf');
     expect(screen.getByRole('link', { name: 'Yuklab olish' })).toHaveAttribute('download', 'program-1-uz.pdf');
   });
 
@@ -296,7 +299,7 @@ describe('CongressProgram — PDF программы', () => {
     renderProgram({ lng: 'uz' });
 
     await screen.findByText('Kongress dasturi (PDF)');
-    expect(screen.getByRole('link', { name: 'Ochish' })).toHaveAttribute('href', '/uploads/program-ru.pdf');
+    expect(screen.getByRole('link', { name: 'PDF ochish' })).toHaveAttribute('href', '/uploads/program-ru.pdf');
     expect(screen.getByRole('link', { name: 'Yuklab olish' })).toHaveAttribute('href', '/uploads/program-ru.pdf');
     // имя по языку самого файла, а не страницы
     expect(screen.getByRole('link', { name: 'Yuklab olish' })).toHaveAttribute('download', 'program-1-ru.pdf');
@@ -314,26 +317,39 @@ describe('CongressProgram — PDF программы', () => {
     expect(text.indexOf('Программа конгресса (PDF)')).toBeLessThan(text.indexOf('Доклады вне секций'));
   });
 
-  it('на широком экране встраивает PDF с запасной ссылкой внутри', async () => {
-    mockMatchMedia(true);
+  it('показывает PDF готовыми страницами (PdfPages), без встроенного <object>', async () => {
+    manifests['/uploads/program-ru.pages/manifest.json'] = {
+      version: 1,
+      source: 'program-ru.pdf',
+      page_count: 2,
+      rendered: 2,
+      truncated: false,
+      widths: [800, 1600],
+      pages: [{ n: 1, w: 1600, h: 2263 }, { n: 2, w: 1600, h: 2263 }],
+      outline: [],
+    };
     contentAPI.getCongressDetail.mockResolvedValue({ data: withPdf });
     const { container } = renderProgram();
 
     await screen.findByText('Программа конгресса (PDF)');
-    const viewer = container.querySelector('object[type="application/pdf"]');
-    expect(viewer).not.toBeNull();
-    expect(viewer).toHaveAttribute('data', '/uploads/program-ru.pdf');
-    expect(viewer.querySelector('a')).toHaveAttribute('href', '/uploads/program-ru.pdf');
+    await waitFor(() => expect(container.querySelectorAll('img[data-page-img]')).toHaveLength(2));
+    expect(fetchMock).toHaveBeenCalledWith('/uploads/program-ru.pages/manifest.json', expect.any(Object));
+    expect(container.querySelector('img[data-page-img]')).toHaveAttribute(
+      'srcset',
+      '/uploads/program-ru.pages/p1-800.webp 800w, /uploads/program-ru.pages/p1-1600.webp 1600w'
+    );
+    expect(container.querySelector('object')).toBeNull();
+    // кнопки остаются и в панели просмотра
+    expect(screen.getByRole('link', { name: 'Скачать' })).toHaveAttribute('download', 'program-1-ru.pdf');
   });
 
-  it('на узком экране (телефон) встроенного просмотра нет, только кнопки', async () => {
-    mockMatchMedia(false);
+  it('страниц ещё нет — «Документ готовится к просмотру» и кнопки', async () => {
     contentAPI.getCongressDetail.mockResolvedValue({ data: withPdf });
-    const { container } = renderProgram();
+    renderProgram();
 
-    await screen.findByText('Программа конгресса (PDF)');
-    expect(container.querySelector('object')).toBeNull();
-    expect(screen.getByRole('link', { name: 'Открыть' })).toBeInTheDocument();
+    expect(await screen.findByText('Документ готовится к просмотру')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Открыть PDF' })).toHaveAttribute('href', '/uploads/program-ru.pdf');
+    expect(screen.getByText('Повторить')).toBeInTheDocument();
   });
 });
 

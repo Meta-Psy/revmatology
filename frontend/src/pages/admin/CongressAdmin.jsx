@@ -5,6 +5,7 @@ import {
   PageHeader, AdminTable, AdminModal, ConfirmDialog, AdminForm,
   AdminFormField, LangTabs, FileUpload, StatusBadge, Skeleton, EmptyState, useToast,
 } from '../../components/admin';
+import PdfPagesStatus from '../../components/pdf/PdfPagesStatus';
 
 // ---------------------------------------------------------------------------
 // TABS CONFIG
@@ -36,6 +37,7 @@ const EMPTY_CONGRESS = {
   info_letter_ru: '', info_letter_uz: '', info_letter_en: '',
   info_letter_file_ru: '', info_letter_file_uz: '', info_letter_file_en: '',
   program_file_ru: '', program_file_uz: '', program_file_en: '',
+  young_scientists_file_ru: '', young_scientists_file_uz: '', young_scientists_file_en: '',
 };
 
 const EMPTY_SPONSOR = {
@@ -265,15 +267,16 @@ const DaySelector = ({ days, value, onChange }) => (
 const CONGRESS_FORM_TABS = [
   { key: 'basic', label: 'Основное' },
   { key: 'program', label: 'Программа' },
+  { key: 'competition', label: 'Конкурс' },
   { key: 'tabs', label: 'Вкладки' },
   { key: 'contacts', label: 'Контакты' },
   { key: 'infoLetter', label: 'Инфо-письмо' },
 ];
 
+// Текст конкурса молодых учёных живёт во вкладке «Конкурс», рядом с PDF положения
 const CONGRESS_TAB_FIELDS = [
   { field: 'about', label: 'О конгрессе' },
   { field: 'organizers', label: 'Организаторы' },
-  { field: 'young_scientists', label: 'Конкурс молодых ученых' },
 ];
 
 const CONTACT_BLOCKS = [
@@ -285,8 +288,11 @@ const CONTACT_BLOCKS = [
 // ---------------------------------------------------------------------------
 // PDF-ПОЛЕ: загрузка файла, ссылка на текущий и кнопка «Убрать файл».
 // Ранее вписанные вручную ссылки (https://...) показываются и сохраняются как есть.
+// pagesSaved (только для PDF, которые сервер рисует страницами: программа и
+// положение конкурса) включает строку состояния страниц; true — файл уже
+// сохранён в конгрессе, false — только что загружен и ждёт сохранения.
 // ---------------------------------------------------------------------------
-const PdfFileField = ({ label, value, onUpload, onRemove, uploading }) => (
+const PdfFileField = ({ label, value, onUpload, onRemove, uploading, pagesSaved }) => (
   <div>
     {/* preview={false}: крестика превью нет, onChange приходит только с файлом */}
     <FileUpload
@@ -300,19 +306,22 @@ const PdfFileField = ({ label, value, onUpload, onRemove, uploading }) => (
     {uploading ? (
       <p className="mt-2 text-xs text-blue-600">Загрузка файла…</p>
     ) : value ? (
-      <div className="mt-2 flex items-center gap-3 text-xs">
-        <a
-          href={value}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-blue-600 hover:text-blue-700 truncate max-w-[320px]"
-        >
-          Текущий файл: {value.split('/').pop()}
-        </a>
-        <button type="button" onClick={onRemove} className="text-red-600 hover:text-red-700 shrink-0">
-          Убрать файл
-        </button>
-      </div>
+      <>
+        <div className="mt-2 flex items-center gap-3 text-xs">
+          <a
+            href={value}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:text-blue-700 truncate max-w-[320px]"
+          >
+            Текущий файл: {value.split('/').pop()}
+          </a>
+          <button type="button" onClick={onRemove} className="text-red-600 hover:text-red-700 shrink-0">
+            Убрать файл
+          </button>
+        </div>
+        {pagesSaved !== undefined && <PdfPagesStatus url={value} saved={pagesSaved} />}
+      </>
     ) : (
       <p className="mt-2 text-xs text-slate-400">Файл не загружен</p>
     )}
@@ -322,8 +331,10 @@ const PdfFileField = ({ label, value, onUpload, onRemove, uploading }) => (
 // ---------------------------------------------------------------------------
 // CONGRESS FORM MODAL CONTENT
 // ---------------------------------------------------------------------------
-const CongressFormContent = ({ form, updateField, onImageUpload, onPdfUpload, isFieldUploading }) => {
+const CongressFormContent = ({ form, savedForm, updateField, onImageUpload, onPdfUpload, isFieldUploading }) => {
   const [formTab, setFormTab] = useState('basic');
+  // Файл уже в сохранённом конгрессе — значит, сервер его рисует или нарисовал
+  const isSaved = (field) => Boolean(savedForm) && savedForm[field] === form[field];
 
   return (
     <>
@@ -438,7 +449,39 @@ const CongressFormContent = ({ form, updateField, onImageUpload, onPdfUpload, is
                 onUpload={(file) => onPdfUpload(file, `program_file_${lang}`)}
                 onRemove={() => updateField(`program_file_${lang}`, '')}
                 uploading={isFieldUploading(`program_file_${lang}`)}
+                pagesSaved={isSaved(`program_file_${lang}`)}
               />
+            )}
+          </LangTabs>
+        </>
+      )}
+
+      {formTab === 'competition' && (
+        <>
+          <p className="text-xs text-slate-500">
+            Текст и PDF положения конкурса молодых учёных для каждого языка. Если для UZ или EN
+            нет своего текста или файла, на сайте покажется русский.
+          </p>
+          <LangTabs>
+            {(lang) => (
+              <div key={lang} className="space-y-4">
+                <AdminFormField
+                  label={`Текст конкурса (${lang.toUpperCase()})`}
+                  name={`young_scientists_${lang}`}
+                  type="textarea"
+                  rows={6}
+                  value={form[`young_scientists_${lang}`]}
+                  onChange={(e) => updateField(`young_scientists_${lang}`, e.target.value)}
+                />
+                <PdfFileField
+                  label={`PDF положения конкурса (${lang.toUpperCase()})`}
+                  value={form[`young_scientists_file_${lang}`]}
+                  onUpload={(file) => onPdfUpload(file, `young_scientists_file_${lang}`)}
+                  onRemove={() => updateField(`young_scientists_file_${lang}`, '')}
+                  uploading={isFieldUploading(`young_scientists_file_${lang}`)}
+                  pagesSaved={isSaved(`young_scientists_file_${lang}`)}
+                />
+              </div>
             )}
           </LangTabs>
         </>
@@ -1023,6 +1066,7 @@ const CongressAdmin = () => {
             {editModal._tab === 'congresses' && (
               <CongressFormContent
                 form={editModal}
+                savedForm={editModal.id ? congresses.find((c) => c.id === editModal.id) : undefined}
                 updateField={updateField}
                 onImageUpload={(file) => handleImageUpload(file, 'image_url')}
                 onPdfUpload={handlePdfUpload}

@@ -217,14 +217,16 @@
       "downloadInfoLetter": "Information letter (file)",
       "notFound": "Congress not found",
       "pdfTitle": "Congress programme (PDF)",
-      "pdfOpen": "Open",
-      "pdfDownload": "Download",
-      "pdfButton": "Programme (PDF)",
-      "pdfFallback": "Your browser cannot display the PDF on this page.",
-      "pdfOpenNewTab": "Open in a new tab"
+      "pdfButton": "Programme (PDF)"
     },
     "speakers": {
       "empty": "Speaker list will be published later"
+    },
+    "youngScientists": {
+      "pageTitle": "Young Scientists Competition",
+      "regulations": "Competition regulations",
+      "regulationsPdf": "Competition regulations (PDF)",
+      "empty": "Information will be published later"
     },
     "registrationForm": {
       "title": "Congress Registration",
@@ -376,6 +378,28 @@
     "downloadPdf": "Download PDF",
     "notUploaded": "Document not uploaded",
     "availableDocs": "Available Documents"
+  },
+  "pdfViewer": {
+    "toolbar": "Document viewer",
+    "loading": "Loading document…",
+    "preparing": "The document is being prepared for viewing",
+    "preparingHint": "Meanwhile you can open or download the full file.",
+    "retry": "Retry",
+    "open": "Open PDF",
+    "download": "Download",
+    "outline": "Contents",
+    "outlineNav": "Document contents",
+    "closeOutline": "Close contents",
+    "prevPage": "Previous page",
+    "nextPage": "Next page",
+    "pageNumber": "Page number",
+    "zoomOut": "Zoom out",
+    "zoomIn": "Zoom in",
+    "single": "Single page",
+    "fullscreen": "Full screen",
+    "exitFullscreen": "Exit full screen",
+    "pageAlt": "{{title}} — page {{n}}",
+    "truncated": "Showing the first {{rendered}} of {{total}} pages — full document:"
   },
   "common": {
     "loading": "Loading...",

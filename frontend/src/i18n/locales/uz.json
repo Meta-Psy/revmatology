@@ -217,14 +217,16 @@
       "downloadInfoLetter": "Axborot xati (fayl)",
       "notFound": "Kongress topilmadi",
       "pdfTitle": "Kongress dasturi (PDF)",
-      "pdfOpen": "Ochish",
-      "pdfDownload": "Yuklab olish",
-      "pdfButton": "Dastur (PDF)",
-      "pdfFallback": "Brauzer PDF faylni sahifada ko'rsata olmaydi.",
-      "pdfOpenNewTab": "Yangi oynada ochish"
+      "pdfButton": "Dastur (PDF)"
     },
     "speakers": {
       "empty": "Ma'ruzachilar ro'yxati keyinroq e'lon qilinadi"
+    },
+    "youngScientists": {
+      "pageTitle": "Yosh olimlar tanlovi",
+      "regulations": "Tanlov nizomi",
+      "regulationsPdf": "Tanlov nizomi (PDF)",
+      "empty": "Ma'lumot keyinroq e'lon qilinadi"
     },
     "registrationForm": {
       "title": "Kongressga ro'yxatdan o'tish",
@@ -376,6 +378,28 @@
     "downloadPdf": "PDF yuklab olish",
     "notUploaded": "Hujjat yuklanmagan",
     "availableDocs": "Mavjud hujjatlar"
+  },
+  "pdfViewer": {
+    "toolbar": "Hujjatni ko'rish",
+    "loading": "Hujjat yuklanmoqda…",
+    "preparing": "Hujjat ko'rish uchun tayyorlanmoqda",
+    "preparingHint": "Hozircha uni to'liq ochish yoki yuklab olish mumkin.",
+    "retry": "Qayta urinish",
+    "open": "PDF ochish",
+    "download": "Yuklab olish",
+    "outline": "Mundarija",
+    "outlineNav": "Hujjat mundarijasi",
+    "closeOutline": "Mundarijani yopish",
+    "prevPage": "Oldingi sahifa",
+    "nextPage": "Keyingi sahifa",
+    "pageNumber": "Sahifa raqami",
+    "zoomOut": "Kichraytirish",
+    "zoomIn": "Kattalashtirish",
+    "single": "Bittadan",
+    "fullscreen": "To'liq ekran",
+    "exitFullscreen": "To'liq ekrandan chiqish",
+    "pageAlt": "{{title}} — {{n}}-sahifa",
+    "truncated": "{{total}} sahifadan dastlabki {{rendered}} tasi ko'rsatilgan — to'liq hujjat:"
   },
   "common": {
     "loading": "Yuklanmoqda...",
