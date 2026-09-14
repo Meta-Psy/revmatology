@@ -192,6 +192,9 @@ export const contentAPI = {
   // Congress Program Sections
   getCongressProgramSections: (dayId = null) =>
     api.get('/congress/congress-program-sections', { params: { day_id: dayId } }),
+  // Секции всех дней конгресса — для привязки спикера к секции любого дня
+  getCongressProgramSectionsByCongress: (congressId = null) =>
+    api.get('/congress/congress-program-sections', { params: { congress_id: congressId } }),
   createCongressProgramSection: (data) => api.post('/congress/congress-program-sections', data),
   updateCongressProgramSection: (id, data) => api.put(`/congress/congress-program-sections/${id}`, data),
   deleteCongressProgramSection: (id) => api.delete(`/congress/congress-program-sections/${id}`),
