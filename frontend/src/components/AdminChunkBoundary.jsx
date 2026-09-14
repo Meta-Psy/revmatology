@@ -1,7 +1,8 @@
 import { Component } from 'react';
 
 // Ловит сбой загрузки ленивого куска админки (обрыв на медленном канале,
-// кусок пропал после выкатки). Без неё вместо админки — белый экран.
+// кусок пропал после выкатки) и любую ошибку рендера внутри админки.
+// Без неё в обоих случаях был бы белый экран.
 // Error boundary в React пишется только классом.
 // Ничего из components/admin сюда не импортировать — кит вернётся в основной кусок.
 class AdminChunkBoundary extends Component {
@@ -17,8 +18,8 @@ class AdminChunkBoundary extends Component {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
         <div className="text-center">
-          <p className="text-base font-semibold text-slate-800">Не удалось загрузить админку</p>
-          <p className="mt-1 text-sm text-slate-500">Проверьте соединение и обновите страницу.</p>
+          <p className="text-base font-semibold text-slate-800">Раздел админки не открылся</p>
+          <p className="mt-1 text-sm text-slate-500">Обновите страницу. Если не помогло — сообщите разработчику.</p>
           <button
             type="button"
             onClick={() => window.location.reload()}
