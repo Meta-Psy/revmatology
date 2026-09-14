@@ -1,4 +1,4 @@
-const AdminForm = ({ onSubmit, children, loading, submitText = 'Сохранить', onCancel, className = '' }) => {
+const AdminForm = ({ onSubmit, children, loading, submitText = 'Сохранить', loadingText = 'Сохранение...', onCancel, className = '' }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     onSubmit(e);
@@ -24,7 +24,7 @@ const AdminForm = ({ onSubmit, children, loading, submitText = 'Сохранит
           disabled={loading}
           className="px-3.5 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
         >
-          {loading ? 'Сохранение...' : submitText}
+          {loading ? loadingText : submitText}
         </button>
       </div>
     </form>

@@ -147,6 +147,11 @@ class Congress(Base):
     info_letter_file_uz = Column(String(500))
     info_letter_file_en = Column(String(500))
 
+    # PDF программы конгресса по языкам (ссылка /uploads/<uuid>.pdf)
+    program_file_ru = Column(String(500), nullable=True)
+    program_file_uz = Column(String(500), nullable=True)
+    program_file_en = Column(String(500), nullable=True)
+
     # Связи
     sponsors = relationship("CongressSponsor", back_populates="congress", cascade="all, delete-orphan", order_by="CongressSponsor.order")
     program_days = relationship("CongressProgramDay", back_populates="congress", cascade="all, delete-orphan", order_by="CongressProgramDay.order")

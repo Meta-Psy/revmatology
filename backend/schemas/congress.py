@@ -72,6 +72,10 @@ class CongressCreate(BlankDatesToNone):
     info_letter_file_ru: Optional[str] = None
     info_letter_file_uz: Optional[str] = None
     info_letter_file_en: Optional[str] = None
+    # PDF программы
+    program_file_ru: Optional[str] = None
+    program_file_uz: Optional[str] = None
+    program_file_en: Optional[str] = None
 
 
 class CongressUpdate(BlankDatesToNone):
@@ -113,6 +117,9 @@ class CongressUpdate(BlankDatesToNone):
     info_letter_file_ru: Optional[str] = None
     info_letter_file_uz: Optional[str] = None
     info_letter_file_en: Optional[str] = None
+    program_file_ru: Optional[str] = None
+    program_file_uz: Optional[str] = None
+    program_file_en: Optional[str] = None
 
 
 class CongressResponse(BaseModel):
@@ -156,6 +163,9 @@ class CongressResponse(BaseModel):
     info_letter_file_ru: Optional[str] = None
     info_letter_file_uz: Optional[str] = None
     info_letter_file_en: Optional[str] = None
+    program_file_ru: Optional[str] = None
+    program_file_uz: Optional[str] = None
+    program_file_en: Optional[str] = None
 
     class Config:
         from_attributes = True

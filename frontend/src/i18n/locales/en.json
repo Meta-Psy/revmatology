@@ -215,7 +215,13 @@
       "backToCongress": "Back to the congress",
       "outsideSections": "Talks outside sections",
       "downloadInfoLetter": "Information letter (file)",
-      "notFound": "Congress not found"
+      "notFound": "Congress not found",
+      "pdfTitle": "Congress programme (PDF)",
+      "pdfOpen": "Open",
+      "pdfDownload": "Download",
+      "pdfButton": "Programme (PDF)",
+      "pdfFallback": "Your browser cannot display the PDF on this page.",
+      "pdfOpenNewTab": "Open in a new tab"
     },
     "speakers": {
       "empty": "Speaker list will be published later"

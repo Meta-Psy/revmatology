@@ -215,7 +215,13 @@
       "backToCongress": "Kongressga qaytish",
       "outsideSections": "Bo'limlardan tashqari ma'ruzalar",
       "downloadInfoLetter": "Axborot xati (fayl)",
-      "notFound": "Kongress topilmadi"
+      "notFound": "Kongress topilmadi",
+      "pdfTitle": "Kongress dasturi (PDF)",
+      "pdfOpen": "Ochish",
+      "pdfDownload": "Yuklab olish",
+      "pdfButton": "Dastur (PDF)",
+      "pdfFallback": "Brauzer PDF faylni sahifada ko'rsata olmaydi.",
+      "pdfOpenNewTab": "Yangi oynada ochish"
     },
     "speakers": {
       "empty": "Ma'ruzachilar ro'yxati keyinroq e'lon qilinadi"

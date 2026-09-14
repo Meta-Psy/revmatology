@@ -215,7 +215,13 @@
       "backToCongress": "Вернуться к конгрессу",
       "outsideSections": "Доклады вне секций",
       "downloadInfoLetter": "Информационное письмо (файл)",
-      "notFound": "Конгресс не найден"
+      "notFound": "Конгресс не найден",
+      "pdfTitle": "Программа конгресса (PDF)",
+      "pdfOpen": "Открыть",
+      "pdfDownload": "Скачать",
+      "pdfButton": "Программа (PDF)",
+      "pdfFallback": "Браузер не может показать PDF на странице.",
+      "pdfOpenNewTab": "Открыть в новой вкладке"
     },
     "speakers": {
       "empty": "Список спикеров будет опубликован позже"
