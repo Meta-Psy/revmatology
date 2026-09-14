@@ -31,7 +31,7 @@
 
 ## 4. Договор сервер ↔ фронт (контракт)
 
-Для файла `/uploads/<name>.pdf` (только наш каталог, только `.pdf`):
+Для файла `/uploads/<name>.pdf` (только наш каталог, имя `[A-Za-z0-9._-]+\.pdf` — одинаково на сервере и фронте):
 
 ```
 /uploads/<name>.pdf                   оригинал, не меняется
@@ -66,9 +66,9 @@
 
 ## 5. Сервер
 
-**Модуль `backend/pdf_pages.py`** (чистая логика, без FastAPI): `render(pdf_path) -> manifest` — pypdfium2 рисует страницы, Pillow кодирует WebP q75 (method 4) в 800 и 1600 px по ширине; извлекает закладки; пишет во временный каталог `.<name>.pages.tmp-<rand>` рядом, `manifest.json` последним, затем `os.replace` в `<name>.pages`. Уже есть валидный `manifest.json` → ничего не делает (UUID-файлы неизменны). Остаток временного каталога от прошлой неудачи удаляется. При ошибке — `<name>.pages.error.json` (атомарно), каталог страниц не создаётся; при успехе старый `error.json` удаляется.
+**Модуль `backend/pdf_pages.py`** (чистая логика, без FastAPI): `render(pdf_path) -> manifest` — pypdfium2 рисует страницы, Pillow кодирует WebP q75 (method 2 — по замеру ревью в 2,1 раза быстрее method 4 при +2,6 % объёма) в 800 и 1600 px по ширине; извлекает закладки; пишет во временный каталог `.<name>.pages.tmp-<rand>` рядом, `manifest.json` последним, затем `os.replace` в `<name>.pages`. Уже есть валидный `manifest.json` → ничего не делает (UUID-файлы неизменны). Остаток временного каталога от прошлой неудачи удаляется. При ошибке — `<name>.pages.error.json` (атомарно), каталог страниц не создаётся; при успехе старый `error.json` удаляется.
 
-**CLI `backend/scripts/render_pdf_pages.py`:** `python -m scripts.render_pdf_pages <путь.pdf>` и `--backfill` (все `program_file_*` и `young_scientists_file_*` конгрессов из БД, только `/uploads/*.pdf`, только недостающие). Внутри — межпроцессная блокировка (файл-замок в каталоге uploads, `fcntl.flock` на Linux; на Windows допустима работа без замка) → одновременно рисуется один PDF (1 vCPU, два воркера uvicorn). Ограничения: 60 страниц, 180 с на файл (жёсткий тайм-аут процесса), на Linux — `RLIMIT_AS` ~1,5 ГБ.
+**CLI `backend/scripts/render_pdf_pages.py`:** `python -m scripts.render_pdf_pages <путь.pdf>` и `--backfill` (все `program_file_*` и `young_scientists_file_*` конгрессов из БД, только `/uploads/*.pdf`, только недостающие). Внутри — межпроцессная блокировка (файл-замок в каталоге uploads, `fcntl.flock` на Linux; на Windows допустима работа без замка) → одновременно рисуется один PDF (1 vCPU, два воркера uvicorn). Ограничения: 60 страниц; на Linux в дочернем процессе `RLIMIT_CPU` ≈ 180+30 с процессорного времени (SIGXCPU прерывает и внутри PDFium; ожидание замка не считается), `RLIMIT_AS` ~1,5 ГБ, `RLIMIT_CORE` 0, `nice 10`. Мягкий дедлайн между страницами публикует уже нарисованное с `truncated: true`; `timeout` — только если не нарисовано ничего. Если процесс умер без `error.json`, его пишет родитель (`timeout`/`internal`), а повторное сохранение конгресса перезапускает рисование для файлов без манифеста (кроме `encrypted/corrupt/empty`). Замок — во временном каталоге системы, не в `uploads/`.
 
 **Запуск:** `api/congress.py`, эндпоинты создания/обновления конгресса — после коммита, для каждого изменившегося поля `program_file_*`/`young_scientists_file_*`, значение которого `/uploads/<name>.pdf`, ставится `BackgroundTasks` → `asyncio.create_subprocess_exec(sys.executable, "-m", "scripts.render_pdf_pages", <путь>)` с тайм-аутом. Отдельный процесс обязателен: PDFium нельзя вызывать из нескольких потоков (документация pypdfium2); заодно изоляция падений и памяти. Ответ API не ждёт рисования; сбой рисования не влияет на сохранение.
 
