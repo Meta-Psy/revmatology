@@ -160,8 +160,9 @@ describe('PdfPages — непрерывный режим', () => {
 
     expect(screen.getByLabelText('Предыдущая страница')).toBeDisabled();
     fireEvent.click(screen.getByLabelText('Следующая страница'));
-    expect(pageBox(container, 2).scrollIntoView).toHaveBeenCalled();
     expect(Element.prototype.scrollIntoView.mock.contexts.at(-1)).toBe(pageBox(container, 2));
+    // соседняя страница — плавно
+    expect(Element.prototype.scrollIntoView.mock.calls.at(-1)[0]).toEqual({ behavior: 'smooth', block: 'start' });
     expect(pageInput()).toHaveValue('2');
 
     fireEvent.change(pageInput(), { target: { value: '3' } });
@@ -207,6 +208,8 @@ describe('PdfPages — непрерывный режим', () => {
     expect(second).toHaveAttribute('fetchpriority', 'high');
     expect(third).toHaveAttribute('loading', 'lazy');
     expect(Element.prototype.scrollIntoView.mock.contexts).toContain(pageBox(container, 2));
+    // без анимации: плавный проезд подтянул бы lazy-страницы по пути
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ behavior: 'instant', block: 'start' });
     expect(pageInput()).toHaveValue('2');
   });
 
@@ -506,6 +509,8 @@ describe('PdfPages — оглавление', () => {
     fireEvent.click(screen.getByText('Доклад А'));
 
     expect(Element.prototype.scrollIntoView.mock.contexts.at(-1)).toBe(pageBox(container, 3));
+    // через страницу — сразу, без анимации
+    expect(Element.prototype.scrollIntoView.mock.calls.at(-1)[0]).toEqual({ behavior: 'instant', block: 'start' });
     expect(screen.queryByText('Доклад А')).not.toBeInTheDocument();
     expect(pageInput()).toHaveValue('3');
   });

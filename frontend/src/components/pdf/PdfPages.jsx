@@ -91,9 +91,11 @@ const PdfReader = ({ manifest, pdfUrl, title, downloadName }) => {
     return () => observer.disconnect();
   }, []);
 
+  // 'instant': у html стоит scroll-behavior: smooth, а плавный проезд через
+  // десяток страниц заодно запустил бы загрузку всех lazy-картинок по пути
   useEffect(() => {
     if (mode !== 'continuous' || scrollTarget.current == null) return;
-    pageEls.current.get(scrollTarget.current)?.scrollIntoView?.({ block: 'start' });
+    pageEls.current.get(scrollTarget.current)?.scrollIntoView?.({ behavior: 'instant', block: 'start' });
     scrollTarget.current = null;
   }, [mode, zoom]);
 
@@ -119,7 +121,7 @@ const PdfReader = ({ manifest, pdfUrl, title, downloadName }) => {
   useEffect(() => {
     if (mode !== 'single') return;
     const el = rootRef.current;
-    if (el && el.getBoundingClientRect().top < 0) el.scrollIntoView?.({ block: 'start' });
+    if (el && el.getBoundingClientRect().top < 0) el.scrollIntoView?.({ behavior: 'instant', block: 'start' });
   }, [mode, current]);
 
   useEffect(() => {
@@ -148,8 +150,10 @@ const PdfReader = ({ manifest, pdfUrl, title, downloadName }) => {
 
   const goTo = (n) => {
     const page = clamp(n, 1, total);
+    // соседняя страница — плавно, дальний переход — сразу (см. выше про lazy)
+    const behavior = Math.abs(page - current) > 1 ? 'instant' : 'smooth';
     setCurrent(page);
-    if (mode === 'continuous') pageEls.current.get(page)?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    if (mode === 'continuous') pageEls.current.get(page)?.scrollIntoView?.({ behavior, block: 'start' });
   };
 
   const changeMode = (next) => {
@@ -218,7 +222,8 @@ const PdfReader = ({ manifest, pdfUrl, title, downloadName }) => {
         else pageEls.current.delete(page.n);
       }}
       data-page={page.n}
-      className="scroll-mt-32 sm:scroll-mt-36 bg-white shadow-sm ring-1 ring-stone-200"
+      // отступ при прокрутке = шапка сайта + панель (на телефоне она в два ряда)
+      className="scroll-mt-40 sm:scroll-mt-36 bg-white shadow-sm ring-1 ring-stone-200"
       style={{ aspectRatio: `${page.w} / ${page.h}` }}
     >
       {measured && (
@@ -277,7 +282,7 @@ const PdfReader = ({ manifest, pdfUrl, title, downloadName }) => {
             <aside
               aria-label={t('pdfViewer.outlineNav')}
               className={`fixed inset-y-0 left-0 z-[60] w-72 max-w-[85vw] overflow-y-auto bg-white shadow-xl
-                lg:sticky lg:z-10 lg:w-64 lg:shrink-0 lg:max-h-[calc(100vh-10rem)] lg:shadow-none lg:border-r lg:border-stone-200 ${
+                lg:sticky lg:bottom-auto lg:z-10 lg:w-64 lg:shrink-0 lg:max-h-[calc(100vh-10rem)] lg:shadow-none lg:border-r lg:border-stone-200 ${
                   isFullscreen ? 'lg:top-14' : 'lg:top-36'
                 }`}
             >
