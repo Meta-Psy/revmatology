@@ -53,7 +53,23 @@ describe('PdfPagesStatus — страницы PDF в админке', () => {
     };
     render(<PdfPagesStatus url="/uploads/ys.pdf" saved />);
 
-    expect(await screen.findByText('Ошибка: Файл защищён паролем')).toBeInTheDocument();
+    // сервер перерисовывает только при смене файла — подсказываем, что делать
+    expect(await screen.findByText('Ошибка: Файл защищён паролем. Загрузите файл заново.')).toBeInTheDocument();
+  });
+
+  it('опрос закончился, а страниц нет — не вечное «Готовятся…»', async () => {
+    vi.useFakeTimers();
+    render(<PdfPagesStatus url="/uploads/ys.pdf" saved />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(screen.getByText('Готовятся…')).toBeInTheDocument();
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(5 * 60 * 1000); });
+
+    expect(screen.queryByText('Готовятся…')).not.toBeInTheDocument();
+    expect(screen.getByText('Страницы пока не готовы — откройте форму позже')).toBeInTheDocument();
+    const calls = fetchMock.mock.calls.length;
+    await act(async () => { await vi.advanceTimersByTimeAsync(60 * 1000); });
+    expect(fetchMock.mock.calls.length).toBe(calls);
   });
 
   it('ничего нет → «Готовятся…», и статус перепроверяется, пока страницы не появятся', async () => {

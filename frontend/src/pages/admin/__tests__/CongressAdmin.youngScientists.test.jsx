@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { ToastProvider } from '../../../components/admin';
@@ -68,8 +68,11 @@ const openEditForm = async (user) => {
   const row = (await screen.findByText(CONGRESS.title_ru)).closest('tr');
   await user.click(within(row).getByTitle('Редактировать'));
 };
-const openFormTab = (user, label) => user.click(screen.getByRole('button', { name: label }));
-const save = (user) => user.click(screen.getByRole('button', { name: 'Сохранить' }));
+// Поиск по тексту, а не по роли: getByRole в jsdom медленный на большой форме (урок Т-06)
+const button = (label) => screen.getByText(label, { selector: 'button' });
+const openFormTab = (user, label) => user.click(button(label));
+const save = (user) => user.click(button('Сохранить'));
+const currentFileLink = async (name) => (await screen.findByText(name)).closest('a');
 
 beforeEach(() => {
   store.congresses = [{ ...CONGRESS }];
@@ -92,13 +95,13 @@ describe('CongressAdmin — вкладка «Конкурс»', () => {
     await openEditForm(user);
     await openFormTab(user, 'Конкурс');
 
+    // fireEvent.change вместо посимвольного user.type — тест в разы быстрее
     const ru = screen.getByLabelText(/^Текст конкурса \(RU\)/);
     expect(ru).toHaveValue('Старые условия');
-    await user.clear(ru);
-    await user.type(ru, 'Новые условия');
+    fireEvent.change(ru, { target: { value: 'Новые условия' } });
 
-    await user.click(screen.getByRole('button', { name: 'UZ' }));
-    await user.type(screen.getByLabelText(/^Текст конкурса \(UZ\)/), 'Shartlar');
+    await user.click(button('UZ'));
+    fireEvent.change(screen.getByLabelText(/^Текст конкурса \(UZ\)/), { target: { value: 'Shartlar' } });
 
     await save(user);
     expect(contentAPI.updateCongress).toHaveBeenCalledWith(
@@ -133,14 +136,14 @@ describe('CongressAdmin — вкладка «Конкурс»', () => {
     expect(fileInput()).toHaveAttribute('accept', '.pdf');
     expect(screen.getByText(/PDF, до 20 МБ/)).toBeInTheDocument();
     await user.upload(fileInput(), pdf('ru.pdf'));
-    expect(await screen.findByRole('link', { name: /ys-ru\.pdf/ })).toHaveAttribute('href', '/uploads/ys-ru.pdf');
+    expect(await currentFileLink(/ys-ru\.pdf/)).toHaveAttribute('href', '/uploads/ys-ru.pdf');
     // новый файл ещё не сохранён — рисовать сервер начнёт после сохранения
     expect(screen.getByText('Страницы для просмотра на сайте подготовятся после сохранения')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'EN' }));
+    await user.click(button('EN'));
     expect(screen.getByText('Файл не загружен')).toBeInTheDocument();
     await user.upload(fileInput(), pdf('en.pdf'));
-    await screen.findByRole('link', { name: /ys-en\.pdf/ });
+    await currentFileLink(/ys-en\.pdf/);
 
     await save(user);
     const payload = contentAPI.updateCongress.mock.calls[0][1];
@@ -153,8 +156,8 @@ describe('CongressAdmin — вкладка «Конкурс»', () => {
     const user = userEvent.setup();
     renderAdmin();
 
-    await user.click(await screen.findByRole('button', { name: /Добавить конгресс/ }));
-    await user.type(await screen.findByLabelText(/^Название \(RU\)/), 'Новый конгресс');
+    await user.click(await screen.findByText(/Добавить конгресс/, { selector: 'button' }));
+    fireEvent.change(await screen.findByLabelText(/^Название \(RU\)/), { target: { value: 'Новый конгресс' } });
     await save(user);
 
     expect(contentAPI.createCongress).toHaveBeenCalledWith(expect.objectContaining({
@@ -191,7 +194,7 @@ describe('CongressAdmin — состояние страниц сохранённ
     await openEditForm(user);
     await openFormTab(user, 'Конкурс');
 
-    expect(await screen.findByText('Ошибка: Файл защищён паролем')).toBeInTheDocument();
+    expect(await screen.findByText('Ошибка: Файл защищён паролем. Загрузите файл заново.')).toBeInTheDocument();
   }, 30000);
 
   it('ничего нет → «Готовятся…»', async () => {
@@ -213,7 +216,7 @@ describe('CongressAdmin — состояние страниц сохранённ
     await openEditForm(user);
     await openFormTab(user, 'Конкурс');
 
-    expect(screen.getByRole('link', { name: /ys\.pdf/ })).toHaveAttribute('href', 'https://example.com/ys.pdf');
+    expect(screen.getByText(/ys\.pdf/).closest('a')).toHaveAttribute('href', 'https://example.com/ys.pdf');
     expect(screen.queryByText(/Страницы|Готовятся|Ошибка:/)).not.toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   }, 30000);
@@ -238,7 +241,7 @@ describe('CongressAdmin — состояние страниц сохранённ
     await openEditForm(user);
     await openFormTab(user, 'Инфо-письмо');
 
-    expect(screen.getByRole('link', { name: /letter\.pdf/ })).toBeInTheDocument();
+    expect(screen.getByText(/letter\.pdf/).closest('a')).toBeInTheDocument();
     expect(screen.queryByText(/Готовятся|Страницы/)).not.toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   }, 30000);

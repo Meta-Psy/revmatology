@@ -9,7 +9,8 @@ const MAX_CHECKS = 40;
 /**
  * Строка состояния страниц под PDF в админке (UI админки — по-русски, без i18n).
  * Смотрит только статичные файлы по договору §4: manifest.json → готово,
- * .pages.error.json → причина, иначе «Готовятся…» с перепроверкой.
+ * .pages.error.json → причина, иначе «Готовятся…» с перепроверкой; если за
+ * время опроса страницы так и не появились — «пока не готовы».
  * Внешние ссылки сервер не рисует — для них строки нет.
  */
 const PdfPagesStatus = ({ url, saved }) => {
@@ -25,8 +26,13 @@ const PdfPagesStatus = ({ url, saved }) => {
       checks += 1;
       const status = await checkPdfPages(url);
       if (cancelled) return;
+      if (status.state === 'pending' && checks >= MAX_CHECKS) {
+        // опрос окончен, а страниц нет — не обещаем «готовятся» вечно
+        setResult({ url, state: 'stalled' });
+        return;
+      }
       setResult({ url, ...status });
-      if (status.state === 'pending' && checks < MAX_CHECKS) timer = setTimeout(check, POLL_MS);
+      if (status.state === 'pending') timer = setTimeout(check, POLL_MS);
     };
     check();
     return () => {
@@ -48,7 +54,12 @@ const PdfPagesStatus = ({ url, saved }) => {
     return <p className="mt-1 text-xs text-green-700">{`Страницы готовы — ${status.rendered} стр.${note}`}</p>;
   }
   if (status.state === 'error') {
-    return <p className="mt-1 text-xs text-red-600">{`Ошибка: ${status.message}`}</p>;
+    // сервер перерисовывает только при смене файла — повторное сохранение не поможет
+    const message = status.message.replace(/[.\s]+$/, '');
+    return <p className="mt-1 text-xs text-red-600">{`Ошибка: ${message}. Загрузите файл заново.`}</p>;
+  }
+  if (status.state === 'stalled') {
+    return <p className="mt-1 text-xs text-amber-700">Страницы пока не готовы — откройте форму позже</p>;
   }
   return <p className="mt-1 text-xs text-slate-500">Готовятся…</p>;
 };
