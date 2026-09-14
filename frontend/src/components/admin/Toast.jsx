@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, createContext, useContext } from 'react';
+import { useState, useCallback, createContext, useContext } from 'react';
 import { CheckCircle, XCircle, Info, X } from 'lucide-react';
 
 const ToastContext = createContext(null);
@@ -22,12 +22,6 @@ export const ToastProvider = ({ children }) => {
       setToasts(prev => prev.filter(t => t.id !== id));
     }, 150);
   }, []);
-
-  const toast = useCallback({
-    success: (msg) => addToast(msg, 'success'),
-    error: (msg) => addToast(msg, 'error', 5000),
-    info: (msg) => addToast(msg, 'info'),
-  }, [addToast]);
 
   // Make toast callable as function and as object with methods
   const toastFn = Object.assign(

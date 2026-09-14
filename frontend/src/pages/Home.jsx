@@ -1023,7 +1023,7 @@ const Home = () => {
                 </div>
               ))
             ) : news.length > 0 ? (
-              news.map((item, index) => (
+              news.map((item) => (
                 <article key={item.id} className="group relative">
                   <div className="relative bg-white/80 backdrop-blur-sm rounded-sm overflow-hidden border border-stone-200/80 hover:border-stone-300 hover:shadow-lg hover:shadow-stone-200/50 transition-all duration-500">
                     {/* Угловые акценты */}

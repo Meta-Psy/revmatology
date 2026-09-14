@@ -11,7 +11,9 @@ const getSavedLang = () => {
   try {
     const saved = localStorage.getItem('language');
     if (saved && SUPPORTED_LANGS.includes(saved)) return saved;
-  } catch {}
+  } catch {
+    // localStorage недоступен (приватный режим, запрет cookies) — язык по умолчанию
+  }
   return 'ru';
 };
 
@@ -51,7 +53,9 @@ i18n.on('languageChanged', (lng) => {
   syncDocumentMeta(lng);
   try {
     localStorage.setItem('language', lng);
-  } catch {}
+  } catch {
+    // localStorage недоступен — выбор языка просто не запомнится
+  }
 });
 
 export default i18n;

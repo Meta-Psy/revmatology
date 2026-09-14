@@ -137,7 +137,7 @@ const History = () => {
               <div className="absolute left-6 sm:left-8 top-0 bottom-0 w-px bg-gradient-to-b from-sky-400/40 via-blue-400/20 to-transparent"></div>
 
               <div className="space-y-10 sm:space-y-14">
-                {historyItems.map((item, index) => (
+                {historyItems.map((item) => (
                   <div key={item.id} className="relative pl-16 sm:pl-20">
                     {/* Year badge */}
                     <div className="absolute left-0 top-0 w-12 sm:w-16 h-12 sm:h-16 bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl flex items-center justify-center shadow-lg border border-slate-700/50 z-10">

@@ -23,7 +23,17 @@ export default defineConfig([
       },
     },
     rules: {
-      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      // Базовое no-unused-vars не видит использования в JSX (<Icon />), поэтому
+      // имена с заглавной пропускаются. argsIgnorePattern — то же для
+      // переименованных пропсов-компонентов: ({ icon: Icon }), ({ as: Component }).
+      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]', argsIgnorePattern: '^[A-Z_]' }],
+      // Хуки живут рядом со своими провайдерами (AuthContext.jsx, Toast.jsx).
+      // Цена — при правке этих двух файлов в dev вместо fast refresh
+      // перезагружаются их импортёры.
+      'react-refresh/only-export-components': [
+        'error',
+        { allowConstantExport: true, allowExportNames: ['useAuth', 'useToast'] },
+      ],
     },
   },
 ])

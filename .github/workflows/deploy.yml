@@ -3,9 +3,26 @@ name: Deploy to DigitalOcean
 on:
   push:
     branches: [main]
+  # Ручной перезапуск выкатки (Actions → Run workflow)
+  workflow_dispatch:
+
+# Выкатки идут строго по одной: несколько мержей подряд иначе дают
+# параллельные выкатки, гоняющиеся за frontend/dist и контейнером backend.
+# Идущая выкатка не прерывается; из ожидающих остаётся самая свежая.
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
 
 jobs:
+  # Те же проверки, что на PR; выкатка — только после зелёных
+  ci:
+    uses: ./.github/workflows/ci.yml
+
   build-and-deploy:
+    needs: ci
+    # Ручной запуск с другой ветки собрал бы фронтенд из неё, а бэкенд
+    # сервер всё равно берёт из origin/main — выкатываем только main
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
 
     steps:

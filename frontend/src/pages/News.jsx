@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { contentAPI, getImageUrl } from '../services/api';
 
 const News = () => {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const lang = i18n.language || 'ru';
 
   const [events, setEvents] = useState([]);
