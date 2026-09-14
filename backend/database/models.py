@@ -152,6 +152,11 @@ class Congress(Base):
     program_file_uz = Column(String(500), nullable=True)
     program_file_en = Column(String(500), nullable=True)
 
+    # PDF положения конкурса молодых учёных по языкам (ссылка /uploads/<uuid>.pdf)
+    young_scientists_file_ru = Column(String(500), nullable=True)
+    young_scientists_file_uz = Column(String(500), nullable=True)
+    young_scientists_file_en = Column(String(500), nullable=True)
+
     # Связи
     sponsors = relationship("CongressSponsor", back_populates="congress", cascade="all, delete-orphan", order_by="CongressSponsor.order")
     program_days = relationship("CongressProgramDay", back_populates="congress", cascade="all, delete-orphan", order_by="CongressProgramDay.order")
