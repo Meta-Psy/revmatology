@@ -1,6 +1,11 @@
 """API для конгрессов — публичные и административные эндпоинты"""
+import asyncio
+import logging
+import os
+import sys
+from pathlib import Path
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 from sqlalchemy.orm import selectinload
@@ -19,8 +24,21 @@ from schemas.congress import (
     CongressRegistrationCreate, CongressRegistrationResponse,
 )
 from functions.auth import get_current_admin
+import pdf_pages
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+UPLOAD_DIR = "uploads"  # как в main.py и content.py — от текущего каталога
+# Поля, PDF из которых рисуются страницами для просмотра (К-08)
+PDF_PAGES_FIELDS = tuple(
+    f"{kind}_file_{lang}" for kind in ("program", "young_scientists") for lang in ("ru", "uz", "en")
+)
+# Предохранитель от зависшего процесса. Рисование само обрывается через
+# pdf_pages.RENDER_TIMEOUT, но процесс может ждать замка за другими PDF
+# (до шести файлов одного конгресса, один за другим).
+RENDER_PROCESS_TIMEOUT = 15 * 60
 
 
 async def _ensure_exists(db: AsyncSession, model, obj_id: int, detail: str):
@@ -28,6 +46,54 @@ async def _ensure_exists(db: AsyncSession, model, obj_id: int, detail: str):
     result = await db.execute(select(model.id).where(model.id == obj_id))
     if result.scalar_one_or_none() is None:
         raise HTTPException(status_code=404, detail=detail)
+
+
+async def launch_pdf_render(pdf_path: Path) -> None:
+    """Фоновая задача: страницы PDF рисует отдельный процесс.
+
+    Отдельный процесс обязателен: PDFium нельзя вызывать из нескольких
+    потоков, а воркер uvicorn многопоточный; заодно падение или раздутая
+    память PDFium не задевают сайт. Любой сбой только пишется в лог —
+    конгресс к этому моменту уже сохранён.
+    """
+    try:
+        process = await asyncio.create_subprocess_exec(
+            sys.executable, "-m", "scripts.render_pdf_pages", str(pdf_path),
+            "--uploads-dir", str(pdf_path.parent),
+            cwd=BACKEND_DIR,
+            env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+        )
+        try:
+            output, _ = await asyncio.wait_for(process.communicate(), timeout=RENDER_PROCESS_TIMEOUT)
+        except asyncio.TimeoutError:
+            process.kill()
+            await process.wait()
+            logger.error("Рисование страниц %s убито через %s с", pdf_path.name, RENDER_PROCESS_TIMEOUT)
+            if pdf_path.is_file() and pdf_pages.read_manifest(pdf_path) is None:
+                pdf_pages.write_error(pdf_path, "timeout")
+            return
+        text = (output or b"").decode("utf-8", "replace").strip()
+        if process.returncode == 0:
+            logger.info("Страницы PDF: %s", text)
+        else:
+            logger.warning("Страницы PDF %s не нарисованы (код %s): %s", pdf_path.name, process.returncode, text)
+    except Exception:
+        logger.exception("Не удалось запустить рисование страниц %s", pdf_path.name)
+
+
+def _schedule_pdf_renders(background_tasks: BackgroundTasks, changed: dict) -> None:
+    """Задача на каждый новый /uploads/<name>.pdf среди изменённых полей."""
+    uploads = Path(UPLOAD_DIR).resolve()
+    scheduled = []
+    for field in PDF_PAGES_FIELDS:
+        if field not in changed:
+            continue
+        path = pdf_pages.upload_url_to_path(changed[field], uploads)
+        if path is not None and path not in scheduled:
+            scheduled.append(path)
+            background_tasks.add_task(launch_pdf_render, path)
 
 
 # ==================== КОНГРЕСС CRUD ====================
@@ -76,13 +142,16 @@ async def get_congress_detail(congress_id: int, db: AsyncSession = Depends(get_d
 @router.post("/congresses", response_model=CongressResponse)
 async def create_congress(
     data: CongressCreate,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     admin=Depends(get_current_admin)
 ):
-    congress = Congress(**data.model_dump())
+    congress_data = data.model_dump()
+    congress = Congress(**congress_data)
     db.add(congress)
     await db.commit()
     await db.refresh(congress)
+    _schedule_pdf_renders(background_tasks, congress_data)
     return congress
 
 
@@ -90,6 +159,7 @@ async def create_congress(
 async def update_congress(
     congress_id: int,
     data: CongressUpdate,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     admin=Depends(get_current_admin)
 ):
@@ -99,11 +169,18 @@ async def update_congress(
         raise HTTPException(status_code=404, detail="Congress not found")
 
     update_data = data.model_dump(exclude_unset=True)
+    # форма админки шлёт все поля — рисовать нужно только сменившиеся файлы
+    changed_files = {
+        field: update_data[field]
+        for field in PDF_PAGES_FIELDS
+        if field in update_data and update_data[field] != getattr(congress, field)
+    }
     for key, value in update_data.items():
         setattr(congress, key, value)
 
     await db.commit()
     await db.refresh(congress)
+    _schedule_pdf_renders(background_tasks, changed_files)
     return congress
 
 
