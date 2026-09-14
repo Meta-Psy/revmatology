@@ -16,6 +16,11 @@ describe('pdfUrls', () => {
     expect(isOwnPdf('/uploads/3f2a.pdf?x=1')).toBe(false);
     expect(isOwnPdf('')).toBe(false);
     expect(isOwnPdf(null)).toBe(false);
+    // как на сервере: только буквы, цифры, точка, _ и -
+    expect(isOwnPdf('/uploads/1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed.pdf')).toBe(true);
+    expect(isOwnPdf('/uploads/a\\b.pdf')).toBe(false);
+    expect(isOwnPdf('/uploads/a%2F..%2Fb.pdf')).toBe(false);
+    expect(isOwnPdf('/uploads/a b.pdf')).toBe(false);
   });
 
   it('манифест, файл ошибки и картинки страниц', () => {
@@ -24,6 +29,13 @@ describe('pdfUrls', () => {
     expect(pageImageUrl('/uploads/doc.pdf', 3, 800)).toBe('/uploads/doc.pages/p3-800.webp');
     expect(pageSrcSet('/uploads/doc.pdf', 2, [800, 1600])).toBe(
       '/uploads/doc.pages/p2-800.webp 800w, /uploads/doc.pages/p2-1600.webp 1600w'
+    );
+    // w страницы — ширина версии 1600; у очень высоких страниц она меньше
+    expect(pageSrcSet('/uploads/doc.pdf', 2, [800, 1600], 1600)).toBe(
+      '/uploads/doc.pages/p2-800.webp 800w, /uploads/doc.pages/p2-1600.webp 1600w'
+    );
+    expect(pageSrcSet('/uploads/doc.pdf', 2, [800, 1600], 1001)).toBe(
+      '/uploads/doc.pages/p2-800.webp 501w, /uploads/doc.pages/p2-1600.webp 1001w'
     );
   });
 });
@@ -59,6 +71,31 @@ describe('validateManifest', () => {
   it('без outline — пустое оглавление', () => {
     const { outline: _omit, ...rest } = MANIFEST;
     expect(validateManifest(rest).outline).toEqual([]);
+  });
+
+  it('оглавление: негодные пункты выбрасываются, вложенные — тоже проверяются', () => {
+    const ok = (title, page, children = []) => ({ title, page, level: 0, children });
+    const m = validateManifest({
+      ...MANIFEST,
+      outline: [
+        ok('Введение', 1),
+        ok('Секция', 2, [
+          ok('Доклад', 2),
+          ok('За пределами', 3), // rendered = 2
+          { title: 'Без детей', page: 2, level: 1 },
+        ]),
+        ok({ html: '<b>' }, 1),
+        ok('Ноль', 0),
+        ok('Дробная', 1.5),
+        ok('Строка', '2'),
+        { title: 'Дети не массив', page: 1, level: 0, children: 'x' },
+        null,
+      ],
+    });
+    expect(m.outline).toEqual([
+      ok('Введение', 1),
+      ok('Секция', 2, [ok('Доклад', 2)]),
+    ]);
   });
 });
 

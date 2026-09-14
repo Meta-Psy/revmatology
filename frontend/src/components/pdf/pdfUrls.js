@@ -8,7 +8,8 @@
  * Страницы рисуются только для нашего каталога и только для `.pdf`
  * (сервер сохраняет расширение в нижнем регистре); внешние ссылки не трогаются.
  */
-const OWN_PDF = /^\/uploads\/[^/?#]+\.pdf$/;
+// Тот же набор символов, что пропускает сервер: без \, %, пробелов и прочего
+const OWN_PDF = /^\/uploads\/[A-Za-z0-9._-]+\.pdf$/;
 
 export const isOwnPdf = (url) => typeof url === 'string' && OWN_PDF.test(url);
 
@@ -20,5 +21,15 @@ export const errorUrl = (pdfUrl) => `${pagesDir(pdfUrl)}.error.json`;
 
 export const pageImageUrl = (pdfUrl, n, width) => `${pagesDir(pdfUrl)}/p${n}-${width}.webp`;
 
-export const pageSrcSet = (pdfUrl, n, widths) =>
-  widths.map((w) => `${pageImageUrl(pdfUrl, n, w)} ${w}w`).join(', ');
+/**
+ * srcSet страницы. pageWidth — manifest.pages[].w, ширина самой крупной версии:
+ * у очень высоких страниц сервер ограничивает высоту, и ширина выходит меньше
+ * номинальной — дескрипторы тогда пропорционально меньше. Без pageWidth
+ * (манифеста ещё нет) — номинальные ширины.
+ */
+export const pageSrcSet = (pdfUrl, n, widths, pageWidth) => {
+  const largest = Math.max(...widths);
+  return widths
+    .map((w) => `${pageImageUrl(pdfUrl, n, w)} ${pageWidth ? Math.round((pageWidth * w) / largest) : w}w`)
+    .join(', ');
+};

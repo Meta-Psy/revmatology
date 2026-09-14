@@ -3,6 +3,17 @@ import { errorUrl, isOwnPdf, manifestUrl } from './pdfUrls';
 
 const MANIFEST_VERSION = 1;
 
+// Пункт оглавления: title — строка, page — целое 1..rendered, children — массив
+// (проверяется так же, рекурсивно). Негодный пункт выбрасывается вместе с детьми.
+const cleanOutline = (items, rendered) =>
+  (Array.isArray(items) ? items : []).flatMap((item) => {
+    const valid = Boolean(item)
+      && typeof item.title === 'string'
+      && Number.isInteger(item.page) && item.page >= 1 && item.page <= rendered
+      && Array.isArray(item.children);
+    return valid ? [{ ...item, children: cleanOutline(item.children, rendered) }] : [];
+  });
+
 /**
  * Проверяет manifest.json (версия 1, §4). Всё, что не похоже на манифест
  * (другая версия, пустые страницы, HTML вместо JSON), — null: такой документ
@@ -22,7 +33,7 @@ export const validateManifest = (data) => {
     rendered: pages.length,
     page_count: Number.isInteger(data.page_count) ? data.page_count : pages.length,
     truncated: data.truncated === true,
-    outline: Array.isArray(data.outline) ? data.outline : [],
+    outline: cleanOutline(data.outline, pages.length),
   };
 };
 
