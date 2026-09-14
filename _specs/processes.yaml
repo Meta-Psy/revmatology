@@ -178,5 +178,9 @@
     - backend/scripts/render_pdf_pages.py
     - frontend/src/pages/admin/CongressAdmin.jsx
     - frontend/src/pages/Congress.jsx
+    - frontend/src/pages/CongressYoungScientists.jsx
+    - frontend/src/components/pdf/PdfPages.jsx
+    - frontend/src/components/pdf/usePdfManifest.js
+    - frontend/src/App.jsx
   tests:
     api: backend/tests/workflows/test_p06_young_scientists_rules.py::test_p06
