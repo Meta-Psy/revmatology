@@ -79,8 +79,10 @@ const pageImages = (container) => [...container.querySelectorAll('img[data-page-
 const pageBox = (container, n) => container.querySelector(`[data-page="${n}"]`);
 const pageInput = () => screen.getByLabelText('Номер страницы');
 const viewer = (container) => container.querySelector('[data-pdf-viewer]');
+// До картинок — манифест, рендер читалки, замер ResizeObserver и второй рендер;
+// под нагрузкой полного прогона первому (холодному) тесту 1 с по умолчанию мало
 const waitForPages = async (container, count) => {
-  await waitFor(() => expect(pageImages(container)).toHaveLength(count));
+  await waitFor(() => expect(pageImages(container)).toHaveLength(count), { timeout: 5000 });
 };
 // Страница «пересекла середину окна» — так её видит IntersectionObserver
 const scrollTo = (container, n) =>
