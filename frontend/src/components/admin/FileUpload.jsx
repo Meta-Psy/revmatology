@@ -15,6 +15,8 @@ const FileUpload = ({ value, onChange, accept = 'image/*,.heic,.heif', label, pr
   const handleChange = (e) => {
     const file = e.target.files[0];
     if (file) onChange(file);
+    // Иначе тот же файл (после ошибки загрузки или «убрать») не выбрать: change не сработает
+    e.target.value = '';
   };
 
   const isImage = accept.includes('image');

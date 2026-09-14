@@ -102,6 +102,8 @@ const CongressProgram = () => {
 
   const programText = Lf('program');
   const programFile = Lf('program_file');
+  // Имя для «Скачать» — по языку самого файла (при фолбэке это RU), а не UUID из /uploads
+  const programFileName = `program-${congress.id}-${congress[`program_file_${lang}`] ? lang : 'ru'}.pdf`;
   const infoLetterFile = Lf('info_letter_file');
   const hasStructuredProgram = programDays.length > 0 || looseSpeakers.length > 0;
   const hasAnything = hasStructuredProgram || Boolean(programText) || Boolean(programFile) || Boolean(infoLetterFile);
@@ -214,7 +216,7 @@ const CongressProgram = () => {
                   </a>
                   <a
                     href={programFile}
-                    download
+                    download={programFileName}
                     className="inline-flex items-center gap-2 px-4 py-2.5 text-sm bg-white text-cyan-700 border border-cyan-500 rounded-xl hover:bg-cyan-50 transition-colors"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>

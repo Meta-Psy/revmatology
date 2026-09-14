@@ -268,7 +268,8 @@ describe('CongressProgram — PDF программы', () => {
 
     const download = screen.getByRole('link', { name: 'Скачать' });
     expect(download).toHaveAttribute('href', '/uploads/program-ru.pdf');
-    expect(download).toHaveAttribute('download');
+    // осмысленное имя вместо UUID из /uploads
+    expect(download).toHaveAttribute('download', 'program-1-ru.pdf');
   });
 
   it('страница с одним PDF не показывает «программа будет опубликована позже»', async () => {
@@ -287,6 +288,7 @@ describe('CongressProgram — PDF программы', () => {
 
     expect(await screen.findByText('Kongress dasturi (PDF)')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Ochish' })).toHaveAttribute('href', '/uploads/program-uz.pdf');
+    expect(screen.getByRole('link', { name: 'Yuklab olish' })).toHaveAttribute('download', 'program-1-uz.pdf');
   });
 
   it('на узбекском без program_file_uz откатывается на RU-файл', async () => {
@@ -296,6 +298,8 @@ describe('CongressProgram — PDF программы', () => {
     await screen.findByText('Kongress dasturi (PDF)');
     expect(screen.getByRole('link', { name: 'Ochish' })).toHaveAttribute('href', '/uploads/program-ru.pdf');
     expect(screen.getByRole('link', { name: 'Yuklab olish' })).toHaveAttribute('href', '/uploads/program-ru.pdf');
+    // имя по языку самого файла, а не страницы
+    expect(screen.getByRole('link', { name: 'Yuklab olish' })).toHaveAttribute('download', 'program-1-ru.pdf');
   });
 
   it('PDF идёт первым блоком, над днями и докладами', async () => {
