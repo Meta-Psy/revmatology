@@ -158,7 +158,7 @@ const MediaResources = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {filteredResources.map((resource, index) => (
+              {filteredResources.map((resource) => (
                 <div
                   key={resource.id}
                   className="group relative bg-white rounded-2xl shadow-sm border border-stone-200/60 hover:shadow-lg hover:border-stone-300 transition-all duration-300 overflow-hidden flex flex-col"

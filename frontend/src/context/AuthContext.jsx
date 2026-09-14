@@ -5,19 +5,18 @@ const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Без токена ждать нечего — сразу не в загрузке. Ленивая инициализация
+  // вместо синхронного setLoading(false) в эффекте (лишний рендер).
+  const [loading, setLoading] = useState(() => Boolean(localStorage.getItem('token')));
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (token) {
-      authAPI
-        .getMe()
-        .then((res) => setUser(res.data))
-        .catch(() => localStorage.removeItem('token'))
-        .finally(() => setLoading(false));
-    } else {
-      setLoading(false);
-    }
+    if (!token) return;
+    authAPI
+      .getMe()
+      .then((res) => setUser(res.data))
+      .catch(() => localStorage.removeItem('token'))
+      .finally(() => setLoading(false));
   }, []);
 
   const login = async (email, password) => {

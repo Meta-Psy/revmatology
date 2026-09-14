@@ -60,12 +60,16 @@ const AdminLayout = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
-    try { localStorage.setItem('admin_sidebar', collapsed ? 'collapsed' : 'expanded'); } catch {}
+    try { localStorage.setItem('admin_sidebar', collapsed ? 'collapsed' : 'expanded'); } catch { /* нет localStorage — свёрнутость просто не запомнится */ }
   }, [collapsed]);
 
-  useEffect(() => {
+  // Закрыть мобильное меню при смене страницы. Сравнение с прошлым адресом
+  // прямо в рендере вместо setState в эффекте (лишний рендер с открытым меню).
+  const [prevPathname, setPrevPathname] = useState(location.pathname);
+  if (prevPathname !== location.pathname) {
+    setPrevPathname(location.pathname);
     setMobileOpen(false);
-  }, [location.pathname]);
+  }
 
   if (loading) {
     return (
