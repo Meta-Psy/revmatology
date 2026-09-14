@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom';
 import { contentAPI, getImageUrl } from '../services/api';
 import { makeGetField } from '../utils/getField';
 import { formatDate as fmtDate, formatDateRange as fmtDateRange } from '../utils/dates';
+import PdfPages from '../components/pdf/PdfPages';
 
 const formatTimeRange = (speaker) => {
   if (!speaker.time_start && !speaker.time_end) return '';
@@ -13,32 +14,10 @@ const formatTimeRange = (speaker) => {
   return start || end;
 };
 
-// Встроенный просмотр PDF — только от брейкпоинта md: Tailwind. На телефонах он
-// бесполезен (Android Chrome не рисует PDF в странице, iOS — только первую
-// страницу) и лишь тянул бы весь файл, поэтому там не рендерится вовсе.
-const WIDE_SCREEN_QUERY = '(min-width: 768px)';
-
-const matchesWideScreen = () =>
-  typeof window !== 'undefined' && typeof window.matchMedia === 'function'
-    && window.matchMedia(WIDE_SCREEN_QUERY).matches;
-
-const useIsWideScreen = () => {
-  const [isWide, setIsWide] = useState(matchesWideScreen);
-  useEffect(() => {
-    if (typeof window.matchMedia !== 'function') return undefined;
-    const query = window.matchMedia(WIDE_SCREEN_QUERY);
-    const onChange = () => setIsWide(query.matches);
-    query.addEventListener?.('change', onChange);
-    return () => query.removeEventListener?.('change', onChange);
-  }, []);
-  return isWide;
-};
-
 const CongressProgram = () => {
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
   const { id } = useParams();
-  const isWideScreen = useIsWideScreen();
 
   const [congress, setCongress] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -187,8 +166,9 @@ const CongressProgram = () => {
         </div>
       </section>
 
-      {/* Content */}
-      <section className="relative py-8 sm:py-12 overflow-hidden">
+      {/* Content. overflow-clip, а не hidden: hidden делает секцию контейнером
+          прокрутки, и панель просмотра PDF перестаёт залипать (sticky) */}
+      <section className="relative py-8 sm:py-12 overflow-clip">
         <div className="absolute inset-0 bg-gradient-to-b from-stone-100 via-stone-50 to-white"></div>
         <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
           {!hasAnything && (
@@ -197,48 +177,18 @@ const CongressProgram = () => {
             </div>
           )}
 
-          {/* PDF программы на языке страницы (без перевода — русский файл) */}
+          {/* PDF программы на языке страницы (без перевода — русский файл): готовые
+              страницы-картинки с сервера, «Открыть PDF» и «Скачать» — в панели просмотра */}
           {programFile && (
-            <article className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-stone-200/60">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <h2 className="text-xl md:text-2xl text-stone-800 leading-snug" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
-                  {t('congress.program.pdfTitle', 'Программа конгресса (PDF)')}
-                </h2>
-                <div className="flex flex-wrap gap-3">
-                  <a
-                    href={programFile}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-4 py-2.5 text-sm bg-cyan-500 text-white rounded-xl hover:bg-cyan-600 transition-colors"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                    {t('congress.program.pdfOpen', 'Открыть')}
-                  </a>
-                  <a
-                    href={programFile}
-                    download={programFileName}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 text-sm bg-white text-cyan-700 border border-cyan-500 rounded-xl hover:bg-cyan-50 transition-colors"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                    {t('congress.program.pdfDownload', 'Скачать')}
-                  </a>
-                </div>
-              </div>
-              {isWideScreen && (
-                <object
-                  data={programFile}
-                  type="application/pdf"
-                  title={t('congress.program.pdfTitle', 'Программа конгресса (PDF)')}
-                  className="mt-6 w-full h-[80vh] rounded-xl border border-stone-200 bg-stone-50"
-                >
-                  <p className="p-6 text-sm text-stone-600" style={{ fontFamily: 'Georgia, serif' }}>
-                    {t('congress.program.pdfFallback', 'Браузер не может показать PDF на странице.')}{' '}
-                    <a href={programFile} target="_blank" rel="noopener noreferrer" className="text-cyan-600 hover:text-cyan-700 underline">
-                      {t('congress.program.pdfOpenNewTab', 'Открыть в новой вкладке')}
-                    </a>
-                  </p>
-                </object>
-              )}
+            <article className="bg-white rounded-2xl px-3 py-5 sm:p-6 md:p-8 shadow-sm border border-stone-200/60">
+              <h2 className="px-1 sm:px-0 mb-4 text-xl md:text-2xl text-stone-800 leading-snug" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
+                {t('congress.program.pdfTitle', 'Программа конгресса (PDF)')}
+              </h2>
+              <PdfPages
+                pdfUrl={programFile}
+                title={t('congress.program.pageTitle', 'Программа конгресса')}
+                downloadName={programFileName}
+              />
             </article>
           )}
 
