@@ -1,20 +1,20 @@
 """P-06: секретарь публикует положение конкурса молодых учёных, участник читает его страницами.
 
 Правило голой базы: состояние строится только через HTTP (`client`), никаких
-ORM-фабрик. Каталог загрузок подменён на временный — и для записи
-(/api/content/upload), и для раздачи (StaticFiles на /uploads, в проде это
-nginx), и для API конгрессов, который ставит рисование.
+ORM-фабрик. Каталог загрузок временный: текущий каталог переносится во
+временный, а приложение везде берёт "uploads" относительно него — и запись
+(/api/content/upload), и раздача (StaticFiles на /uploads, в проде это nginx),
+и API конгрессов, который ставит рисование.
 
 Рисование в продукте — фоновый процесс `python -m scripts.render_pdf_pages`.
 Здесь запускатель подменён (conftest, `pdf_renders`) — прогон проверяет, что
 API поставил ровно этот файл, и рисует его тем же скриптом синхронно, в главном
 потоке: PDFium нельзя вызывать из нескольких потоков.
 """
+from pathlib import Path
+
 import pytest
 
-from api import congress as congress_api
-from api import content as content_api
-from main import app
 from scripts import render_pdf_pages
 from tests import pdf_samples as samples
 
@@ -23,12 +23,9 @@ PROCESS_ID = "P-06"
 
 @pytest.fixture
 def uploads(tmp_path, monkeypatch):
-    directory = tmp_path / "uploads"
+    monkeypatch.chdir(tmp_path)
+    directory = Path("uploads")
     directory.mkdir()
-    monkeypatch.setattr(content_api, "UPLOAD_DIR", str(directory))
-    monkeypatch.setattr(congress_api, "UPLOAD_DIR", str(directory))
-    (static,) = [route.app for route in app.routes if getattr(route, "name", None) == "uploads"]
-    monkeypatch.setattr(static, "all_directories", [str(directory)])
     return directory.resolve()
 
 
