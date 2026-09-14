@@ -74,6 +74,11 @@ describe('CongressYoungScientists', () => {
     // хлебные крошки и возврат к конгрессу
     expect(screen.getByText('Вернуться к конгрессу').closest('a')).toHaveAttribute('href', '/congress/7');
     expect(screen.queryByText('Информация будет опубликована позже')).not.toBeInTheDocument();
+
+    // условия — перед положением: на телефоне иначе уходят под 10–20 страниц PDF
+    const text = container.textContent;
+    expect(text.indexOf('Участвуют авторы до 35 лет.')).toBeGreaterThanOrEqual(0);
+    expect(text.indexOf('Участвуют авторы до 35 лет.')).toBeLessThan(text.indexOf('Положение конкурса (PDF)'));
   });
 
   it('на узбекском свой файл и текст', async () => {

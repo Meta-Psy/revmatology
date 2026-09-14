@@ -121,6 +121,18 @@ const CongressYoungScientists = () => {
             </div>
           )}
 
+          {/* Текст из админки — так же, как во вкладке конгресса. Идёт первым:
+              на телефоне иначе условия уходят под 10–20 страниц положения */}
+          {text && (
+            <article className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-stone-200/60">
+              <div
+                className="text-stone-600 leading-relaxed prose prose-stone max-w-none"
+                style={{ fontFamily: 'Georgia, serif' }}
+                dangerouslySetInnerHTML={{ __html: text.replace(/\n/g, '<br />') }}
+              />
+            </article>
+          )}
+
           {/* Положение конкурса на языке страницы (без перевода — русский файл) */}
           {file && (
             <article className="bg-white rounded-2xl px-3 py-5 sm:p-6 md:p-8 shadow-sm border border-stone-200/60">
@@ -131,17 +143,6 @@ const CongressYoungScientists = () => {
                 pdfUrl={file}
                 title={t('congress.youngScientists.regulations', 'Положение конкурса')}
                 downloadName={downloadName}
-              />
-            </article>
-          )}
-
-          {/* Текст из админки — так же, как во вкладке конгресса */}
-          {text && (
-            <article className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-stone-200/60">
-              <div
-                className="text-stone-600 leading-relaxed prose prose-stone max-w-none"
-                style={{ fontFamily: 'Georgia, serif' }}
-                dangerouslySetInnerHTML={{ __html: text.replace(/\n/g, '<br />') }}
               />
             </article>
           )}
