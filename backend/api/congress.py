@@ -35,10 +35,9 @@ UPLOAD_DIR = "uploads"  # как в main.py и content.py — от текуще�
 PDF_PAGES_FIELDS = tuple(
     f"{kind}_file_{lang}" for kind in ("program", "young_scientists") for lang in ("ru", "uz", "en")
 )
-# Предохранитель от зависшего процесса. Рисование само обрывается через
-# pdf_pages.RENDER_TIMEOUT, но процесс может ждать замка за другими PDF
-# (до шести файлов одного конгресса, один за другим).
-RENDER_PROCESS_TIMEOUT = 15 * 60
+# Только последняя страховка: процесс может долго стоять в очереди на замке
+# за другими PDF, а время самого рисования ограничивает RLIMIT_CPU в нём.
+RENDER_PROCESS_TIMEOUT = pdf_pages.PROCESS_TIMEOUT
 
 
 async def _ensure_exists(db: AsyncSession, model, obj_id: int, detail: str):
@@ -54,12 +53,14 @@ async def launch_pdf_render(pdf_path: Path) -> None:
     Отдельный процесс обязателен: PDFium нельзя вызывать из нескольких
     потоков, а воркер uvicorn многопоточный; заодно падение или раздутая
     память PDFium не задевают сайт. Любой сбой только пишется в лог —
-    конгресс к этому моменту уже сохранён.
+    конгресс к этому моменту уже сохранён. Процесс кончился неудачей, не
+    оставив ни манифеста, ни error.json (убит по RLIMIT_CPU, памяти, нашим
+    тайм-аутом) — error.json пишем сами, иначе админ вечно видит «Готовятся…».
     """
     try:
         process = await asyncio.create_subprocess_exec(
             sys.executable, "-m", "scripts.render_pdf_pages", str(pdf_path),
-            "--uploads-dir", str(pdf_path.parent),
+            "--uploads-dir", str(Path(UPLOAD_DIR).resolve()),
             cwd=BACKEND_DIR,
             env={**os.environ, "PYTHONIOENCODING": "utf-8"},
             stdout=asyncio.subprocess.PIPE,
@@ -71,27 +72,33 @@ async def launch_pdf_render(pdf_path: Path) -> None:
             process.kill()
             await process.wait()
             logger.error("Рисование страниц %s убито через %s с", pdf_path.name, RENDER_PROCESS_TIMEOUT)
-            if pdf_path.is_file() and pdf_pages.read_manifest(pdf_path) is None:
-                pdf_pages.write_error(pdf_path, "timeout")
+            pdf_pages.mark_failed_run(pdf_path, timed_out=True)
             return
         text = (output or b"").decode("utf-8", "replace").strip()
         if process.returncode == 0:
             logger.info("Страницы PDF: %s", text)
         else:
-            logger.warning("Страницы PDF %s не нарисованы (код %s): %s", pdf_path.name, process.returncode, text)
+            written = pdf_pages.mark_failed_run(pdf_path, returncode=process.returncode)
+            logger.warning(
+                "Страницы PDF %s не нарисованы (код %s%s): %s", pdf_path.name, process.returncode,
+                f", записан error.json {written}" if written else "", text,
+            )
     except Exception:
         logger.exception("Не удалось запустить рисование страниц %s", pdf_path.name)
 
 
-def _schedule_pdf_renders(background_tasks: BackgroundTasks, changed: dict) -> None:
-    """Задача на каждый новый /uploads/<name>.pdf среди изменённых полей."""
+def _schedule_pdf_renders(background_tasks: BackgroundTasks, sent: dict) -> None:
+    """Задача на каждый присланный /uploads/<name>.pdf, у которого нет
+    страниц и повтор имеет смысл (pdf_pages.needs_render). Форма админки
+    шлёт все поля: файл с готовыми страницами задачу не ставит, а сорвавшееся
+    рисование (internal/timeout) повторное «Сохранить» перезапускает."""
     uploads = Path(UPLOAD_DIR).resolve()
     scheduled = []
     for field in PDF_PAGES_FIELDS:
-        if field not in changed:
+        if field not in sent:
             continue
-        path = pdf_pages.upload_url_to_path(changed[field], uploads)
-        if path is not None and path not in scheduled:
+        path = pdf_pages.upload_url_to_path(sent[field], uploads)
+        if path is not None and path not in scheduled and pdf_pages.needs_render(path):
             scheduled.append(path)
             background_tasks.add_task(launch_pdf_render, path)
 
@@ -169,18 +176,12 @@ async def update_congress(
         raise HTTPException(status_code=404, detail="Congress not found")
 
     update_data = data.model_dump(exclude_unset=True)
-    # форма админки шлёт все поля — рисовать нужно только сменившиеся файлы
-    changed_files = {
-        field: update_data[field]
-        for field in PDF_PAGES_FIELDS
-        if field in update_data and update_data[field] != getattr(congress, field)
-    }
     for key, value in update_data.items():
         setattr(congress, key, value)
 
     await db.commit()
     await db.refresh(congress)
-    _schedule_pdf_renders(background_tasks, changed_files)
+    _schedule_pdf_renders(background_tasks, update_data)
     return congress
 
 
