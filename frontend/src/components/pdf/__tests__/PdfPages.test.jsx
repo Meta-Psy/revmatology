@@ -690,8 +690,13 @@ describe('PdfPages — сбой внутри просмотра', () => {
     });
     routes[MANIFEST_URL] = manifest(3);
     const { container } = renderViewer();
-    // манифест пришёл, просмотр попытался открыться и упал
-    await waitFor(() => expect(screen.queryByText('Загрузка документа…')).not.toBeInTheDocument());
+    // манифест пришёл, просмотр попытался открыться и упал. Ждём запасной вид, а не просто
+    // конец загрузки: до срабатывания эффекта читалка с панелью уже на экране, и «Открыть PDF»
+    // из её панели прошёл бы проверки ниже, так и не дойдя до границы ошибок
+    await waitFor(() => {
+      expect(screen.queryByText('Загрузка документа…')).not.toBeInTheDocument();
+      expect(screen.queryByRole('toolbar')).not.toBeInTheDocument();
+    });
 
     expect(screen.getByLabelText('Открыть PDF')).toHaveAttribute('href', '/uploads/doc.pdf');
     expect(screen.getByLabelText('Скачать')).toHaveAttribute('download', 'polozhenie-1-ru.pdf');
