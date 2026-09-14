@@ -189,7 +189,7 @@ const BoardMembersAdmin = () => {
         loading={loading}
         onEdit={(row) => setEditModal({ ...row })}
         onDelete={(row) => setDeleteTarget(row)}
-        emptyIcon={<Users className="w-10 h-10" />}
+        emptyIcon={Users}
         emptyTitle="Членов правления пока нет"
       />
 

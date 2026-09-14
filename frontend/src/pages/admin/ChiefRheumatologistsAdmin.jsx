@@ -194,7 +194,7 @@ const ChiefRheumatologistsAdmin = () => {
         loading={loading}
         onEdit={(row) => setEditModal({ ...row })}
         onDelete={(row) => setDeleteTarget(row)}
-        emptyIcon={<Stethoscope className="w-10 h-10" />}
+        emptyIcon={Stethoscope}
         emptyTitle="Главных ревматологов пока нет"
       />
 
