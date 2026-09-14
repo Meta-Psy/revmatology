@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
 // Админ уже вошёл: AuthProvider просто пропускает детей
@@ -35,6 +35,13 @@ const renderAppAt = async (path) => {
   const { default: App } = await import('../App');
   return render(<App />);
 };
+
+// Холодная транспиляция App и всей админки — вне тайминга тестов:
+// под нагрузкой полного прогона она одна занимает больше 15 с.
+beforeAll(async () => {
+  await import('../App');
+  await import('../pages/admin/AdminApp');
+}, 60000);
 
 beforeEach(() => {
   vi.resetModules();

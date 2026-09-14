@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import Layout from './components/layout/Layout';
@@ -19,24 +20,17 @@ import EducationEvents from './pages/EducationEvents';
 import MediaResources from './pages/MediaResources';
 import DiseaseInfo from './pages/DiseaseInfo';
 
-// Admin
-import AdminLayout from './pages/admin/AdminLayout';
-import Dashboard from './pages/admin/Dashboard';
-import NewsAdmin from './pages/admin/NewsAdmin';
+import AdminChunkBoundary from './components/AdminChunkBoundary';
 
-import UsersAdmin from './pages/admin/UsersAdmin';
-import CongressAdmin from './pages/admin/CongressAdmin';
-import BoardMembersAdmin from './pages/admin/BoardMembersAdmin';
-import PartnersAdmin from './pages/admin/PartnersAdmin';
-import CharterAdmin from './pages/admin/CharterAdmin';
-import ChiefRheumatologistsAdmin from './pages/admin/ChiefRheumatologistsAdmin';
-import DiseasesAdmin from './pages/admin/DiseasesAdmin';
-import CentersAdmin from './pages/admin/CentersAdmin';
-import CenterStaffAdmin from './pages/admin/CenterStaffAdmin';
-import EducationEventsAdmin from './pages/admin/EducationEventsAdmin';
-import MediaResourcesAdmin from './pages/admin/MediaResourcesAdmin';
-import HistoryAdmin from './pages/admin/HistoryAdmin';
-import HeroImagesAdmin from './pages/admin/HeroImagesAdmin';
+// Админка — отдельный кусок кода, грузится только на /admin/*
+const AdminApp = lazy(() => import('./pages/admin/AdminApp'));
+
+// Без components/admin: иначе кит админки вернётся в основной кусок
+const AdminLoading = () => (
+  <div className="min-h-screen flex items-center justify-center bg-slate-50 text-sm text-slate-500">
+    Загрузка…
+  </div>
+);
 
 function App() {
   return (
@@ -48,23 +42,16 @@ function App() {
           <Route path="/register" element={<Register />} />
 
           {/* Admin pages */}
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="news" element={<NewsAdmin />} />
-            <Route path="board" element={<BoardMembersAdmin />} />
-            <Route path="partners" element={<PartnersAdmin />} />
-            <Route path="charter" element={<CharterAdmin />} />
-            <Route path="chief-rheumatologists" element={<ChiefRheumatologistsAdmin />} />
-            <Route path="diseases" element={<DiseasesAdmin />} />
-            <Route path="centers" element={<CentersAdmin />} />
-            <Route path="center-staff" element={<CenterStaffAdmin />} />
-            <Route path="users" element={<UsersAdmin />} />
-            <Route path="congress" element={<CongressAdmin />} />
-            <Route path="education-events" element={<EducationEventsAdmin />} />
-            <Route path="media-resources" element={<MediaResourcesAdmin />} />
-            <Route path="history" element={<HistoryAdmin />} />
-            <Route path="hero-images" element={<HeroImagesAdmin />} />
-          </Route>
+          <Route
+            path="/admin/*"
+            element={
+              <AdminChunkBoundary>
+                <Suspense fallback={<AdminLoading />}>
+                  <AdminApp />
+                </Suspense>
+              </AdminChunkBoundary>
+            }
+          />
 
           {/* Public pages with layout */}
           <Route

@@ -1,9 +1,11 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import adminChunkGuard from './vite-plugins/adminChunkGuard.js'
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  // adminChunkGuard роняет сборку, если код админки попал во вход или вход вышел из бюджета gzip
+  plugins: [react(), tailwindcss(), adminChunkGuard()],
   server: {
     port: 5173,
     proxy: {
