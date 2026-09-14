@@ -290,6 +290,8 @@ const Congress = () => {
   const sponsors = congress.sponsors || [];
   const programDays = congress.program_days || [];
   const allSpeakers = congress.speakers || [];
+  const programFile = Lf('program_file');
+  const youngScientistsFile = Lf('young_scientists_file');
 
   const selectedDay = programDays.find(d => d.id === selectedDayId);
   const sections = selectedDay?.sections || [];
@@ -297,19 +299,35 @@ const Congress = () => {
   const sectionSpeakers = selectedSection?.speakers || [];
 
   // ==================== TAB CONTENT RENDERERS ====================
+  // PDF программы открывается в новой вкладке; нет файла — нет и кнопки
+  const renderProgramPdfLink = () => programFile && (
+    <a
+      href={programFile}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center justify-center gap-3 bg-white text-cyan-700 border-2 border-cyan-500 rounded-2xl px-5 py-4 md:px-6 shadow-sm hover:bg-cyan-50 transition-colors"
+    >
+      <svg className="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+      <span className="text-base md:text-lg whitespace-nowrap" style={{ fontFamily: 'Georgia, serif' }}>{t('congress.program.pdfButton', 'Программа (PDF)')}</span>
+    </a>
+  );
+
   const renderMainTab = () => (
     <div className="space-y-6">
-      {/* Ссылка на полную программу */}
-      <Link
-        to={`/congress/${congress.id}/program`}
-        className="group flex items-center justify-between gap-4 bg-gradient-to-r from-cyan-500 to-teal-600 text-white rounded-2xl p-5 md:p-6 shadow-lg shadow-cyan-500/20 hover:from-cyan-400 hover:to-teal-500 transition-all"
-      >
-        <span className="flex items-center gap-3">
-          <svg className="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
-          <span className="text-base md:text-lg" style={{ fontFamily: 'Georgia, serif' }}>{t('congress.program.openPage', 'Открыть программу')}</span>
-        </span>
-        <svg className="w-5 h-5 flex-shrink-0 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
-      </Link>
+      {/* Ссылка на полную программу и её PDF */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <Link
+          to={`/congress/${congress.id}/program`}
+          className="group flex-1 flex items-center justify-between gap-4 bg-gradient-to-r from-cyan-500 to-teal-600 text-white rounded-2xl p-5 md:p-6 shadow-lg shadow-cyan-500/20 hover:from-cyan-400 hover:to-teal-500 transition-all"
+        >
+          <span className="flex items-center gap-3">
+            <svg className="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+            <span className="text-base md:text-lg" style={{ fontFamily: 'Georgia, serif' }}>{t('congress.program.openPage', 'Открыть программу')}</span>
+          </span>
+          <svg className="w-5 h-5 flex-shrink-0 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+        </Link>
+        {renderProgramPdfLink()}
+      </div>
 
       {/* Description */}
       {Lf('description') && (
@@ -434,6 +452,26 @@ const Congress = () => {
     );
   };
 
+  // Положение конкурса (PDF) читается на отдельной странице; нет файла — нет и кнопки.
+  // Есть файл, но нет текста — «добавим позже» не пишем.
+  const renderYoungScientistsTab = () => (
+    <div className="space-y-6">
+      {youngScientistsFile && (
+        <Link
+          to={`/congress/${congress.id}/young-scientists`}
+          className="group flex items-center justify-between gap-4 bg-gradient-to-r from-cyan-500 to-teal-600 text-white rounded-2xl p-5 md:p-6 shadow-lg shadow-cyan-500/20 hover:from-cyan-400 hover:to-teal-500 transition-all"
+        >
+          <span className="flex items-center gap-3">
+            <svg className="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+            <span className="text-base md:text-lg" style={{ fontFamily: 'Georgia, serif' }}>{t('congress.youngScientists.regulations', 'Положение конкурса')}</span>
+          </span>
+          <svg className="w-5 h-5 flex-shrink-0 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+        </Link>
+      )}
+      {(Lf('young_scientists') || !youngScientistsFile) && renderRichTextTab('young_scientists')}
+    </div>
+  );
+
   // Карточка спикера: крупный портрет 3:4 сверху, текст под ним — как на странице правления.
   const renderSpeakerCard = (speaker) => {
     const fullName = [L(speaker, 'last_name'), L(speaker, 'first_name'), L(speaker, 'patronymic')].filter(Boolean).join(' ');
@@ -470,14 +508,20 @@ const Congress = () => {
 
   const renderProgramTab = () => (
     <div className="space-y-6">
-      <Link to={`/congress/${congress.id}/program`} className="flex items-center justify-between gap-4 bg-white rounded-2xl p-5 shadow-sm border border-stone-200/60 hover:border-cyan-200 hover:shadow-md transition-all">
-        <span className="text-stone-800" style={{ fontFamily: 'Georgia, serif' }}>{t('congress.program.openPage', 'Открыть программу')}</span>
-        <svg className="w-5 h-5 text-cyan-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
-      </Link>
+      <div className="flex flex-col sm:flex-row gap-3">
+        <Link to={`/congress/${congress.id}/program`} className="flex-1 flex items-center justify-between gap-4 bg-white rounded-2xl p-5 shadow-sm border border-stone-200/60 hover:border-cyan-200 hover:shadow-md transition-all">
+          <span className="text-stone-800" style={{ fontFamily: 'Georgia, serif' }}>{t('congress.program.openPage', 'Открыть программу')}</span>
+          <svg className="w-5 h-5 text-cyan-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+        </Link>
+        {renderProgramPdfLink()}
+      </div>
       {programDays.length === 0 ? (
-        <div className="bg-white rounded-2xl p-12 shadow-sm border border-stone-200/60 text-center">
-          <p className="text-stone-400" style={{ fontFamily: 'Georgia, serif' }}>{t('congress.noContent', 'Информация будет добавлена позже')}</p>
-        </div>
+        // Есть PDF — программа уже опубликована, «добавим позже» не пишем
+        !programFile && (
+          <div className="bg-white rounded-2xl p-12 shadow-sm border border-stone-200/60 text-center">
+            <p className="text-stone-400" style={{ fontFamily: 'Georgia, serif' }}>{t('congress.noContent', 'Информация будет добавлена позже')}</p>
+          </div>
+        )
       ) : (
         <>
           {/* Day buttons */}
@@ -553,7 +597,7 @@ const Congress = () => {
       case 'organizers': return renderRichTextTab('organizers');
       case 'program': return renderProgramTab();
       case 'speakers': return renderSpeakersTab();
-      case 'youngScientists': return renderRichTextTab('young_scientists');
+      case 'youngScientists': return renderYoungScientistsTab();
       default: return renderMainTab();
     }
   };

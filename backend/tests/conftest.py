@@ -21,6 +21,7 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key")
 # main.py создаёт папку uploads относительно cwd — фиксируем cwd на backend/
 os.chdir(BACKEND_DIR)
 
+import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine  # noqa: E402
@@ -31,6 +32,21 @@ from database.connection import Base  # noqa: E402
 from database.models import Congress, CongressProgramDay, CongressProgramSection, User, UserRole  # noqa: E402
 from functions.auth import get_current_admin, get_current_admin_user  # noqa: E402
 from main import app  # noqa: E402
+from api import congress as congress_api  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def pdf_renders(monkeypatch):
+    """Сохранение конгресса с /uploads/*.pdf ставит фоновое рисование страниц
+    (К-08) — в тестах вместо процесса только запоминаем путь. Тесты самого
+    запускателя берут настоящую функцию по прямой ссылке."""
+    launched = []
+
+    async def _record(pdf_path):
+        launched.append(pdf_path)
+
+    monkeypatch.setattr(congress_api, "launch_pdf_render", _record)
+    return launched
 
 
 @pytest_asyncio.fixture

@@ -215,10 +215,18 @@
       "backToCongress": "Вернуться к конгрессу",
       "outsideSections": "Доклады вне секций",
       "downloadInfoLetter": "Информационное письмо (файл)",
-      "notFound": "Конгресс не найден"
+      "notFound": "Конгресс не найден",
+      "pdfTitle": "Программа конгресса (PDF)",
+      "pdfButton": "Программа (PDF)"
     },
     "speakers": {
       "empty": "Список спикеров будет опубликован позже"
+    },
+    "youngScientists": {
+      "pageTitle": "Конкурс молодых учёных",
+      "regulations": "Положение конкурса",
+      "regulationsPdf": "Положение конкурса (PDF)",
+      "empty": "Информация будет опубликована позже"
     },
     "registrationForm": {
       "title": "Регистрация на конгресс",
@@ -370,6 +378,28 @@
     "downloadPdf": "Скачать PDF",
     "notUploaded": "Документ не загружен",
     "availableDocs": "Доступные документы"
+  },
+  "pdfViewer": {
+    "toolbar": "Просмотр документа",
+    "loading": "Загрузка документа…",
+    "preparing": "Документ готовится к просмотру",
+    "preparingHint": "Пока его можно открыть или скачать целиком.",
+    "retry": "Повторить",
+    "open": "Открыть PDF",
+    "download": "Скачать",
+    "outline": "Содержание",
+    "outlineNav": "Содержание документа",
+    "closeOutline": "Закрыть содержание",
+    "prevPage": "Предыдущая страница",
+    "nextPage": "Следующая страница",
+    "pageNumber": "Номер страницы",
+    "zoomOut": "Уменьшить",
+    "zoomIn": "Увеличить",
+    "single": "По одной",
+    "fullscreen": "Полный экран",
+    "exitFullscreen": "Выйти из полноэкранного режима",
+    "pageAlt": "{{title}} — страница {{n}}",
+    "truncated": "Показаны первые {{rendered}} страниц из {{total}} — полный документ:"
   },
   "common": {
     "loading": "Загрузка...",

@@ -5,7 +5,7 @@ import { contentAPI, getImageUrl } from '../services/api';
 
 const NewsDetail = () => {
   const { id } = useParams();
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const lang = i18n.language || 'ru';
 
   const [news, setNews] = useState(null);

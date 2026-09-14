@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 from typing import List, Optional
+import logging
 import os
 import uuid
 from datetime import datetime
@@ -26,12 +27,59 @@ from schemas import (
 )
 from schemas.rheumatology import SchoolApplicationCreate, SchoolApplicationResponse
 from functions.auth import get_current_admin
+from fastapi.concurrency import run_in_threadpool
+from image_processing import ImageTooLargeError, InvalidImageError, compress_for_upload, probe_size
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # Путь для загрузки файлов
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+
+# Белый список собран по фактическому использованию в админке (accept у FileUpload):
+# фото — image/* (+ .heic/.heif), документы — .pdf (устав), .pdf/.doc/.docx
+# (документы болезней, медиаресурсы). SVG не пускаем: он может исполнять скрипты.
+# jfif/jpe/avif/bmp/tif/tiff тоже приходят через image/* — пережимаются в JPEG/PNG.
+COMPRESSED_IMAGE_EXTENSIONS = {
+    ".jpg", ".jpeg", ".jfif", ".jpe", ".png", ".webp", ".heic", ".heif",
+    ".avif", ".bmp", ".tif", ".tiff",
+}
+AS_IS_IMAGE_EXTENSIONS = {".gif"}  # анимация — сохраняем как есть
+DOCUMENT_EXTENSIONS = {".pdf", ".doc", ".docx"}
+ALLOWED_UPLOAD_EXTENSIONS = COMPRESSED_IMAGE_EXTENSIONS | AS_IS_IMAGE_EXTENSIONS | DOCUMENT_EXTENSIONS
+MAX_UPLOAD_SIZE = 20 * 1024 * 1024  # как client_max_body_size 20M в nginx
+_UPLOAD_CHUNK = 1024 * 1024
+
+
+async def _read_limited(file: UploadFile) -> bytes:
+    """Читает загрузку кусками и обрывает на превышении лимита."""
+    chunks, total = [], 0
+    while chunk := await file.read(_UPLOAD_CHUNK):
+        total += len(chunk)
+        if total > MAX_UPLOAD_SIZE:
+            raise HTTPException(status_code=413, detail="Файл больше 20 МБ")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+def _store_upload(data: bytes, ext: str) -> dict:
+    """Сжимает изображение (если нужно) и пишет файл. Синхронная — вызывать
+    через run_in_threadpool."""
+    extra = {}
+    if ext in COMPRESSED_IMAGE_EXTENSIONS:
+        image = compress_for_upload(data)
+        data, ext = image.data, image.ext
+        extra = {"width": image.width, "height": image.height}
+    elif ext in AS_IS_IMAGE_EXTENSIONS:
+        width, height = probe_size(data)
+        extra = {"width": width, "height": height}
+
+    filename = f"{uuid.uuid4()}{ext}"
+    with open(os.path.join(UPLOAD_DIR, filename), "wb") as f:
+        f.write(data)
+    return {"url": f"/uploads/{filename}", "filename": filename, **extra}
 
 
 # ==================== ЗАГРУЗКА ФАЙЛОВ ====================
@@ -40,17 +88,29 @@ async def upload_file(
     file: UploadFile = File(...),
     admin = Depends(get_current_admin)
 ):
-    """Загрузка файла (изображения или документа)"""
-    # Генерируем уникальное имя файла
-    ext = os.path.splitext(file.filename)[1]
-    filename = f"{uuid.uuid4()}{ext}"
-    filepath = os.path.join(UPLOAD_DIR, filename)
+    """Загрузка файла (изображения или документа).
 
-    with open(filepath, "wb") as f:
-        content = await file.read()
-        f.write(content)
+    Изображения уменьшаются до 1600 px по длинной стороне и пережимаются
+    (HEIC → JPEG), EXIF удаляется; GIF, анимированный WEBP и документы
+    сохраняются байт-в-байт.
+    """
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in ALLOWED_UPLOAD_EXTENSIONS:
+        allowed = ", ".join(sorted(ALLOWED_UPLOAD_EXTENSIONS))
+        raise HTTPException(
+            status_code=400,
+            detail=f"Недопустимый тип файла «{ext or 'без расширения'}». Разрешены: {allowed}",
+        )
 
-    return {"url": f"/uploads/{filename}", "filename": filename}
+    data = await _read_limited(file)
+    try:
+        return await run_in_threadpool(_store_upload, data, ext)
+    except ImageTooLargeError as exc:
+        logger.warning("Загрузка отклонена, %s: %s", file.filename, exc)
+        raise HTTPException(status_code=400, detail=str(exc))
+    except InvalidImageError as exc:
+        logger.warning("Загрузка отклонена, %s: %s", file.filename, exc)
+        raise HTTPException(status_code=400, detail="Файл повреждён или не является изображением")
 
 
 # ==================== ЧЛЕНЫ ПРАВЛЕНИЯ ====================

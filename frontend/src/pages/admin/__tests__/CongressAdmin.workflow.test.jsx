@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import userEvent, { PointerEventsCheckLevel } from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { ToastProvider } from '../../../components/admin';
 import CongressAdmin from '../CongressAdmin';
@@ -99,20 +99,30 @@ const renderAdmin = () =>
     </MemoryRouter>
   );
 
-const openTab = async (user, label) => user.click(await screen.findByRole('button', { name: label }));
+// Кнопки ищем по тексту (getByText + selector: 'button'), а не getByRole.
+// В jsdom getComputedStyle после любой мутации DOM стоит десятки мс, а getByRole
+// зовёт его для каждого потомка каждой кнопки-кандидата (доступное имя + проверка
+// видимости); findByRole вдобавок повторяет запрос на каждую мутацию DOM. По
+// профилю на это уходило больше половины времени сценария — тест упирался в
+// тайм-аут (Т-06).
+const findButton = (text) => screen.findByText(text, { selector: 'button' });
+
+// Проверка pointer-events зовёт getComputedStyle для цели и всех её предков на
+// каждое действие. Здесь она ничего не проверяет: в тестах css: false, а
+// pointer-events в проекте задаётся только классами Tailwind.
+const setupUser = () => userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+
+const openTab = async (user, label) => user.click(await findButton(label));
 
 // Заполнить поле по подписи (тип date не переживает посимвольный ввод)
 const setField = (label, value) =>
   fireEvent.change(screen.getByLabelText(label), { target: { value } });
 
-const save = (user) => user.click(screen.getByRole('button', { name: 'Сохранить' }));
+const save = (user) => user.click(screen.getByText('Сохранить', { selector: 'button' }));
 
-// Кнопка «Удалить» есть и в строке таблицы, и в диалоге подтверждения;
-// диалог рендерится последним — берём последнюю.
-const confirmDelete = async (user) => {
-  const buttons = await screen.findAllByRole('button', { name: 'Удалить' });
-  await user.click(buttons[buttons.length - 1]);
-};
+// У кнопки «Удалить» в строке таблицы только иконка и title, текст «Удалить»
+// есть лишь у кнопки подтверждения в диалоге.
+const confirmDelete = async (user) => user.click(await findButton('Удалить'));
 
 const deleteRow = async (user, rowText) => {
   const row = screen.getByText(rowText).closest('tr');
@@ -131,13 +141,13 @@ beforeEach(() => {
 
 describe('CongressAdmin — сценарий администратора', () => {
   it('день → секции двух дней → спикер, привязанный к секции другого дня', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     renderAdmin();
 
     // --- (a) Два дня программы --------------------------------------------
     await openTab(user, 'Дни программы');
 
-    await user.click(await screen.findByRole('button', { name: /Добавить день/ }));
+    await user.click(await findButton(/Добавить день/));
     await user.type(await screen.findByLabelText(/^Название \(RU\)/), 'День 1');
     setField('Дата', '2026-09-25');
     await save(user);
@@ -147,7 +157,7 @@ describe('CongressAdmin — сценарий администратора', () =
       expect.objectContaining({ title_ru: 'День 1', date: '2026-09-25', congress_id: 1 })
     );
 
-    await user.click(screen.getByRole('button', { name: /Добавить день/ }));
+    await user.click(screen.getByText(/Добавить день/, { selector: 'button' }));
     await user.type(await screen.findByLabelText(/^Название \(RU\)/), 'День 2');
     setField('Дата', '2026-09-26');
     await save(user);
@@ -159,7 +169,7 @@ describe('CongressAdmin — сценарий администратора', () =
     await openTab(user, 'Секции');
     await user.selectOptions(await screen.findByLabelText('День программы'), String(day1.id));
 
-    await user.click(await screen.findByRole('button', { name: /Добавить секцию/ }));
+    await user.click(await findButton(/Добавить секцию/));
     await user.type(await screen.findByLabelText(/^Название \(RU\)/), 'Пленарное заседание');
     await save(user);
 
@@ -171,7 +181,7 @@ describe('CongressAdmin — сценарий администратора', () =
     // --- (c) Секция второго дня -------------------------------------------
     await user.selectOptions(screen.getByLabelText('День программы'), String(day2.id));
 
-    await user.click(await screen.findByRole('button', { name: /Добавить секцию/ }));
+    await user.click(await findButton(/Добавить секцию/));
     await user.type(await screen.findByLabelText(/^Название \(RU\)/), 'Постерная сессия');
     await save(user);
 
@@ -184,15 +194,17 @@ describe('CongressAdmin — сценарий администратора', () =
 
     // --- (d) Спикер, привязанный к секции ВТОРОГО дня ----------------------
     await openTab(user, 'Спикеры');
-    await user.click(await screen.findByRole('button', { name: /Добавить спикера/ }));
+    await user.click(await findButton(/Добавить спикера/));
 
     await user.type(await screen.findByLabelText(/^Фамилия \(RU\)/), 'Иванов');
     await user.type(screen.getByLabelText(/^Имя \(RU\)/), 'Пётр');
 
     const sectionSelect = screen.getByLabelText('Секция');
     // В списке — секции обоих дней, сгруппированные по дню
-    expect(within(sectionSelect).getByRole('option', { name: 'Пленарное заседание' })).toBeInTheDocument();
-    const posterOption = within(sectionSelect).getByRole('option', { name: 'Постерная сессия' });
+    // (по тексту, а не getByRole('option') — та же причина, что у findButton)
+    const option = (text) => within(sectionSelect).getByText(text, { selector: 'option' });
+    expect(option('Пленарное заседание')).toBeInTheDocument();
+    const posterOption = option('Постерная сессия');
     expect(posterOption.closest('optgroup').label).toContain('День 2');
 
     await user.selectOptions(sectionSelect, posterOption);
@@ -217,7 +229,7 @@ describe('CongressAdmin — сценарий администратора', () =
     ];
     store.sections = [{ id: 21, day_id: 11, title_ru: 'Пленарное заседание', order: 0 }];
 
-    const user = userEvent.setup();
+    const user = setupUser();
     renderAdmin();
 
     await openTab(user, 'Секции');
@@ -244,7 +256,7 @@ describe('CongressAdmin — сценарий администратора', () =
       { id: 12, congress_id: 1, title_ru: 'День 2', date: '2026-09-26', order: 1 },
     ];
 
-    const user = userEvent.setup();
+    const user = setupUser();
     renderAdmin();
 
     await openTab(user, 'Секции');
@@ -252,7 +264,7 @@ describe('CongressAdmin — сценарий администратора', () =
 
     // Любое действие с другой сущностью перезагружает данные конгресса
     await openTab(user, 'Спикеры');
-    await user.click(await screen.findByRole('button', { name: /Добавить спикера/ }));
+    await user.click(await findButton(/Добавить спикера/));
     await user.type(await screen.findByLabelText(/^Фамилия \(RU\)/), 'Петров');
     await user.type(screen.getByLabelText(/^Имя \(RU\)/), 'Сергей');
     await save(user);
@@ -262,7 +274,7 @@ describe('CongressAdmin — сценарий администратора', () =
     await openTab(user, 'Секции');
     expect(await screen.findByLabelText('День программы')).toHaveValue('12');
 
-    await user.click(await screen.findByRole('button', { name: /Добавить секцию/ }));
+    await user.click(await findButton(/Добавить секцию/));
     await user.type(await screen.findByLabelText(/^Название \(RU\)/), 'Секция второго дня');
     await save(user);
 
@@ -281,7 +293,7 @@ describe('CongressAdmin — сценарий администратора', () =
       { id: 22, day_id: 12, title_ru: 'Секция второго дня', order: 0 },
     ];
 
-    const user = userEvent.setup();
+    const user = setupUser();
     renderAdmin();
 
     await openTab(user, 'Секции');
@@ -315,7 +327,7 @@ describe('CongressAdmin — сценарий администратора', () =
     store.days = [{ id: 11, congress_id: 1, title_ru: 'День первого конгресса', date: '2026-09-25', order: 0 }];
     store.sections = [{ id: 21, day_id: 11, title_ru: 'Секция первого конгресса', order: 0 }];
 
-    const user = userEvent.setup();
+    const user = setupUser();
     renderAdmin();
 
     await openTab(user, 'Дни программы');
@@ -330,7 +342,7 @@ describe('CongressAdmin — сценарий администратора', () =
     expect(screen.queryByText('День первого конгресса')).not.toBeInTheDocument();
 
     await openTab(user, 'Спикеры');
-    await user.click(await screen.findByRole('button', { name: /Добавить спикера/ }));
+    await user.click(await findButton(/Добавить спикера/));
     expect(screen.queryByText('Секция первого конгресса')).not.toBeInTheDocument();
   }, 30000);
 
@@ -341,7 +353,7 @@ describe('CongressAdmin — сценарий администратора', () =
     ];
     contentAPI.getCongressSponsors.mockRejectedValueOnce({ response: { data: { detail: 'сервер недоступен' } } });
 
-    const user = userEvent.setup();
+    const user = setupUser();
     renderAdmin();
 
     expect(await screen.findByText(/Ошибка загрузки спонсоров: сервер недоступен/)).toBeInTheDocument();
@@ -354,6 +366,6 @@ describe('CongressAdmin — сценарий администратора', () =
     // И секции можно добавлять
     await openTab(user, 'Секции');
     await user.selectOptions(await screen.findByLabelText('День программы'), '12');
-    expect(screen.getByRole('button', { name: /Добавить секцию/ })).toBeInTheDocument();
+    expect(screen.getByText(/Добавить секцию/, { selector: 'button' })).toBeInTheDocument();
   }, 30000);
 });

@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom';
 import { contentAPI, getImageUrl } from '../services/api';
 import { makeGetField } from '../utils/getField';
 import { formatDate as fmtDate, formatDateRange as fmtDateRange } from '../utils/dates';
+import PdfPages from '../components/pdf/PdfPages';
 
 const formatTimeRange = (speaker) => {
   if (!speaker.time_start && !speaker.time_end) return '';
@@ -79,9 +80,12 @@ const CongressProgram = () => {
   const looseSpeakers = allSpeakers.filter((s) => !speakerIdsInSections.has(s.id));
 
   const programText = Lf('program');
+  const programFile = Lf('program_file');
+  // Имя для «Скачать» — по языку самого файла (при фолбэке это RU), а не UUID из /uploads
+  const programFileName = `program-${congress.id}-${congress[`program_file_${lang}`] ? lang : 'ru'}.pdf`;
   const infoLetterFile = Lf('info_letter_file');
   const hasStructuredProgram = programDays.length > 0 || looseSpeakers.length > 0;
-  const hasAnything = hasStructuredProgram || Boolean(programText) || Boolean(infoLetterFile);
+  const hasAnything = hasStructuredProgram || Boolean(programText) || Boolean(programFile) || Boolean(infoLetterFile);
 
   const renderSpeaker = (speaker) => {
     const fullName = [L(speaker, 'last_name'), L(speaker, 'first_name'), L(speaker, 'patronymic')]
@@ -162,14 +166,30 @@ const CongressProgram = () => {
         </div>
       </section>
 
-      {/* Content */}
-      <section className="relative py-8 sm:py-12 overflow-hidden">
+      {/* Content. overflow-clip, а не hidden: hidden делает секцию контейнером
+          прокрутки, и панель просмотра PDF перестаёт залипать (sticky) */}
+      <section className="relative py-8 sm:py-12 overflow-clip">
         <div className="absolute inset-0 bg-gradient-to-b from-stone-100 via-stone-50 to-white"></div>
         <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
           {!hasAnything && (
             <div className="bg-white rounded-2xl p-12 shadow-sm border border-stone-200/60 text-center">
               <p className="text-stone-400" style={{ fontFamily: 'Georgia, serif' }}>{t('congress.program.empty', 'Программа будет опубликована позже')}</p>
             </div>
+          )}
+
+          {/* PDF программы на языке страницы (без перевода — русский файл): готовые
+              страницы-картинки с сервера, «Открыть PDF» и «Скачать» — в панели просмотра */}
+          {programFile && (
+            <article className="bg-white rounded-2xl px-3 py-5 sm:p-6 md:p-8 shadow-sm border border-stone-200/60">
+              <h2 className="px-1 sm:px-0 mb-4 text-xl md:text-2xl text-stone-800 leading-snug" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
+                {t('congress.program.pdfTitle', 'Программа конгресса (PDF)')}
+              </h2>
+              <PdfPages
+                pdfUrl={programFile}
+                title={t('congress.program.pageTitle', 'Программа конгресса')}
+                downloadName={programFileName}
+              />
+            </article>
           )}
 
           {/* Дни → секции → доклады. Все дни развёрнуты, кликать не нужно. */}

@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Plus, Building2, Calendar, LayoutList, Mic, Users, Download } from 'lucide-react';
 import { contentAPI } from '../../services/api';
 import {
   PageHeader, AdminTable, AdminModal, ConfirmDialog, AdminForm,
   AdminFormField, LangTabs, FileUpload, StatusBadge, Skeleton, EmptyState, useToast,
 } from '../../components/admin';
+import PdfPagesStatus from '../../components/pdf/PdfPagesStatus';
 
 // ---------------------------------------------------------------------------
 // TABS CONFIG
@@ -35,6 +36,8 @@ const EMPTY_CONGRESS = {
   contact_participation_phone: '', contact_participation_email: '',
   info_letter_ru: '', info_letter_uz: '', info_letter_en: '',
   info_letter_file_ru: '', info_letter_file_uz: '', info_letter_file_en: '',
+  program_file_ru: '', program_file_uz: '', program_file_en: '',
+  young_scientists_file_ru: '', young_scientists_file_uz: '', young_scientists_file_en: '',
 };
 
 const EMPTY_SPONSOR = {
@@ -195,6 +198,13 @@ const registrationColumns = [
 // ---------------------------------------------------------------------------
 const errDetail = (err) => err?.response?.data?.detail || err?.message || 'неизвестная ошибка';
 
+// Предел загрузки — как client_max_body_size в nginx/nginx.conf
+const MAX_UPLOAD_MB = 20;
+const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
+
+// Ключ незавершённой загрузки: номер открытой формы + поле
+const uploadKey = (form, field) => `${form}:${field}`;
+
 // Подпись дня для группировки секций и для селектора дня
 const dayLabel = (day) =>
   `${day.title_ru || `День #${day.id}`}${day.date ? ` (${new Date(day.date).toLocaleDateString('ru-RU')})` : ''}`;
@@ -256,15 +266,17 @@ const DaySelector = ({ days, value, onChange }) => (
 // ---------------------------------------------------------------------------
 const CONGRESS_FORM_TABS = [
   { key: 'basic', label: 'Основное' },
+  { key: 'program', label: 'Программа' },
+  { key: 'competition', label: 'Конкурс' },
   { key: 'tabs', label: 'Вкладки' },
   { key: 'contacts', label: 'Контакты' },
   { key: 'infoLetter', label: 'Инфо-письмо' },
 ];
 
+// Текст конкурса молодых учёных живёт во вкладке «Конкурс», рядом с PDF положения
 const CONGRESS_TAB_FIELDS = [
   { field: 'about', label: 'О конгрессе' },
   { field: 'organizers', label: 'Организаторы' },
-  { field: 'young_scientists', label: 'Конкурс молодых ученых' },
 ];
 
 const CONTACT_BLOCKS = [
@@ -274,10 +286,55 @@ const CONTACT_BLOCKS = [
 ];
 
 // ---------------------------------------------------------------------------
+// PDF-ПОЛЕ: загрузка файла, ссылка на текущий и кнопка «Убрать файл».
+// Ранее вписанные вручную ссылки (https://...) показываются и сохраняются как есть.
+// pagesSaved (только для PDF, которые сервер рисует страницами: программа и
+// положение конкурса) включает строку состояния страниц; true — файл уже
+// сохранён в конгрессе, false — только что загружен и ждёт сохранения.
+// ---------------------------------------------------------------------------
+const PdfFileField = ({ label, value, onUpload, onRemove, uploading, pagesSaved }) => (
+  <div>
+    {/* preview={false}: крестика превью нет, onChange приходит только с файлом */}
+    <FileUpload
+      label={label}
+      value={value}
+      onChange={onUpload}
+      accept=".pdf"
+      preview={false}
+    />
+    <p className="mt-1 text-xs text-slate-400">PDF, до {MAX_UPLOAD_MB} МБ</p>
+    {uploading ? (
+      <p className="mt-2 text-xs text-blue-600">Загрузка файла…</p>
+    ) : value ? (
+      <>
+        <div className="mt-2 flex items-center gap-3 text-xs">
+          <a
+            href={value}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:text-blue-700 truncate max-w-[320px]"
+          >
+            Текущий файл: {value.split('/').pop()}
+          </a>
+          <button type="button" onClick={onRemove} className="text-red-600 hover:text-red-700 shrink-0">
+            Убрать файл
+          </button>
+        </div>
+        {pagesSaved !== undefined && <PdfPagesStatus url={value} saved={pagesSaved} />}
+      </>
+    ) : (
+      <p className="mt-2 text-xs text-slate-400">Файл не загружен</p>
+    )}
+  </div>
+);
+
+// ---------------------------------------------------------------------------
 // CONGRESS FORM MODAL CONTENT
 // ---------------------------------------------------------------------------
-const CongressFormContent = ({ form, updateField, onImageUpload }) => {
+const CongressFormContent = ({ form, savedForm, updateField, onImageUpload, onPdfUpload, isFieldUploading }) => {
   const [formTab, setFormTab] = useState('basic');
+  // Файл уже в сохранённом конгрессе — значит, сервер его рисует или нарисовал
+  const isSaved = (field) => Boolean(savedForm) && savedForm[field] === form[field];
 
   return (
     <>
@@ -378,6 +435,58 @@ const CongressFormContent = ({ form, updateField, onImageUpload }) => {
         </>
       )}
 
+      {formTab === 'program' && (
+        <>
+          <p className="text-xs text-slate-500">
+            PDF программы для каждого языка. Если для UZ или EN файла нет, на сайте откроется русский.
+          </p>
+          <LangTabs>
+            {(lang) => (
+              <PdfFileField
+                key={lang}
+                label={`PDF программы (${lang.toUpperCase()})`}
+                value={form[`program_file_${lang}`]}
+                onUpload={(file) => onPdfUpload(file, `program_file_${lang}`)}
+                onRemove={() => updateField(`program_file_${lang}`, '')}
+                uploading={isFieldUploading(`program_file_${lang}`)}
+                pagesSaved={isSaved(`program_file_${lang}`)}
+              />
+            )}
+          </LangTabs>
+        </>
+      )}
+
+      {formTab === 'competition' && (
+        <>
+          <p className="text-xs text-slate-500">
+            Текст и PDF положения конкурса молодых учёных для каждого языка. Если для UZ или EN
+            нет своего текста или файла, на сайте покажется русский.
+          </p>
+          <LangTabs>
+            {(lang) => (
+              <div key={lang} className="space-y-4">
+                <AdminFormField
+                  label={`Текст конкурса (${lang.toUpperCase()})`}
+                  name={`young_scientists_${lang}`}
+                  type="textarea"
+                  rows={6}
+                  value={form[`young_scientists_${lang}`]}
+                  onChange={(e) => updateField(`young_scientists_${lang}`, e.target.value)}
+                />
+                <PdfFileField
+                  label={`PDF положения конкурса (${lang.toUpperCase()})`}
+                  value={form[`young_scientists_file_${lang}`]}
+                  onUpload={(file) => onPdfUpload(file, `young_scientists_file_${lang}`)}
+                  onRemove={() => updateField(`young_scientists_file_${lang}`, '')}
+                  uploading={isFieldUploading(`young_scientists_file_${lang}`)}
+                  pagesSaved={isSaved(`young_scientists_file_${lang}`)}
+                />
+              </div>
+            )}
+          </LangTabs>
+        </>
+      )}
+
       {formTab === 'tabs' && (
         <>
           {CONGRESS_TAB_FIELDS.map(({ field, label }) => (
@@ -441,12 +550,13 @@ const CongressFormContent = ({ form, updateField, onImageUpload }) => {
           </LangTabs>
           <LangTabs>
             {(lang) => (
-              <AdminFormField
-                label={`PDF файл URL (${lang.toUpperCase()})`}
-                name={`info_letter_file_${lang}`}
+              <PdfFileField
+                key={lang}
+                label={`PDF файл (${lang.toUpperCase()})`}
                 value={form[`info_letter_file_${lang}`]}
-                onChange={(e) => updateField(`info_letter_file_${lang}`, e.target.value)}
-                placeholder="https://..."
+                onUpload={(file) => onPdfUpload(file, `info_letter_file_${lang}`)}
+                onRemove={() => updateField(`info_letter_file_${lang}`, '')}
+                uploading={isFieldUploading(`info_letter_file_${lang}`)}
               />
             )}
           </LangTabs>
@@ -482,6 +592,11 @@ const CongressAdmin = () => {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // Незавершённые загрузки: `${номер формы}:${поле}` → сколько файлов ещё в пути
+  const [pendingUploads, setPendingUploads] = useState({});
+  const formSeq = useRef(0);
+  const openFormRef = useRef(null);
+  useEffect(() => { openFormRef.current = editModal?._form ?? null; }, [editModal?._form]);
 
   // ---------------------------------------------------------------------------
   // DATA LOADING
@@ -584,7 +699,7 @@ const CongressAdmin = () => {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const { _tab, ...data } = editModal;
+      const { _tab, _form, ...data } = editModal;
       const api = apiMap[_tab];
       if (data.id) {
         // congress_id менять нельзя, а day_id у секции — можно (перенос на другой день)
@@ -633,24 +748,58 @@ const CongressAdmin = () => {
   // ---------------------------------------------------------------------------
   // MODAL HELPERS
   // ---------------------------------------------------------------------------
-  const openCreate = (tab, empty) => setEditModal({ _tab: tab, ...empty });
-  const openEdit = (tab, row) => setEditModal({ _tab: tab, ...row });
+  // У каждого открытия формы свой номер _form: по нему загрузка, начатая в одной
+  // форме, узнаёт, что её уже закрыли или открыли другую. В API он не уходит.
+  const openCreate = (tab, empty) => setEditModal({ _tab: tab, _form: ++formSeq.current, ...empty });
+  const openEdit = (tab, row) => setEditModal({ _tab: tab, _form: ++formSeq.current, ...row });
   const openDelete = (tab, row) => setDeleteTarget({ _tab: tab, ...row });
 
   const updateField = (field, value) => {
     setEditModal(prev => ({ ...prev, [field]: value }));
   };
 
+  const trackUpload = (key, delta) => setPendingUploads(prev => {
+    const next = { ...prev, [key]: (prev[key] || 0) + delta };
+    if (next[key] <= 0) delete next[key];
+    return next;
+  });
+
   const handleImageUpload = async (file, field = 'image_url') => {
     if (!file) { updateField(field, ''); return; }
+    const form = editModal?._form;
+    const key = uploadKey(form, field);
+    trackUpload(key, 1);
     try {
       const res = await contentAPI.uploadFile(file);
-      updateField(field, res.data.url);
+      // Пока файл грузился, форму закрыли или открыли другую — результат не её
+      if (openFormRef.current !== form) return;
+      setEditModal(prev => (prev?._form === form ? { ...prev, [field]: res.data.url } : prev));
       toast.success('Файл загружен');
     } catch (err) {
-      toast.error('Ошибка загрузки файла: ' + errDetail(err));
+      if (openFormRef.current === form) toast.error('Ошибка загрузки файла: ' + errDetail(err));
+    } finally {
+      trackUpload(key, -1);
     }
   };
+
+  // PDF программы/инфо-письма бывает тяжёлым: проверяем тип и размер до запроса,
+  // чтобы не получить от nginx непонятную 413.
+  const handlePdfUpload = (file, field) => {
+    if (!/\.pdf$/i.test(file.name)) {
+      toast.error('Нужен файл в формате PDF');
+      return;
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast.error(`Файл больше ${MAX_UPLOAD_MB} МБ — сожмите PDF`);
+      return;
+    }
+    handleImageUpload(file, field);
+  };
+
+  // Сохранение ждёт все загрузки текущей формы (их может идти несколько сразу)
+  const formHasPendingUploads = Boolean(editModal)
+    && Object.keys(pendingUploads).some((key) => key.startsWith(`${editModal._form}:`));
+  const isFieldUploading = (field) => Boolean(editModal && pendingUploads[uploadKey(editModal._form, field)]);
 
   // ---------------------------------------------------------------------------
   // TAB SWITCH
@@ -906,14 +1055,22 @@ const CongressAdmin = () => {
         size="lg"
       >
         {editModal && (
-          <AdminForm onSubmit={handleSave} loading={saving} onCancel={() => setEditModal(null)}>
+          <AdminForm
+            onSubmit={handleSave}
+            loading={saving || formHasPendingUploads}
+            loadingText={!saving && formHasPendingUploads ? 'Загрузка файла…' : undefined}
+            onCancel={() => setEditModal(null)}
+          >
 
             {/* ---------- CONGRESS FORM ---------- */}
             {editModal._tab === 'congresses' && (
               <CongressFormContent
                 form={editModal}
+                savedForm={editModal.id ? congresses.find((c) => c.id === editModal.id) : undefined}
                 updateField={updateField}
                 onImageUpload={(file) => handleImageUpload(file, 'image_url')}
+                onPdfUpload={handlePdfUpload}
+                isFieldUploading={isFieldUploading}
               />
             )}
 
