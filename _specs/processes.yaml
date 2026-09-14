@@ -145,3 +145,38 @@
     - backend/api/admin.py
     - frontend/src/pages/Schools.jsx
   tests: {}
+
+- id: P-06
+  title: Секретарь публикует положение конкурса молодых учёных, участник читает его страницами
+  status: active
+  roles: [admin, visitor]
+  layers: [api]
+  chain:
+    - key: upload_pdf
+      step: админ загружает PDF положения и получает ссылку /uploads/<uuid>.pdf
+      kind: mutation
+    - key: save_congress
+      step: админ сохраняет конгресс с young_scientists_file_ru — API ставит рисование страниц этого файла
+      kind: mutation
+    - key: render_pages
+      step: страницы нарисованы (в продукте — фоновый процесс, в прогоне — тот же скрипт синхронно)
+      kind: mutation
+    - key: public_detail_readback
+      step: посетитель без токена читает /detail и получает young_scientists_file_ru
+      kind: readback
+    - key: pages_manifest
+      step: посетитель получает manifest.json рядом с PDF и картинки страниц 800/1600
+      kind: list
+      positive_control: страниц столько же, сколько в PDF; у первой w=1600; обе картинки первой страницы отдаются
+  touches:
+    - backend/api/content.py
+    - backend/api/congress.py
+    - backend/database/models.py
+    - backend/schemas/congress.py
+    - backend/alembic/versions/004_add_congress_young_scientists_files.py
+    - backend/pdf_pages.py
+    - backend/scripts/render_pdf_pages.py
+    - frontend/src/pages/admin/CongressAdmin.jsx
+    - frontend/src/pages/Congress.jsx
+  tests:
+    api: backend/tests/workflows/test_p06_young_scientists_rules.py::test_p06

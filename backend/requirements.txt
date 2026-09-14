@@ -13,3 +13,4 @@ alembic==1.13.1
 python-dotenv==1.0.0
 Pillow==12.3.0
 pillow-heif==1.7.0
+pypdfium2==5.13.0

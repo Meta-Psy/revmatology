@@ -76,6 +76,10 @@ class CongressCreate(BlankDatesToNone):
     program_file_ru: Optional[str] = None
     program_file_uz: Optional[str] = None
     program_file_en: Optional[str] = None
+    # PDF положения конкурса молодых учёных
+    young_scientists_file_ru: Optional[str] = None
+    young_scientists_file_uz: Optional[str] = None
+    young_scientists_file_en: Optional[str] = None
 
 
 class CongressUpdate(BlankDatesToNone):
@@ -120,6 +124,9 @@ class CongressUpdate(BlankDatesToNone):
     program_file_ru: Optional[str] = None
     program_file_uz: Optional[str] = None
     program_file_en: Optional[str] = None
+    young_scientists_file_ru: Optional[str] = None
+    young_scientists_file_uz: Optional[str] = None
+    young_scientists_file_en: Optional[str] = None
 
 
 class CongressResponse(BaseModel):
@@ -166,6 +173,9 @@ class CongressResponse(BaseModel):
     program_file_ru: Optional[str] = None
     program_file_uz: Optional[str] = None
     program_file_en: Optional[str] = None
+    young_scientists_file_ru: Optional[str] = None
+    young_scientists_file_uz: Optional[str] = None
+    young_scientists_file_en: Optional[str] = None
 
     class Config:
         from_attributes = True
