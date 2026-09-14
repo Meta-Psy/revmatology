@@ -3,24 +3,37 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import Layout from './components/layout/Layout';
 import Home from './pages/Home';
-import Activities from './pages/Activities';
-import Rheumatology from './pages/Rheumatology';
-import Schools from './pages/Schools';
-import Congress from './pages/Congress';
-import CongressProgram from './pages/CongressProgram';
-import CongressYoungScientists from './pages/CongressYoungScientists';
-import News from './pages/News';
-import NewsDetail from './pages/NewsDetail';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import BoardMembers from './pages/BoardMembers';
-import LegalDocs from './pages/LegalDocs';
-import History from './pages/History';
-import EducationEvents from './pages/EducationEvents';
-import MediaResources from './pages/MediaResources';
-import DiseaseInfo from './pages/DiseaseInfo';
 
 import AdminChunkBoundary from './components/AdminChunkBoundary';
+import PageChunkBoundary, { PageLoading } from './components/PageChunkBoundary';
+
+// Главная — во входе: самая частая точка входа, ленивая добавила бы запрос на /.
+// Остальные страницы — по куску на страницу, грузятся при переходе.
+// Suspense и boundary для них — в Layout; сторож сборки (vite-plugins/adminChunkGuard.js)
+// роняет build, если страница кроме главной попала во вход.
+const Activities = lazy(() => import('./pages/Activities'));
+const Rheumatology = lazy(() => import('./pages/Rheumatology'));
+const Schools = lazy(() => import('./pages/Schools'));
+const Congress = lazy(() => import('./pages/Congress'));
+const CongressProgram = lazy(() => import('./pages/CongressProgram'));
+const CongressYoungScientists = lazy(() => import('./pages/CongressYoungScientists'));
+const News = lazy(() => import('./pages/News'));
+const NewsDetail = lazy(() => import('./pages/NewsDetail'));
+const Login = lazy(() => import('./pages/Login'));
+const Register = lazy(() => import('./pages/Register'));
+const BoardMembers = lazy(() => import('./pages/BoardMembers'));
+const LegalDocs = lazy(() => import('./pages/LegalDocs'));
+const History = lazy(() => import('./pages/History'));
+const EducationEvents = lazy(() => import('./pages/EducationEvents'));
+const MediaResources = lazy(() => import('./pages/MediaResources'));
+const DiseaseInfo = lazy(() => import('./pages/DiseaseInfo'));
+
+// Вход и регистрация — вне Layout, поэтому свои boundary и заглушка
+const AuthPage = ({ children }) => (
+  <PageChunkBoundary>
+    <Suspense fallback={<PageLoading className="min-h-screen bg-gray-50" />}>{children}</Suspense>
+  </PageChunkBoundary>
+);
 
 // Админка — отдельный кусок кода, грузится только на /admin/*
 const AdminApp = lazy(() => import('./pages/admin/AdminApp'));
@@ -38,8 +51,8 @@ function App() {
       <AuthProvider>
         <Routes>
           {/* Auth pages without layout */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+          <Route path="/login" element={<AuthPage><Login /></AuthPage>} />
+          <Route path="/register" element={<AuthPage><Register /></AuthPage>} />
 
           {/* Admin pages */}
           <Route

@@ -401,6 +401,11 @@
     "pageAlt": "{{title}} — {{n}}-sahifa",
     "truncated": "{{total}} sahifadan dastlabki {{rendered}} tasi ko'rsatilgan — to'liq hujjat:"
   },
+  "pageLoadError": {
+    "title": "Sahifa yuklanmadi",
+    "hint": "Internet aloqasini tekshiring va sahifani yangilang.",
+    "reload": "Sahifani yangilash"
+  },
   "common": {
     "loading": "Yuklanmoqda...",
     "error": "Xatolik yuz berdi",

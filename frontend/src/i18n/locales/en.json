@@ -401,6 +401,11 @@
     "pageAlt": "{{title}} — page {{n}}",
     "truncated": "Showing the first {{rendered}} of {{total}} pages — full document:"
   },
+  "pageLoadError": {
+    "title": "The page didn't load",
+    "hint": "Check your connection and refresh the page.",
+    "reload": "Refresh page"
+  },
   "common": {
     "loading": "Loading...",
     "error": "An error occurred",
