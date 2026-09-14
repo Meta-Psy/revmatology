@@ -291,6 +291,7 @@ const Congress = () => {
   const programDays = congress.program_days || [];
   const allSpeakers = congress.speakers || [];
   const programFile = Lf('program_file');
+  const youngScientistsFile = Lf('young_scientists_file');
 
   const selectedDay = programDays.find(d => d.id === selectedDayId);
   const sections = selectedDay?.sections || [];
@@ -451,6 +452,26 @@ const Congress = () => {
     );
   };
 
+  // Положение конкурса (PDF) читается на отдельной странице; нет файла — нет и кнопки.
+  // Есть файл, но нет текста — «добавим позже» не пишем.
+  const renderYoungScientistsTab = () => (
+    <div className="space-y-6">
+      {youngScientistsFile && (
+        <Link
+          to={`/congress/${congress.id}/young-scientists`}
+          className="group flex items-center justify-between gap-4 bg-gradient-to-r from-cyan-500 to-teal-600 text-white rounded-2xl p-5 md:p-6 shadow-lg shadow-cyan-500/20 hover:from-cyan-400 hover:to-teal-500 transition-all"
+        >
+          <span className="flex items-center gap-3">
+            <svg className="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+            <span className="text-base md:text-lg" style={{ fontFamily: 'Georgia, serif' }}>{t('congress.youngScientists.regulations', 'Положение конкурса')}</span>
+          </span>
+          <svg className="w-5 h-5 flex-shrink-0 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+        </Link>
+      )}
+      {(Lf('young_scientists') || !youngScientistsFile) && renderRichTextTab('young_scientists')}
+    </div>
+  );
+
   // Карточка спикера: крупный портрет 3:4 сверху, текст под ним — как на странице правления.
   const renderSpeakerCard = (speaker) => {
     const fullName = [L(speaker, 'last_name'), L(speaker, 'first_name'), L(speaker, 'patronymic')].filter(Boolean).join(' ');
@@ -576,7 +597,7 @@ const Congress = () => {
       case 'organizers': return renderRichTextTab('organizers');
       case 'program': return renderProgramTab();
       case 'speakers': return renderSpeakersTab();
-      case 'youngScientists': return renderRichTextTab('young_scientists');
+      case 'youngScientists': return renderYoungScientistsTab();
       default: return renderMainTab();
     }
   };
