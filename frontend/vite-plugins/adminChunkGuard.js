@@ -2,8 +2,9 @@ import { gzipSync } from 'node:zlib';
 
 // Бюджет gzip куска-входа (публичный JS, который качает каждый посетитель), байты.
 // Поднимать только осознанно: рост входа — это секунды на медленном канале.
-// Сейчас: 181.6 КБ после выноса админки в ленивый кусок (К-09) плюс ~10 КБ запаса.
-export const ENTRY_GZIP_BUDGET = 192 * 1024;
+// Сейчас: 135.7 КБ после выноса публичных страниц, кроме главной, в ленивые куски
+// (К-10, замер 2026-09-15) плюс ~10 КБ запаса. До К-10 было 181.6 КБ и бюджет 192.
+export const ENTRY_GZIP_BUDGET = 146 * 1024;
 
 const ADMIN_DIRS = ['/src/pages/admin/', '/src/components/admin/'];
 
@@ -14,10 +15,19 @@ const isAdminModule = (id) => {
   return ADMIN_DIRS.some((dir) => path.includes(dir));
 };
 
+// Во входе из страниц — только главная; остальные грузятся при переходе (К-10).
+// Просмотр PDF нужен двум страницам конгресса — ему место в их кусках.
+const isLazyPublicModule = (id) => {
+  const path = normalize(id);
+  if (path.includes('/src/components/pdf/')) return true;
+  return path.includes('/src/pages/') && !path.endsWith('/src/pages/Home.jsx');
+};
+
 const kb = (bytes) => (bytes / 1024).toFixed(1);
 
 // Проверяет bundle из generateBundle. Бросает Error с объяснением, если
-// в кусок-вход попал код админки или его gzip больше бюджета.
+// в кусок-вход попал код админки, публичная страница кроме главной,
+// просмотр PDF или gzip входа больше бюджета.
 export function checkBundle(bundle, { budget = ENTRY_GZIP_BUDGET } = {}) {
   for (const chunk of Object.values(bundle)) {
     if (chunk.type !== 'chunk' || !chunk.isEntry) continue;
@@ -29,6 +39,17 @@ export function checkBundle(bundle, { budget = ENTRY_GZIP_BUDGET } = {}) {
           'публичные страницы снова будут его качать. Импортируйте админку только ' +
           'через ленивый AdminApp (React.lazy в App.jsx). Модули:\n  ' +
           adminModules.join('\n  ')
+      );
+    }
+
+    const pageModules = Object.keys(chunk.modules).map(normalize).filter(isLazyPublicModule);
+    if (pageModules.length > 0) {
+      throw new Error(
+        `В кусок-вход ${chunk.fileName} попали публичные страницы или просмотр PDF — ` +
+          'каждый посетитель снова будет качать код всех страниц. Во входе из src/pages ' +
+          'остаётся только Home.jsx: остальные страницы подключайте через React.lazy в App.jsx, ' +
+          'а src/components/pdf импортируйте только из ленивых страниц. Модули:\n  ' +
+          pageModules.join('\n  ')
       );
     }
 

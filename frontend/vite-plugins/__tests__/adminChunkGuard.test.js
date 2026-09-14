@@ -63,6 +63,51 @@ describe('checkBundle — сторож куска-входа', () => {
     expect(() => checkBundle(bundle, { budget: 10_000 })).toThrow(/src\/components\/admin\/AdminTable\.jsx/);
   });
 
+  it('молчит, если во входе главная (src/pages/Home.jsx), а остальные страницы и PDF — в своих кусках', () => {
+    const bundle = bundleOf(
+      chunk('assets/index-abc.js', {
+        isEntry: true,
+        modules: [...PUBLIC_MODULES, 'C:\\Users\\dev\\frontend\\src\\components\\layout\\Layout.jsx'],
+      }),
+      chunk('assets/CongressProgram-def.js', {
+        modules: [
+          '/repo/frontend/src/pages/CongressProgram.jsx',
+          '/repo/frontend/src/components/pdf/PdfPages.jsx',
+        ],
+      }),
+    );
+
+    expect(() => checkBundle(bundle, { budget: 10_000 })).not.toThrow();
+  });
+
+  it('бросает, если во входе публичная страница кроме главной (пути Windows), и называет её', () => {
+    const bundle = bundleOf(
+      chunk('assets/index-abc.js', {
+        isEntry: true,
+        modules: [
+          'C:\\Users\\dev\\frontend\\src\\main.jsx',
+          'C:\\Users\\dev\\frontend\\src\\pages\\Home.jsx',
+          'C:\\Users\\dev\\frontend\\src\\pages\\Congress.jsx',
+        ],
+      }),
+    );
+
+    expect(() => checkBundle(bundle, { budget: 10_000 })).toThrow(/src\/pages\/Congress\.jsx/);
+    expect(() => checkBundle(bundle, { budget: 10_000 })).toThrow(/React\.lazy/);
+    expect(() => checkBundle(bundle, { budget: 10_000 })).not.toThrow(/src\/pages\/Home\.jsx/);
+  });
+
+  it('бросает, если во входе просмотр PDF из src/components/pdf (пути Linux)', () => {
+    const bundle = bundleOf(
+      chunk('assets/index-abc.js', {
+        isEntry: true,
+        modules: [...PUBLIC_MODULES, '/home/runner/work/frontend/src/components/pdf/PdfPages.jsx'],
+      }),
+    );
+
+    expect(() => checkBundle(bundle, { budget: 10_000 })).toThrow(/src\/components\/pdf\/PdfPages\.jsx/);
+  });
+
   it('бросает, если gzip куска-входа больше бюджета, и объясняет, как поднять бюджет', () => {
     // Случайный текст почти не сжимается — gzip заведомо больше 1 КБ
     let code = '';
