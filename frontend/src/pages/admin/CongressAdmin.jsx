@@ -191,6 +191,15 @@ const registrationColumns = [
 ];
 
 // ---------------------------------------------------------------------------
+// ERROR DETAIL HELPER — вытаскивает текст ошибки из ответа API
+// ---------------------------------------------------------------------------
+const errDetail = (err) => err?.response?.data?.detail || err?.message || 'неизвестная ошибка';
+
+// Подпись дня для группировки секций и для селектора дня
+const dayLabel = (day) =>
+  `${day.title_ru || `День #${day.id}`}${day.date ? ` (${new Date(day.date).toLocaleDateString('ru-RU')})` : ''}`;
+
+// ---------------------------------------------------------------------------
 // CSV EXPORT HELPER
 // ---------------------------------------------------------------------------
 const exportRegistrationsCSV = (registrations) => {
@@ -216,6 +225,31 @@ const exportRegistrationsCSV = (registrations) => {
   link.click();
   URL.revokeObjectURL(url);
 };
+
+// ---------------------------------------------------------------------------
+// SELECTORS (на уровне модуля: объявленные внутри компонента, они были бы
+// новым типом на каждый рендер, и <select> размонтировался бы при любом
+// изменении состояния — вместе с потерей фокуса и открытого списка)
+// ---------------------------------------------------------------------------
+const SELECTOR_CLASS = 'px-3 py-1.5 text-sm border border-slate-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500';
+
+const CongressSelector = ({ congresses, value, onChange }) => (
+  <div className="flex items-center gap-2 mb-4">
+    <span className="text-xs font-medium text-slate-500">Конгресс:</span>
+    <select aria-label="Конгресс" value={value || ''} onChange={onChange} className={SELECTOR_CLASS}>
+      {congresses.map(c => <option key={c.id} value={c.id}>{c.title_ru}</option>)}
+    </select>
+  </div>
+);
+
+const DaySelector = ({ days, value, onChange }) => (
+  <div className="flex items-center gap-2 mb-4">
+    <span className="text-xs font-medium text-slate-500">День:</span>
+    <select aria-label="День программы" value={value || ''} onChange={onChange} className={SELECTOR_CLASS}>
+      {days.map(d => <option key={d.id} value={d.id}>{dayLabel(d)}</option>)}
+    </select>
+  </div>
+);
 
 // ---------------------------------------------------------------------------
 // CONGRESS FORM SUB-TABS
@@ -432,7 +466,8 @@ const CongressAdmin = () => {
   const [congresses, setCongresses] = useState([]);
   const [sponsors, setSponsors] = useState([]);
   const [programDays, setProgramDays] = useState([]);
-  const [sections, setSections] = useState([]);
+  const [sections, setSections] = useState([]);       // секции выбранного дня (вкладка «Секции»)
+  const [allSections, setAllSections] = useState([]); // секции всех дней конгресса (форма спикера)
   const [speakers, setSpeakers] = useState([]);
   const [registrations, setRegistrations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -459,33 +494,41 @@ const CongressAdmin = () => {
       if (list.length > 0 && !selectedCongressId) {
         setSelectedCongressId(list[0].id);
       }
-    } catch {
-      toast.error('Ошибка загрузки конгрессов');
+    } catch (err) {
+      toast.error('Ошибка загрузки конгрессов: ' + errDetail(err));
     } finally {
       setLoading(false);
     }
   }, [selectedCongressId]);
 
+  // Каждый запрос независим: падение одного (например, спонсоров) не должно
+  // стирать дни программы и спикеров — отсюда allSettled вместо all.
   const loadCongressData = useCallback(async () => {
     if (!selectedCongressId) return;
-    try {
-      const [sp, days, spk, regs] = await Promise.all([
-        contentAPI.getCongressSponsors(selectedCongressId, true),
-        contentAPI.getCongressProgramDays(selectedCongressId),
-        contentAPI.getCongressSpeakers(selectedCongressId, null, true),
-        contentAPI.getCongressRegistrations(selectedCongressId).catch(() => ({ data: [] })),
-      ]);
-      setSponsors(sp.data || []);
-      const daysList = days.data || [];
-      setProgramDays(daysList);
-      setSpeakers(spk.data || []);
-      setRegistrations(regs.data || []);
-      if (daysList.length > 0 && !selectedDayId) {
-        setSelectedDayId(daysList[0].id);
-      }
-    } catch {
-      toast.error('Ошибка загрузки данных конгресса');
-    }
+    const [sp, days, allSec, spk, regs] = await Promise.allSettled([
+      contentAPI.getCongressSponsors(selectedCongressId, true),
+      contentAPI.getCongressProgramDays(selectedCongressId),
+      contentAPI.getCongressProgramSectionsByCongress(selectedCongressId),
+      contentAPI.getCongressSpeakers(selectedCongressId, null, true),
+      contentAPI.getCongressRegistrations(selectedCongressId),
+    ]);
+
+    const apply = (result, what, setter) => {
+      if (result.status === 'fulfilled') setter(result.value.data || []);
+      else toast.error(`Ошибка загрузки ${what}: ` + errDetail(result.reason));
+    };
+
+    apply(sp, 'спонсоров', setSponsors);
+    apply(allSec, 'секций конгресса', setAllSections);
+    apply(spk, 'спикеров', setSpeakers);
+    apply(regs, 'регистраций', setRegistrations);
+    // Выбор дня сохраняем, пока он есть в списке; исчез (удалили) — берём первый.
+    // Обновление функциональное: читать selectedDayId из замыкания нельзя, оно
+    // протухает (колбэк мемоизирован по конгрессу) и сбрасывает выбор на день 1.
+    apply(days, 'дней программы', (list) => {
+      setProgramDays(list);
+      setSelectedDayId(prev => (prev != null && list.some(d => d.id === prev)) ? prev : (list[0]?.id ?? null));
+    });
   }, [selectedCongressId]);
 
   const loadSections = useCallback(async () => {
@@ -493,13 +536,31 @@ const CongressAdmin = () => {
     try {
       const res = await contentAPI.getCongressProgramSections(selectedDayId);
       setSections(res.data || []);
-    } catch {
-      toast.error('Ошибка загрузки секций');
+    } catch (err) {
+      toast.error('Ошибка загрузки секций: ' + errDetail(err));
     }
   }, [selectedDayId]);
 
+  const loadAllSections = useCallback(async () => {
+    if (!selectedCongressId) { setAllSections([]); return; }
+    try {
+      const res = await contentAPI.getCongressProgramSectionsByCongress(selectedCongressId);
+      setAllSections(res.data || []);
+    } catch (err) {
+      toast.error('Ошибка загрузки секций конгресса: ' + errDetail(err));
+    }
+  }, [selectedCongressId]);
+
   useEffect(() => { loadCongresses(); }, []);
-  useEffect(() => { if (selectedCongressId) loadCongressData(); }, [selectedCongressId]);
+  useEffect(() => {
+    if (!selectedCongressId) return;
+    // Данные прошлого конгресса не должны оставаться на экране, даже если
+    // запрос за новыми упадёт
+    setProgramDays([]);
+    setSections([]);
+    setAllSections([]);
+    loadCongressData();
+  }, [selectedCongressId]);
   useEffect(() => { loadSections(); }, [selectedDayId]);
 
   // ---------------------------------------------------------------------------
@@ -515,7 +576,8 @@ const CongressAdmin = () => {
 
   const reloadTab = async (tab) => {
     if (tab === 'congresses') await loadCongresses();
-    else if (tab === 'sections') await loadSections();
+    // Секции нужны и во вкладке дня, и в форме спикера — обновляем оба списка
+    else if (tab === 'sections') await Promise.all([loadSections(), loadAllSections()]);
     else await loadCongressData();
   };
 
@@ -525,7 +587,9 @@ const CongressAdmin = () => {
       const { _tab, ...data } = editModal;
       const api = apiMap[_tab];
       if (data.id) {
-        const { congress_id, day_id, ...updateData } = data;
+        // congress_id менять нельзя, а day_id у секции — можно (перенос на другой день)
+        const updateData = { ...data };
+        delete updateData.congress_id;
         await api.update(data.id, updateData);
         toast.success('Запись обновлена');
       } else {
@@ -583,8 +647,8 @@ const CongressAdmin = () => {
       const res = await contentAPI.uploadFile(file);
       updateField(field, res.data.url);
       toast.success('Файл загружен');
-    } catch {
-      toast.error('Ошибка загрузки файла');
+    } catch (err) {
+      toast.error('Ошибка загрузки файла: ' + errDetail(err));
     }
   };
 
@@ -595,47 +659,6 @@ const CongressAdmin = () => {
     setActiveTab(tabKey);
     setEditModal(null);
     setDeleteTarget(null);
-  };
-
-  // ---------------------------------------------------------------------------
-  // CONGRESS SELECTOR (shown for all tabs except congresses)
-  // ---------------------------------------------------------------------------
-  const CongressSelector = () => {
-    if (activeTab === 'congresses' || congresses.length === 0) return null;
-    return (
-      <div className="flex items-center gap-2 mb-4">
-        <span className="text-xs font-medium text-slate-500">Конгресс:</span>
-        <select
-          value={selectedCongressId || ''}
-          onChange={(e) => {
-            setSelectedCongressId(parseInt(e.target.value));
-            setSelectedDayId(null);
-          }}
-          className="px-3 py-1.5 text-sm border border-slate-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-        >
-          {congresses.map(c => <option key={c.id} value={c.id}>{c.title_ru}</option>)}
-        </select>
-      </div>
-    );
-  };
-
-  // ---------------------------------------------------------------------------
-  // DAY SELECTOR (shown only for sections tab)
-  // ---------------------------------------------------------------------------
-  const DaySelector = () => {
-    if (activeTab !== 'sections' || programDays.length === 0) return null;
-    return (
-      <div className="flex items-center gap-2 mb-4">
-        <span className="text-xs font-medium text-slate-500">День:</span>
-        <select
-          value={selectedDayId || ''}
-          onChange={(e) => setSelectedDayId(parseInt(e.target.value))}
-          className="px-3 py-1.5 text-sm border border-slate-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-        >
-          {programDays.map(d => <option key={d.id} value={d.id}>{d.title_ru} {d.date ? `(${new Date(d.date).toLocaleDateString('ru-RU')})` : ''}</option>)}
-        </select>
-      </div>
-    );
   };
 
   // ---------------------------------------------------------------------------
@@ -683,8 +706,23 @@ const CongressAdmin = () => {
         ))}
       </div>
 
-      <CongressSelector />
-      <DaySelector />
+      {activeTab !== 'congresses' && congresses.length > 0 && (
+        <CongressSelector
+          congresses={congresses}
+          value={selectedCongressId}
+          onChange={(e) => {
+            setSelectedCongressId(parseInt(e.target.value));
+            setSelectedDayId(null);
+          }}
+        />
+      )}
+      {activeTab === 'sections' && programDays.length > 0 && (
+        <DaySelector
+          days={programDays}
+          value={selectedDayId}
+          onChange={(e) => setSelectedDayId(parseInt(e.target.value))}
+        />
+      )}
 
       {/* ===== Empty state when no congress selected ===== */}
       {needsCongress && (
@@ -1011,14 +1049,27 @@ const CongressAdmin = () => {
                     />
                   )}
                 </LangTabs>
-                <AdminFormField
-                  label="Порядок"
-                  name="order"
-                  type="number"
-                  value={editModal.order}
-                  onChange={(e) => updateField('order', parseInt(e.target.value) || 0)}
-                  className="w-28"
-                />
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Перенос секции на другой день доступен только при редактировании */}
+                  {editModal.id && (
+                    <AdminFormField
+                      label="День"
+                      name="day_id"
+                      type="select"
+                      value={editModal.day_id || ''}
+                      onChange={(e) => updateField('day_id', e.target.value ? parseInt(e.target.value) : null)}
+                      options={programDays.map(d => ({ value: d.id, label: dayLabel(d) }))}
+                    />
+                  )}
+                  <AdminFormField
+                    label="Порядок"
+                    name="order"
+                    type="number"
+                    value={editModal.order}
+                    onChange={(e) => updateField('order', parseInt(e.target.value) || 0)}
+                    className="w-28"
+                  />
+                </div>
               </>
             )}
 
@@ -1087,17 +1138,27 @@ const CongressAdmin = () => {
                     />
                   )}
                 </LangTabs>
-                <AdminFormField
-                  label="Секция"
-                  name="section_id"
-                  type="select"
-                  value={editModal.section_id || ''}
-                  onChange={(e) => updateField('section_id', e.target.value ? parseInt(e.target.value) : null)}
-                  options={[
-                    { value: '', label: 'Без секции' },
-                    ...sections.map(s => ({ value: s.id, label: s.title_ru })),
-                  ]}
-                />
+                {/* Секции всех дней конгресса, сгруппированные по дню */}
+                <AdminFormField label="Секция" name="section_id">
+                  <select
+                    id="section_id"
+                    name="section_id"
+                    value={editModal.section_id || ''}
+                    onChange={(e) => updateField('section_id', e.target.value ? parseInt(e.target.value) : null)}
+                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  >
+                    <option value="">— без секции —</option>
+                    {programDays.map(day => {
+                      const daySections = allSections.filter(s => s.day_id === day.id);
+                      if (daySections.length === 0) return null;
+                      return (
+                        <optgroup key={day.id} label={dayLabel(day)}>
+                          {daySections.map(s => <option key={s.id} value={s.id}>{s.title_ru}</option>)}
+                        </optgroup>
+                      );
+                    })}
+                  </select>
+                </AdminFormField>
                 <div className="grid grid-cols-3 gap-4">
                   <AdminFormField
                     label="Время начала"

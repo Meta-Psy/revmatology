@@ -1,14 +1,8 @@
 import { describe, it, expect } from 'vitest';
+import { getField, makeGetField } from '../utils/getField';
 
-// The getField pattern used across all pages
-function getField(item, field, lang) {
-  return item?.[`${field}_${lang}`] || item?.[`${field}_ru`] || '';
-}
-
-// The L() pattern used in Congress page
-function L(item, field, lang) {
-  return item?.[`${field}_${lang}`] || item?.[`${field}_ru`] || '';
-}
+// The L() pattern used in Congress page — тот же резолвер, каррированный по языку
+const L = (item, field, lang) => makeGetField(lang)(item, field);
 
 const mockNews = {
   id: 1,

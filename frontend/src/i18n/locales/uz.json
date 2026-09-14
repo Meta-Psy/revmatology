@@ -209,7 +209,13 @@
       "selectSection": "Bo'limni tanlang",
       "noSections": "Bo'limlar keyinroq qo'shiladi",
       "noSpeakers": "Ma'ruzachilar keyinroq qo'shiladi",
-      "empty": "Dastur keyinroq e'lon qilinadi"
+      "empty": "Dastur keyinroq e'lon qilinadi",
+      "openPage": "Dasturni ochish",
+      "pageTitle": "Kongress dasturi",
+      "backToCongress": "Kongressga qaytish",
+      "outsideSections": "Bo'limlardan tashqari ma'ruzalar",
+      "downloadInfoLetter": "Axborot xati (fayl)",
+      "notFound": "Kongress topilmadi"
     },
     "speakers": {
       "empty": "Ma'ruzachilar ro'yxati keyinroq e'lon qilinadi"
@@ -223,8 +229,25 @@
       "phone": "Telefon",
       "organization": "Tashkilot",
       "position": "Lavozim",
-      "submit": "Ariza yuborish"
-    }
+      "submit": "Ariza yuborish",
+      "academicDegree": "Ilmiy daraja",
+      "academicTitle": "Ilmiy unvon",
+      "institutionAddress": "Muassasa manzili",
+      "participationForm": "Ishtirok shakli",
+      "participationType": "Ishtirok (tinglovchi)",
+      "oralPresentation": "Og'zaki ma'ruza",
+      "publication": "Tezislarni nashr etish",
+      "reportTitle": "Ma'ruza / tezislar nomi",
+      "youngScientist": "Yosh olim (35 yoshgacha)",
+      "needsHotel": "Mehmonxona bron qilish kerak",
+      "notSelected": "— Tanlanmagan —",
+      "candidate": "Fan nomzodi",
+      "doctor": "Fan doktori",
+      "docent": "Dotsent",
+      "professor": "Professor"
+    },
+    "heroAccent": "Ilmiy",
+    "heroMain": "Kongresslar"
   },
   "activities": {
     "label": "Faoliyat",
@@ -360,6 +383,7 @@
     "next": "Keyingi",
     "search": "Qidirish",
     "learnMore": "Batafsil",
-    "visitWebsite": "Saytga o'tish"
+    "visitWebsite": "Saytga o'tish",
+    "close": "Yopish"
   }
 }

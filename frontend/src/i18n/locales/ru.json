@@ -209,7 +209,13 @@
       "selectSection": "Выберите секцию",
       "noSections": "Секции будут добавлены позже",
       "noSpeakers": "Спикеры будут добавлены позже",
-      "empty": "Программа будет опубликована позже"
+      "empty": "Программа будет опубликована позже",
+      "openPage": "Открыть программу",
+      "pageTitle": "Программа конгресса",
+      "backToCongress": "Вернуться к конгрессу",
+      "outsideSections": "Доклады вне секций",
+      "downloadInfoLetter": "Информационное письмо (файл)",
+      "notFound": "Конгресс не найден"
     },
     "speakers": {
       "empty": "Список спикеров будет опубликован позже"
@@ -223,8 +229,25 @@
       "phone": "Телефон",
       "organization": "Организация",
       "position": "Должность",
-      "submit": "Отправить заявку"
-    }
+      "submit": "Отправить заявку",
+      "academicDegree": "Ученая степень",
+      "academicTitle": "Ученое звание",
+      "institutionAddress": "Адрес учреждения",
+      "participationForm": "Форма участия",
+      "participationType": "Участие (слушатель)",
+      "oralPresentation": "Устный доклад",
+      "publication": "Публикация тезисов",
+      "reportTitle": "Название доклада / тезисов",
+      "youngScientist": "Молодой ученый (до 35 лет)",
+      "needsHotel": "Нужно бронирование отеля",
+      "notSelected": "— Не выбрано —",
+      "candidate": "Кандидат наук",
+      "doctor": "Доктор наук",
+      "docent": "Доцент",
+      "professor": "Профессор"
+    },
+    "heroAccent": "Научные",
+    "heroMain": "Конгрессы"
   },
   "activities": {
     "label": "Деятельность",
@@ -360,6 +383,7 @@
     "next": "Далее",
     "search": "Поиск",
     "learnMore": "Подробнее",
-    "visitWebsite": "Перейти на сайт"
+    "visitWebsite": "Перейти на сайт",
+    "close": "Закрыть"
   }
 }
