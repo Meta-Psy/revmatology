@@ -67,6 +67,9 @@ describe('CongressYoungScientists', () => {
     // перевод строки — как во вкладке конгресса
     expect(container.innerHTML).toContain('Участвуют авторы до 35 лет.<br>Тезисы — до 1 сентября.');
 
+    // Просмотр — в конечном виде (манифеста нет → «готовится»): заголовок появляется раньше,
+    // чем эффект просмотра запросит манифест, а под нагрузкой проверка успевала раньше запроса
+    expect(await screen.findByText('Документ готовится к просмотру')).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith('/uploads/ys-ru.pages/manifest.json', expect.any(Object));
     expect(screen.getByLabelText('Открыть PDF')).toHaveAttribute('href', '/uploads/ys-ru.pdf');
     expect(screen.getByLabelText('Скачать')).toHaveAttribute('download', 'polozhenie-konkursa-7-ru.pdf');
@@ -120,7 +123,10 @@ describe('CongressYoungScientists', () => {
     });
     renderPage();
 
-    expect(await screen.findByLabelText('Открыть PDF')).toBeInTheDocument();
+    // Ждём конечный вид просмотра (манифеста нет → «готовится»), а не заготовку загрузки:
+    // «Открыть PDF» есть в обоих, и найденная в заготовке кнопка отсоединяется при смене вида
+    expect(await screen.findByText('Документ готовится к просмотру')).toBeInTheDocument();
+    expect(screen.getByLabelText('Открыть PDF')).toBeInTheDocument();
     expect(screen.queryByText('Информация будет опубликована позже')).not.toBeInTheDocument();
   });
 
