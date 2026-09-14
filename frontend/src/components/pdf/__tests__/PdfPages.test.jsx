@@ -21,10 +21,14 @@ class FakeIntersectionObserver {
   disconnect() { this.elements.clear(); }
 }
 
+// Один размер на всех: область страниц читает ширину, панель — свою высоту
 let areaWidth = 600;
+let toolbarHeight = 48;
 class FakeResizeObserver {
   constructor(callback) { this.callback = callback; }
-  observe() { this.callback([{ contentRect: { width: areaWidth } }]); }
+  observe() {
+    this.callback([{ contentRect: { width: areaWidth }, borderBoxSize: [{ blockSize: toolbarHeight }] }]);
+  }
   disconnect() {}
 }
 
@@ -59,10 +63,14 @@ const manifest = (count, extra = {}) => ({
 
 const MANIFEST_URL = '/uploads/doc.pages/manifest.json';
 
+// Под просмотром — остальной контент страницы (как на странице программы)
 const renderViewer = (props = {}, { lng = 'ru' } = {}) =>
   render(
     <I18nextProvider i18n={createTestI18n(lng)}>
       <PdfPages pdfUrl="/uploads/doc.pdf" title="Положение" downloadName="polozhenie-1-ru.pdf" {...props} />
+      <section data-testid="below">
+        <a href="#talks">Доклады вне секций</a>
+      </section>
     </I18nextProvider>
   );
 
@@ -70,13 +78,20 @@ const renderViewer = (props = {}, { lng = 'ru' } = {}) =>
 const pageImages = (container) => [...container.querySelectorAll('img[data-page-img]')];
 const pageBox = (container, n) => container.querySelector(`[data-page="${n}"]`);
 const pageInput = () => screen.getByLabelText('Номер страницы');
+const viewer = (container) => container.querySelector('[data-pdf-viewer]');
 const waitForPages = async (container, count) => {
   await waitFor(() => expect(pageImages(container)).toHaveLength(count));
 };
+// Страница «пересекла середину окна» — так её видит IntersectionObserver
+const scrollTo = (container, n) =>
+  act(() => observers.at(-1).callback([{ target: pageBox(container, n), isIntersecting: true }]));
+
+const originalReplaceState = window.history.replaceState;
 
 beforeEach(() => {
   observers = [];
   areaWidth = 600;
+  toolbarHeight = 48;
   routes = {};
   fetchMock.mockClear();
   vi.stubGlobal('fetch', fetchMock);
@@ -88,11 +103,14 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  window.history.replaceState = originalReplaceState;
   delete Element.prototype.scrollIntoView;
   delete window.matchMedia;
   delete document.fullscreenEnabled;
+  delete document.fullscreenElement;
   delete HTMLElement.prototype.requestFullscreen;
 });
 
@@ -192,7 +210,8 @@ describe('PdfPages — непрерывный режим', () => {
     ]));
 
     expect(pageInput()).toHaveValue('3');
-    expect(window.location.hash).toBe('#page=3');
+    // адрес — с задержкой, когда пользователь остановился на странице
+    await waitFor(() => expect(window.location.hash).toBe('#page=3'));
     expect(window.location.pathname).toBe('/congress/1/program');
     expect(window.history.length).toBe(historyLength);
   });
@@ -258,6 +277,11 @@ describe('PdfPages — кнопки «Открыть PDF» и «Скачать»
     const preload = container.querySelector('img[data-preload]');
     expect(preload).toHaveAttribute('srcset', expect.stringContaining('/uploads/doc.pages/p1-800.webp 800w'));
     expect(preload).toHaveAttribute('fetchpriority', 'high');
+    // та же ширина, что будет у просмотра (отступы секции, карточки и области страниц)
+    expect(preload).toHaveAttribute(
+      'sizes',
+      '(min-width:1024px) 860px, (min-width:640px) calc(100vw - 130px), calc(100vw - 74px)'
+    );
     expect(pageImages(container)).toHaveLength(0);
   });
 });
@@ -347,17 +371,18 @@ describe('PdfPages — постраничный режим', () => {
     expect(screen.getByLabelText('По одной')).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('клавиши ←/→ и PageUp/PageDown', async () => {
+  it('клавиши ←/→ и PageUp/PageDown внутри просмотра', async () => {
     const { container } = await openSingle();
+    const inside = screen.getByLabelText('Следующая страница'); // фокус на кнопке панели
 
-    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(fireEvent.keyDown(inside, { key: 'ArrowRight' })).toBe(false); // preventDefault
     expect(shownPage(container)).toEqual(['Положение — страница 2']);
-    fireEvent.keyDown(window, { key: 'PageDown' });
+    fireEvent.keyDown(inside, { key: 'PageDown' });
     expect(shownPage(container)).toEqual(['Положение — страница 3']);
-    fireEvent.keyDown(window, { key: 'ArrowRight' }); // дальше некуда
+    fireEvent.keyDown(inside, { key: 'ArrowRight' }); // дальше некуда
     expect(shownPage(container)).toEqual(['Положение — страница 3']);
-    fireEvent.keyDown(window, { key: 'ArrowLeft' });
-    fireEvent.keyDown(window, { key: 'PageUp' });
+    fireEvent.keyDown(inside, { key: 'ArrowLeft' });
+    fireEvent.keyDown(inside, { key: 'PageUp' });
     expect(shownPage(container)).toEqual(['Положение — страница 1']);
     expect(pageInput()).toHaveValue('1');
   });
@@ -366,6 +391,32 @@ describe('PdfPages — постраничный режим', () => {
     const { container } = await openSingle();
     fireEvent.keyDown(pageInput(), { key: 'ArrowRight' });
     expect(shownPage(container)).toEqual(['Положение — страница 1']);
+  });
+
+  it('фокус на ссылке ниже просмотра — клавиши принадлежат странице, а не PDF', async () => {
+    const { container } = await openSingle();
+    const link = screen.getByText('Доклады вне секций');
+    link.focus();
+
+    expect(fireEvent.keyDown(link, { key: 'PageDown' })).toBe(true); // не отменено: окно прокрутится само
+    fireEvent.keyDown(link, { key: 'ArrowRight' });
+    expect(shownPage(container)).toEqual(['Положение — страница 1']);
+    expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  it('фокус на body: листает, только когда просмотр виден на экране', async () => {
+    const { container } = await openSingle();
+    const rect = vi.spyOn(viewer(container), 'getBoundingClientRect');
+
+    // просмотр ушёл выше окна — клавиши не трогаем
+    rect.mockReturnValue({ top: -3000, bottom: -100, left: 0, right: 400, width: 400, height: 2900 });
+    expect(fireEvent.keyDown(document.body, { key: 'ArrowRight' })).toBe(true);
+    expect(shownPage(container)).toEqual(['Положение — страница 1']);
+
+    // просмотр на экране — листаем
+    rect.mockReturnValue({ top: 100, bottom: 900, left: 0, right: 400, width: 400, height: 800 });
+    expect(fireEvent.keyDown(document.body, { key: 'ArrowRight' })).toBe(false);
+    expect(shownPage(container)).toEqual(['Положение — страница 2']);
   });
 
   it('свайп листает при |dx| > 50, короткий и вертикальный — нет', async () => {
@@ -424,13 +475,15 @@ describe('PdfPages — постраничный режим', () => {
     expect(pageImages(container)).toHaveLength(1);
   });
 
-  it('обратно в непрерывный — прокрутка к текущей странице', async () => {
+  it('обратно в непрерывный (та же кнопка) — прокрутка к текущей странице', async () => {
     const { container } = await openSingle();
-    fireEvent.keyDown(window, { key: 'ArrowRight' });
-    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    const area = container.querySelector('[data-pdf-area]');
+    fireEvent.keyDown(area, { key: 'ArrowRight' });
+    fireEvent.keyDown(area, { key: 'ArrowRight' });
 
     Element.prototype.scrollIntoView.mockClear();
-    fireEvent.click(screen.getByLabelText('Непрерывно'));
+    fireEvent.click(screen.getByLabelText('По одной'));
+    expect(screen.getByLabelText('По одной')).toHaveAttribute('aria-pressed', 'false');
 
     expect(pageImages(container)).toHaveLength(3);
     expect(Element.prototype.scrollIntoView.mock.contexts).toContain(pageBox(container, 3));
@@ -455,6 +508,27 @@ describe('PdfPages — полный экран', () => {
     fireEvent.click(screen.getByLabelText('Полный экран'));
     expect(HTMLElement.prototype.requestFullscreen).toHaveBeenCalledTimes(1);
     expect(HTMLElement.prototype.requestFullscreen.mock.contexts[0]).toBe(container.querySelector('[data-pdf-viewer]'));
+  });
+
+  it('вход и выход из полного экрана — прокрутка к текущей странице', async () => {
+    document.fullscreenEnabled = true;
+    routes[MANIFEST_URL] = manifest(5);
+    const { container } = renderViewer();
+    await waitForPages(container, 5);
+    scrollTo(container, 4);
+
+    Element.prototype.scrollIntoView.mockClear();
+    document.fullscreenElement = viewer(container);
+    act(() => { document.dispatchEvent(new Event('fullscreenchange')); });
+    expect(screen.getByLabelText('Выйти из полноэкранного режима')).toBeInTheDocument();
+    expect(Element.prototype.scrollIntoView.mock.contexts).toEqual([pageBox(container, 4)]);
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ behavior: 'instant', block: 'start' });
+
+    Element.prototype.scrollIntoView.mockClear();
+    document.fullscreenElement = null;
+    act(() => { document.dispatchEvent(new Event('fullscreenchange')); });
+    expect(screen.getByLabelText('Полный экран')).toBeInTheDocument();
+    expect(Element.prototype.scrollIntoView.mock.contexts).toEqual([pageBox(container, 4)]);
   });
 });
 
@@ -513,6 +587,159 @@ describe('PdfPages — оглавление', () => {
     expect(Element.prototype.scrollIntoView.mock.calls.at(-1)[0]).toEqual({ behavior: 'instant', block: 'start' });
     expect(screen.queryByText('Доклад А')).not.toBeInTheDocument();
     expect(pageInput()).toHaveValue('3');
+  });
+
+  it('на телефоне: фокус в панель при открытии, Esc закрывает и возвращает фокус на кнопку', async () => {
+    mockMatchMedia(false);
+    routes[MANIFEST_URL] = manifest(3, { outline: OUTLINE });
+    const { container } = renderViewer();
+    await waitForPages(container, 3);
+
+    const toggle = screen.getByLabelText('Содержание');
+    fireEvent.click(toggle);
+    expect(document.activeElement).toBe(screen.getByLabelText('Закрыть содержание'));
+    // прокрутка списка не передаётся странице под панелью
+    expect(screen.getByLabelText('Содержание документа')).toHaveClass('overscroll-contain');
+
+    fireEvent.keyDown(document.activeElement, { key: 'Escape' });
+    expect(screen.queryByText('Доклад А')).not.toBeInTheDocument();
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(document.activeElement).toBe(toggle);
+  });
+});
+
+describe('PdfPages — адрес страницы (#page=N)', () => {
+  const HASH_DELAY = 400;
+
+  it('адрес обновляется, когда пользователь остановился на странице, а не на каждой', async () => {
+    routes[MANIFEST_URL] = manifest(5);
+    const { container } = renderViewer();
+    await waitForPages(container, 5);
+    vi.useFakeTimers();
+    const replaceState = vi.spyOn(window.history, 'replaceState');
+
+    [2, 3, 4, 5, 4].forEach((n) => scrollTo(container, n));
+    expect(replaceState).not.toHaveBeenCalled();
+
+    act(() => { vi.advanceTimersByTime(HASH_DELAY + 50); });
+    expect(replaceState).toHaveBeenCalledTimes(1);
+    expect(window.location.hash).toBe('#page=4');
+  });
+
+  it('WebKit-лимит: replaceState бросает после 100 вызовов — страница жива', async () => {
+    let calls = 0;
+    const realReplace = window.history.replaceState.bind(window.history);
+    window.history.replaceState = (...args) => {
+      calls += 1;
+      if (calls > 100) {
+        throw new DOMException('Attempt to use history.replaceState() more than 100 times per 10 seconds', 'SecurityError');
+      }
+      return realReplace(...args);
+    };
+    routes[MANIFEST_URL] = manifest(3);
+    const { container } = renderViewer();
+    await waitForPages(container, 3);
+    vi.useFakeTimers();
+
+    // 150 остановок на странице подряд — каждая пишет адрес
+    for (let i = 0; i < 150; i += 1) {
+      scrollTo(container, i % 2 === 0 ? 2 : 3);
+      act(() => { vi.advanceTimersByTime(HASH_DELAY + 50); });
+    }
+
+    // лимит превышен (после отказа хеш прежний, поэтому часть записей не нужна), исключения проглочены
+    expect(calls).toBeGreaterThan(100);
+    expect(viewer(container)).toBeInTheDocument();
+    expect(pageImages(container)).toHaveLength(3);
+    expect(screen.getByTestId('below')).toBeInTheDocument();
+  });
+
+  it('чужой хеш (#foo) не затирается', async () => {
+    window.history.replaceState(null, '', '/congress/1/program#foo');
+    routes[MANIFEST_URL] = manifest(3);
+    const { container } = renderViewer();
+    await waitForPages(container, 3);
+    vi.useFakeTimers();
+
+    scrollTo(container, 3);
+    act(() => { vi.advanceTimersByTime(HASH_DELAY + 50); });
+    expect(window.location.hash).toBe('#foo');
+  });
+
+  it('хеша не было — на первой странице #page=1 не появляется', async () => {
+    routes[MANIFEST_URL] = manifest(3);
+    const { container } = renderViewer();
+    await waitForPages(container, 3);
+    vi.useFakeTimers();
+    const replaceState = vi.spyOn(window.history, 'replaceState');
+
+    scrollTo(container, 1);
+    act(() => { vi.advanceTimersByTime(HASH_DELAY + 50); });
+    expect(replaceState).not.toHaveBeenCalled();
+    expect(window.location.hash).toBe('');
+  });
+});
+
+describe('PdfPages — сбой внутри просмотра', () => {
+  it('ошибка просмотра не роняет страницу: остаются «Открыть PDF» и «Скачать»', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.stubGlobal('IntersectionObserver', class {
+      constructor() { throw new Error('IntersectionObserver сломан'); }
+    });
+    routes[MANIFEST_URL] = manifest(3);
+    const { container } = renderViewer();
+    // манифест пришёл, просмотр попытался открыться и упал
+    await waitFor(() => expect(screen.queryByText('Загрузка документа…')).not.toBeInTheDocument());
+
+    expect(screen.getByLabelText('Открыть PDF')).toHaveAttribute('href', '/uploads/doc.pdf');
+    expect(screen.getByLabelText('Скачать')).toHaveAttribute('download', 'polozhenie-1-ru.pdf');
+    expect(pageImages(container)).toHaveLength(0);
+    expect(screen.getByTestId('below')).toBeInTheDocument();
+  });
+});
+
+describe('PdfPages — панель и прокрутка', () => {
+  it('отступ прокрутки страниц — от фактической высоты панели и её места под шапкой', async () => {
+    toolbarHeight = 92; // панель в два ряда на телефоне
+    const realComputed = window.getComputedStyle;
+    vi.spyOn(window, 'getComputedStyle').mockImplementation((el, ...rest) => {
+      const style = realComputed(el, ...rest);
+      return el.getAttribute?.('role') === 'toolbar' ? { ...style, top: '64px' } : style;
+    });
+    routes[MANIFEST_URL] = manifest(2);
+    const { container } = renderViewer();
+    await waitForPages(container, 2);
+
+    // шапка сайта 64 + панель 92 + зазор 8
+    expect(pageBox(container, 1).style.scrollMarginTop).toBe('164px');
+    expect(pageBox(container, 2).style.scrollMarginTop).toBe('164px');
+  });
+
+  it('режим просмотра — одна кнопка-переключатель', async () => {
+    routes[MANIFEST_URL] = manifest(2);
+    const { container } = renderViewer();
+    await waitForPages(container, 2);
+
+    const toggle = screen.getByLabelText('По одной');
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.queryByLabelText('Непрерывно')).not.toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    expect(pageImages(container)).toHaveLength(1);
+  });
+});
+
+describe('PdfPages — srcSet по размерам из манифеста', () => {
+  it('у очень высокой страницы ширина меньше 1600 — дескрипторы по фактической ширине', async () => {
+    routes[MANIFEST_URL] = manifest(1, { pages: [{ n: 1, w: 1000, h: 16000 }] });
+    const { container } = renderViewer();
+    await waitForPages(container, 1);
+
+    expect(pageImages(container)[0]).toHaveAttribute(
+      'srcset',
+      '/uploads/doc.pages/p1-800.webp 500w, /uploads/doc.pages/p1-1600.webp 1000w'
+    );
+    expect(pageImages(container)[0]).toHaveAttribute('width', '1000');
   });
 });
 
