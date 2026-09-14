@@ -8,6 +8,7 @@ import os
 import stat
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -171,7 +172,7 @@ def test_zero_page_pdf_is_empty(uploads):
     assert [n for n in _listing(uploads) if not n.endswith(".lock")] == ["bad.pages.error.json", "bad.pdf"]
 
 
-def test_timeout_writes_error_and_no_pages(uploads):
+def test_timeout_before_first_page_writes_error_and_no_pages(uploads):
     pdf = samples.write_pdf(uploads / "slow.pdf", [samples.STRIP] * 2)
 
     with pytest.raises(PdfPagesError) as info:
@@ -180,6 +181,40 @@ def test_timeout_writes_error_and_no_pages(uploads):
     assert info.value.code == "timeout"
     assert _error(pdf)["error"] == "timeout"
     assert _listing(uploads) == ["slow.pages.error.json", "slow.pdf"]
+
+
+class _FakeClock:
+    """Часы, которые идут только когда рисуется страница: +100 с на страницу."""
+
+    def __init__(self):
+        self.now = 0.0
+
+    def __call__(self):
+        return self.now
+
+
+def test_deadline_between_pages_publishes_what_is_rendered(uploads, monkeypatch):
+    clock = _FakeClock()
+    real_render_page = pdf_pages._render_page
+
+    def slow_page(page, directory, n):
+        clock.now += 100
+        return real_render_page(page, directory, n)
+
+    monkeypatch.setattr(pdf_pages, "_clock", clock)
+    monkeypatch.setattr(pdf_pages, "_render_page", slow_page)
+    pdf = samples.copy_fixture("outline.pdf", uploads)  # 5 страниц с закладками
+
+    manifest = render(pdf, uploads, timeout=150)  # успевают страницы 1 и 2
+
+    assert (manifest["page_count"], manifest["rendered"], manifest["truncated"]) == (5, 2, True)
+    assert [p["n"] for p in manifest["pages"]] == [1, 2]
+    assert pdf_pages.read_manifest(pdf) == manifest
+    assert manifest["outline"] == [
+        {"title": "Введение", "page": 1, "level": 0, "children": []},
+        {"title": "Секция 1", "page": 2, "level": 0, "children": []},
+    ]
+    assert not (uploads / "outline.pages.error.json").exists()
 
 
 def test_failure_midway_leaves_no_partial_directory(uploads, monkeypatch):
@@ -297,6 +332,11 @@ def test_files_are_readable_by_nginx(uploads):
         ("/uploads/../secret.pdf", None),
         ("/uploads/sub/abc.pdf", None),
         ("/uploads/.pdf", None),
+        ("/uploads/a b.pdf", None),
+        ("/uploads/положение.pdf", None),
+        ("/uploads/abc.pdf\n", None),
+        ("/uploads/ab\nc.pdf", None),
+        ("/uploads/a%20b.pdf", None),
         ("/static/abc.pdf", None),
         ("", None),
         (None, None),
@@ -305,3 +345,105 @@ def test_files_are_readable_by_nginx(uploads):
 def test_upload_url_to_path(uploads, url, expected):
     result = pdf_pages.upload_url_to_path(url, uploads)
     assert result == (uploads / expected if expected else None)
+
+
+@pytest.mark.parametrize("name", ["a b.pdf", "положение.pdf", "a%20b.pdf"])
+def test_unsafe_file_names_are_not_rendered(uploads, name):
+    """Как isOwnPdf на фронте: только [A-Za-z0-9._-] — иначе фронт такой PDF страницами не покажет."""
+    pdf = samples.write_pdf(uploads / name, [samples.STRIP])
+
+    with pytest.raises(ValueError):
+        render(pdf, uploads)
+
+    assert _listing(uploads) == [name]
+
+
+# ---------- состояние файла для родителей: перезапуск и сбой процесса ----------
+
+def _error_json(uploads, name, code):
+    (uploads / f"{name}.pages.error.json").write_text(
+        json.dumps({"version": 1, "source": f"{name}.pdf", "error": code, "message": "x"}), encoding="utf-8"
+    )
+
+
+@pytest.mark.parametrize(
+    ("state", "expected"),
+    [
+        ("nothing", True),
+        ("manifest", False),
+        ("internal", True),
+        ("timeout", True),
+        ("encrypted", False),
+        ("corrupt", False),
+        ("empty", False),
+        ("broken-error-json", True),
+        ("missing-pdf", False),
+    ],
+)
+def test_needs_render(uploads, state, expected):
+    pdf = samples.write_pdf(uploads / "doc.pdf", [samples.STRIP])
+    if state == "manifest":
+        render(pdf, uploads)
+    elif state == "missing-pdf":
+        pdf.unlink()
+    elif state == "broken-error-json":
+        (uploads / "doc.pages.error.json").write_text("{", encoding="utf-8")
+    elif state != "nothing":
+        _error_json(uploads, "doc", state)
+
+    assert pdf_pages.needs_render(pdf) is expected
+
+
+@pytest.mark.parametrize(
+    ("returncode", "timed_out", "expected"),
+    [
+        (-pdf_pages.SIGXCPU, False, "timeout"),  # RLIMIT_CPU: убит внутри PDFium
+        (None, True, "timeout"),  # собственный тайм-аут родителя
+        (-9, False, "internal"),
+        (-11, False, "internal"),
+        (1, False, "internal"),
+        (0, False, None),
+    ],
+)
+def test_mark_failed_run_writes_error_when_child_left_none(uploads, returncode, timed_out, expected):
+    pdf = samples.write_pdf(uploads / "doc.pdf", [samples.STRIP])
+
+    written = pdf_pages.mark_failed_run(pdf, returncode=returncode, timed_out=timed_out)
+
+    assert written == expected
+    if expected:
+        assert _error(pdf) == {
+            "version": 1, "source": "doc.pdf", "error": expected, "message": pdf_pages.ERROR_MESSAGES[expected],
+        }
+    else:
+        assert not (uploads / "doc.pages.error.json").exists()
+
+
+def test_mark_failed_run_keeps_child_result(uploads):
+    pdf = samples.write_pdf(uploads / "doc.pdf", [samples.STRIP])
+    _error_json(uploads, "doc", "encrypted")
+    done = samples.write_pdf(uploads / "done.pdf", [samples.STRIP])
+    render(done, uploads)
+
+    assert pdf_pages.mark_failed_run(pdf, returncode=1) is None
+    assert pdf_pages.mark_failed_run(done, returncode=-9) is None
+    assert pdf_pages.mark_failed_run(uploads / "lost.pdf", returncode=1) is None
+
+    assert _error(pdf)["error"] == "encrypted"
+    assert not (uploads / "done.pages.error.json").exists()
+    assert not (uploads / "lost.pages.error.json").exists()
+
+
+def test_remove_stale_tmp_dirs(uploads):
+    old, fresh = uploads / ".a.pages.tmp-old", uploads / ".b.pages.tmp-new"
+    for directory in (old, fresh):
+        directory.mkdir()
+        (directory / "p1-800.webp").write_bytes(b"x")
+    two_hours_ago = time.time() - 2 * 3600
+    os.utime(old, (two_hours_ago, two_hours_ago))
+    (uploads / ".hidden").mkdir()  # не наш каталог
+    os.utime(uploads / ".hidden", (two_hours_ago, two_hours_ago))
+
+    assert pdf_pages.remove_stale_tmp_dirs(uploads, older_than=3600) == 1
+
+    assert _listing(uploads) == [".b.pages.tmp-new", ".hidden"]

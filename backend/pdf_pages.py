@@ -19,6 +19,7 @@ import logging
 import os
 import re
 import shutil
+import signal
 import tempfile
 import time
 from pathlib import Path
@@ -34,8 +35,19 @@ WIDTHS = (800, 1600)  # по возрастанию; размеры страни
 # WebP не бывает больше 16383 px по стороне: очень длинную страницу сужаем
 MAX_SIDE = 16000
 WEBP_QUALITY = 75
-WEBP_METHOD = 4
-RENDER_TIMEOUT = 180  # секунд на файл
+WEBP_METHOD = 2  # в 2,1 раза быстрее method 4 при +2,6 % объёма (замер К-08) — важно на 1 vCPU
+# Секунд рисования на файл, считая с получения замка. Между страницами —
+# мягкий дедлайн (публикуется нарисованное), внутри страницы — RLIMIT_CPU
+# процесса рисования (scripts/render_pdf_pages.py).
+RENDER_TIMEOUT = 180
+# Тайм-аут родителя (API, --backfill) — последняя страховка: процесс может
+# долго стоять в очереди на замке, а время рисования ограничивает себе сам.
+PROCESS_TIMEOUT = 45 * 60
+# Каталоги .<name>.pages.tmp-* старше этого — остатки убитых процессов
+STALE_TMP_AGE = 3600
+# Ошибки, которые повторное рисование не исправит
+FINAL_ERRORS = {"encrypted", "corrupt", "empty"}
+SIGXCPU = getattr(signal, "SIGXCPU", 24)  # на Windows сигнала нет; 24 — значение Linux
 
 ERROR_MESSAGES = {
     "encrypted": "Файл защищён паролем",
@@ -45,7 +57,13 @@ ERROR_MESSAGES = {
     "internal": "Внутренняя ошибка при подготовке страниц",
 }
 
-_UPLOAD_URL = re.compile(r"^/uploads/([^/\\]+)\.pdf$")
+# Имя — как isOwnPdf на фронте (/^\/uploads\/[A-Za-z0-9._-]+\.pdf$/): что фронт
+# не покажет страницами, то и рисовать незачем. \Z, а не $: $ пропускает
+# завершающий перевод строки.
+_NAME = r"[A-Za-z0-9._-]+"
+_UPLOAD_URL = re.compile(rf"^/uploads/({_NAME})\.pdf\Z")
+_PDF_NAME = re.compile(rf"{_NAME}\.pdf\Z")
+_clock = time.monotonic  # подменяется в тестах
 
 
 class PdfPagesError(Exception):
@@ -84,8 +102,8 @@ def resolve_upload(pdf_path, uploads_dir) -> Path:
     pdf = Path(pdf_path).resolve()  # resolve раскрывает и «..», и символические ссылки
     if pdf.parent != uploads:
         raise ValueError(f"файл вне каталога загрузок {uploads}: {pdf}")
-    if pdf.suffix != ".pdf" or pdf.stem in ("", "."):
-        raise ValueError(f"не PDF: {pdf.name}")
+    if not _PDF_NAME.match(pdf.name) or pdf.stem in ("", ".", ".."):
+        raise ValueError(f"не PDF или недопустимое имя: {pdf.name!r}")
     if not pdf.is_file():
         raise FileNotFoundError(f"файл не найден: {pdf}")
     return pdf
@@ -112,15 +130,18 @@ def read_manifest(pdf: Path) -> Optional[dict]:
     return manifest if ok else None
 
 
-def render(pdf_path, uploads_dir, *, timeout: float = RENDER_TIMEOUT) -> dict:
+def render(pdf_path, uploads_dir, *, timeout: Optional[float] = None) -> dict:
     """Нарисовать страницы PDF и вернуть манифест.
 
     Уже есть готовый манифест — ничего не делает (имена загрузок — UUID, файл
     не меняется). Пишет во временный каталог рядом и переименовывает его
-    целиком, так что каталог страниц появляется сразу с манифестом. Ошибка
+    целиком, так что каталог страниц появляется сразу с манифестом. Время
+    вышло между страницами — публикуется нарисованное (truncated). Ошибка
     документа → <name>.pages.error.json и PdfPagesError; частичного каталога
     не остаётся.
     """
+    if timeout is None:
+        timeout = RENDER_TIMEOUT
     pdf = resolve_upload(pdf_path, uploads_dir)
     manifest = read_manifest(pdf)
     if manifest is not None:
@@ -132,7 +153,7 @@ def render(pdf_path, uploads_dir, *, timeout: float = RENDER_TIMEOUT) -> dict:
     try:
         os.chmod(tmp, 0o755)  # mkdtemp даёт 0700 — nginx (другой пользователь) не прочитал бы
         try:
-            manifest = _render_into(pdf, tmp, time.monotonic() + timeout)
+            manifest = _render_into(pdf, tmp, _clock() + timeout)
         except PdfPagesError:
             raise
         except Exception as exc:
@@ -152,11 +173,55 @@ def render(pdf_path, uploads_dir, *, timeout: float = RENDER_TIMEOUT) -> dict:
 
 
 def write_error(pdf: Path, code: str) -> None:
-    """error.json для сбоя, который случился снаружи render() — например,
-    процесс рисования убит по тайм-ауту."""
     _write_json(error_path(pdf), {
         "version": MANIFEST_VERSION, "source": pdf.name, "error": code, "message": ERROR_MESSAGES[code],
     })
+
+
+def _error_code(pdf: Path) -> Optional[str]:
+    try:
+        return json.loads(error_path(pdf).read_text(encoding="utf-8")).get("error")
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
+def needs_render(pdf: Path) -> bool:
+    """Стоит ли запускать рисование: файл есть, страниц нет, и прошлая
+    неудача (если была) не окончательная — internal/timeout или непонятный
+    error.json. Защищённый паролем, битый или пустой PDF заново не рисуем."""
+    if not pdf.is_file() or read_manifest(pdf) is not None:
+        return False
+    return _error_code(pdf) not in FINAL_ERRORS
+
+
+def mark_failed_run(pdf: Path, *, returncode: Optional[int] = None, timed_out: bool = False) -> Optional[str]:
+    """Для родителя процесса рисования (API, --backfill): процесс кончился
+    неудачей и не оставил ни манифеста, ни error.json (убит сигналом, по
+    памяти, собственным тайм-аутом родителя) — пишем error.json сами, иначе
+    админ вечно видит «Готовятся…». Возвращает записанный код или None."""
+    if not timed_out and returncode == 0:
+        return None
+    if not pdf.is_file() or read_manifest(pdf) is not None or error_path(pdf).exists():
+        return None
+    code = "timeout" if timed_out or returncode == -SIGXCPU else "internal"
+    write_error(pdf, code)
+    return code
+
+
+def remove_stale_tmp_dirs(uploads_dir: Path, *, older_than: float = STALE_TMP_AGE) -> int:
+    """Удаляет .<name>.pages.tmp-* старше older_than секунд — остатки
+    процессов, убитых посреди рисования. Свежие не трогает: их, возможно,
+    прямо сейчас пишет живой процесс."""
+    removed = 0
+    border = time.time() - older_than
+    for leftover in Path(uploads_dir).glob(".*.pages.tmp-*"):
+        try:
+            if leftover.is_dir() and leftover.stat().st_mtime < border:
+                shutil.rmtree(leftover)
+                removed += 1
+        except OSError:
+            logger.warning("Не удалось удалить %s", leftover, exc_info=True)
+    return removed
 
 
 def _remove_leftovers(pdf: Path) -> None:
@@ -183,17 +248,21 @@ def _render_into(pdf: Path, directory: Path, deadline: float) -> dict:
         if page_count == 0:
             raise PdfPagesError("empty")
         doc.init_forms()  # иначе заполненные поля форм не рисуются
-        rendered = min(page_count, MAX_PAGES)
         pages = []
-        for index in range(rendered):
-            if time.monotonic() >= deadline:
-                raise PdfPagesError("timeout")
+        for index in range(min(page_count, MAX_PAGES)):
+            if _clock() >= deadline:
+                if not pages:
+                    raise PdfPagesError("timeout")
+                # нарисованное не выбрасываем: фронт покажет «первые N из M»
+                logger.warning("Страницы %s: время вышло, опубликовано %d из %d", pdf.name, len(pages), page_count)
+                break
             page = doc[index]
             try:
                 width, height = _render_page(page, directory, index + 1)
             finally:
                 page.close()
             pages.append({"n": index + 1, "w": width, "h": height})
+        rendered = len(pages)
         outline = _outline(doc, rendered)
     except pdfium.PdfiumError as exc:
         raise PdfPagesError("corrupt") from exc
