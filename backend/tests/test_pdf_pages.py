@@ -6,6 +6,9 @@ PDFium нельзя дёргать из нескольких потоков — 
 import json
 import os
 import stat
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 from PIL import Image
@@ -13,6 +16,8 @@ from PIL import Image
 import pdf_pages
 from pdf_pages import PdfPagesError, render
 from tests import pdf_samples as samples
+
+BACKEND_DIR = Path(__file__).resolve().parent.parent
 
 
 @pytest.fixture
@@ -124,9 +129,8 @@ def test_owner_password_only_pdf_renders(uploads):
         (lambda d: samples.copy_fixture("encrypted.pdf", d, "bad.pdf"), "encrypted", "Файл защищён паролем"),
         (lambda d: _write(d / "bad.pdf", b"%PDF-1.4 not really a pdf"), "corrupt", None),
         (lambda d: _write(d / "bad.pdf", b""), "empty", None),
-        (lambda d: samples.write_pdf(d / "bad.pdf", []), "empty", None),
     ],
-    ids=["encrypted", "corrupt", "zero-bytes", "zero-pages"],
+    ids=["encrypted", "corrupt", "zero-bytes"],
 )
 def test_bad_pdf_writes_error_json_and_no_pages(uploads, make, code, message):
     pdf = make(uploads)
@@ -148,6 +152,23 @@ def test_bad_pdf_writes_error_json_and_no_pages(uploads, make, code, message):
 def _write(path, data):
     path.write_bytes(data)
     return path
+
+
+def test_zero_page_pdf_is_empty(uploads):
+    """PDFium не ставит код ошибки на документ без страниц, а pypdfium2 читает
+    прошлый (на Linux он живёт до конца процесса). Поэтому — свежий процесс,
+    как в продукте: каждый файл рисует отдельный `python -m scripts.render_pdf_pages`."""
+    pdf = samples.write_pdf(uploads / "bad.pdf", [])
+
+    result = subprocess.run(
+        [sys.executable, "-m", "scripts.render_pdf_pages", str(pdf), "--uploads-dir", str(uploads)],
+        cwd=BACKEND_DIR, capture_output=True, timeout=120,
+    )
+
+    assert result.returncode == 1, result.stdout
+    assert _error(pdf)["error"] == "empty"
+    # замок-файл скрипта (на Linux) — не в счёт
+    assert [n for n in _listing(uploads) if not n.endswith(".lock")] == ["bad.pages.error.json", "bad.pdf"]
 
 
 def test_timeout_writes_error_and_no_pages(uploads):

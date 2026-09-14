@@ -216,7 +216,11 @@ def _load_error_code(pdfium, err_code) -> str:
     if err_code in (raw.FPDF_ERR_PASSWORD, raw.FPDF_ERR_SECURITY):
         return "encrypted"
     if err_code == raw.FPDF_ERR_SUCCESS:
-        # так PDFium отказывается открывать синтаксически целый документ без страниц
+        # Так PDFium отказывается открывать синтаксически целый документ без
+        # страниц: код ошибки он не ставит, и pypdfium2 читает прошлый. Он
+        # чистый только в свежем процессе — поэтому каждый файл и рисуется
+        # отдельным процессом; при повторных вызовах в одном процессе (на
+        # Linux) пустой документ может прийти как corrupt.
         return "empty"
     return "corrupt"
 
