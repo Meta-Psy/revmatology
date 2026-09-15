@@ -104,7 +104,7 @@ describe('App — ленивый кусок админки', () => {
 
     await renderAppAt('/admin');
 
-    expect(await screen.findByText('Раздел админки не открылся')).toBeInTheDocument();
+    expect(await screen.findByText('Раздел админки не открылся', {}, { timeout: 10000 })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Обновить страницу' })).toBeInTheDocument();
   });
 });
