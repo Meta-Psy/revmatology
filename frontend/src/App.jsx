@@ -28,6 +28,15 @@ const EducationEvents = lazy(() => import('./pages/EducationEvents'));
 const MediaResources = lazy(() => import('./pages/MediaResources'));
 const DiseaseInfo = lazy(() => import('./pages/DiseaseInfo'));
 
+// <Navigate> рисует пустоту; переход на ленивую цель идёт через startTransition
+// и удерживает уже раскрытое — без заглушки main был бы пуст всю загрузку куска.
+const Redirect = ({ to }) => (
+  <>
+    <PageLoading />
+    <Navigate to={to} replace />
+  </>
+);
+
 // Вход и регистрация — вне Layout, поэтому свои boundary и заглушка
 const AuthPage = ({ children }) => (
   <PageChunkBoundary>
@@ -75,7 +84,7 @@ function App() {
                   <Route path="/" element={<Home />} />
 
                   {/* О нас */}
-                  <Route path="/about" element={<Navigate to="/about/activities" replace />} />
+                  <Route path="/about" element={<Redirect to="/about/activities" />} />
                   <Route path="/about/activities" element={<Activities />} />
                   <Route path="/about/board-members" element={<BoardMembers />} />
                   <Route path="/about/legal-docs" element={<LegalDocs />} />
@@ -105,12 +114,12 @@ function App() {
                   <Route path="/news/:id" element={<NewsDetail />} />
 
                   {/* Редиректы для обратной совместимости */}
-                  <Route path="/about/centers" element={<Navigate to="/rheumatology/centers" replace />} />
-                  <Route path="/about/chief-rheumatologists" element={<Navigate to="/rheumatology/chief-rheumatologists" replace />} />
-                  <Route path="/about/documents" element={<Navigate to="/rheumatology/diseases" replace />} />
-                  <Route path="/documents" element={<Navigate to="/rheumatology/diseases" replace />} />
-                  <Route path="/rheumatology" element={<Navigate to="/rheumatology/centers" replace />} />
-                  <Route path="/activities" element={<Navigate to="/about/activities" replace />} />
+                  <Route path="/about/centers" element={<Redirect to="/rheumatology/centers" />} />
+                  <Route path="/about/chief-rheumatologists" element={<Redirect to="/rheumatology/chief-rheumatologists" />} />
+                  <Route path="/about/documents" element={<Redirect to="/rheumatology/diseases" />} />
+                  <Route path="/documents" element={<Redirect to="/rheumatology/diseases" />} />
+                  <Route path="/rheumatology" element={<Redirect to="/rheumatology/centers" />} />
+                  <Route path="/activities" element={<Redirect to="/about/activities" />} />
                 </Routes>
               </Layout>
             }

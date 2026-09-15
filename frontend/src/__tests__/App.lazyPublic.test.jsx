@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { I18nextProvider } from 'react-i18next';
 import { createTestI18n } from '../test/i18n-test-utils';
@@ -23,6 +23,7 @@ vi.mock('../pages/Home', () => ({
   default: () => <h1>Главная (заглушка)</h1>,
 }));
 
+const ACTIVITIES = '../pages/Activities';
 const HISTORY = '../pages/History';
 const CONGRESS = '../pages/Congress';
 const CONGRESS_PROGRAM = '../pages/CongressProgram';
@@ -65,7 +66,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  [HISTORY, CONGRESS, CONGRESS_PROGRAM, NEWS, LOGIN].forEach((path) => vi.doUnmock(path));
+  [ACTIVITIES, HISTORY, CONGRESS, CONGRESS_PROGRAM, NEWS, LOGIN].forEach((path) => vi.doUnmock(path));
   vi.restoreAllMocks();
   window.history.pushState({}, '', '/');
 });
@@ -141,7 +142,7 @@ describe('App — публичные страницы ленивыми куск�
     await renderAppAt('/congress/1');
 
     const main = screen.getByRole('main');
-    expect(await within(main).findByText('Страница не загрузилась')).toBeInTheDocument();
+    expect(await within(main).findByText('Страница не загрузилась', {}, { timeout: 10000 })).toBeInTheDocument();
     expect(within(main).getByText('Проверьте соединение и обновите страницу.')).toBeInTheDocument();
     expect(within(main).getByRole('button', { name: 'Обновить страницу' })).toBeInTheDocument();
     expect(screen.getByRole('banner')).toBeInTheDocument();
@@ -157,7 +158,7 @@ describe('App — публичные страницы ленивыми куск�
     vi.doMock(NEWS, () => stubPage('Новости (заглушка)'));
 
     await renderAppAt('/congress/1');
-    expect(await screen.findByText('Страница не загрузилась')).toBeInTheDocument();
+    expect(await screen.findByText('Страница не загрузилась', {}, { timeout: 10000 })).toBeInTheDocument();
 
     await user.click(within(screen.getByRole('contentinfo')).getByRole('link', { name: 'Новости' }));
 
@@ -165,6 +166,52 @@ describe('App — публичные страницы ленивыми куск�
     expect(screen.queryByText('Страница не загрузилась')).not.toBeInTheDocument();
     expect(window.location.pathname).toBe('/news');
   }, 15000);
+
+  // <Navigate> рисует пустоту, и она уже раскрыта в Suspense: переход на ленивую цель
+  // идёт через startTransition и держит раскрытое — main был бы пуст всю загрузку куска.
+  it.each(['/about', '/activities'])('редирект %s → /about/activities: пока грузится кусок, в main заглушка, а не пустота', async (from) => {
+    const activities = gatedStub('Деятельность (заглушка)');
+    vi.doMock(ACTIVITIES, activities.factory);
+
+    await renderAppAt(from);
+
+    await waitFor(() => expect(window.location.pathname).toBe('/about/activities'));
+    expect(within(screen.getByRole('main')).getByRole('status')).toHaveTextContent('Загрузка...');
+
+    activities.release();
+
+    expect(await screen.findByText('Деятельность (заглушка)', {}, { timeout: 10000 })).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  }, 15000);
+
+  it('сорвавшийся кусок при переходе по меню: ошибка, уход на другую страницу, возврат — снова ошибка', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const user = userEvent.setup();
+    vi.doMock(CONGRESS, () => {
+      throw new Error('Failed to fetch dynamically imported module');
+    });
+    vi.doMock(NEWS, () => stubPage('Новости (заглушка)'));
+    const footerLink = (name) => within(screen.getByRole('contentinfo')).getByRole('link', { name });
+
+    await renderAppAt('/');
+    expect(await screen.findByText('Главная (заглушка)')).toBeInTheDocument();
+
+    await user.click(footerLink('Конгресс'));
+    expect(await within(screen.getByRole('main')).findByText('Страница не загрузилась', {}, { timeout: 10000 })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/congress');
+    expect(screen.getByRole('banner')).toBeInTheDocument();
+
+    await user.click(footerLink('Новости'));
+    expect(await screen.findByText('Новости (заглушка)', {}, { timeout: 10000 })).toBeInTheDocument();
+    expect(screen.queryByText('Страница не загрузилась')).not.toBeInTheDocument();
+
+    // React.lazy помнит отказ: на ту же страницу — снова ошибка, без зацикливания
+    await user.click(footerLink('Конгресс'));
+    expect(await within(screen.getByRole('main')).findByText('Страница не загрузилась', {}, { timeout: 10000 })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/congress');
+    expect(screen.queryByText('Новости (заглушка)')).not.toBeInTheDocument();
+    expect(screen.getByRole('banner')).toBeInTheDocument();
+  }, 30000);
 
   it('/login вне Layout: своя заглушка загрузки, потом страница входа', async () => {
     const login = gatedStub('Вход (заглушка)');

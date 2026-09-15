@@ -493,7 +493,7 @@ const Home = () => {
               {/* Кнопки */}
               <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                 <Link
-                  to="/about"
+                  to="/about/activities"
                   className="group inline-flex items-center justify-center gap-2 px-5 py-3 sm:py-2.5 bg-stone-800 text-white text-sm rounded-lg hover:bg-stone-700 hover:shadow-lg hover:shadow-stone-800/20 transition-all duration-300"
                 >
                   <span>{t('common.learnMore', 'Подробнее')}</span>
