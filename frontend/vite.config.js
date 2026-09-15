@@ -4,7 +4,8 @@ import tailwindcss from '@tailwindcss/vite'
 import adminChunkGuard from './vite-plugins/adminChunkGuard.js'
 
 export default defineConfig({
-  // adminChunkGuard роняет сборку, если код админки попал во вход или вход вышел из бюджета gzip
+  // adminChunkGuard роняет сборку, если во вход попал код админки, публичная страница
+  // кроме главной или просмотр PDF, либо вход вышел из бюджета gzip
   plugins: [react(), tailwindcss(), adminChunkGuard()],
   server: {
     port: 5173,
