@@ -228,5 +228,11 @@
     - backend/functions/certificate_names.py
     - backend/functions/certificate_pdf.py
     - backend/assets/fonts/CormorantInfant-SemiBoldItalic.ttf
+    - frontend/src/pages/CongressCertificate.jsx
+    - frontend/src/pages/Congress.jsx
+    - frontend/src/pages/admin/congress/CertificatesTab.jsx
+    - frontend/src/pages/admin/CongressAdmin.jsx
+    - frontend/src/App.jsx
+    - frontend/src/services/api.js
   tests:
     api: backend/tests/workflows/test_p07_congress_certificates.py::test_p07
