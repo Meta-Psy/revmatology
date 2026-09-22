@@ -14,3 +14,5 @@ python-dotenv==1.0.0
 Pillow==12.3.0
 pillow-heif==1.7.0
 pypdfium2==5.13.0
+reportlab==5.0.1
+pypdf==6.19.0

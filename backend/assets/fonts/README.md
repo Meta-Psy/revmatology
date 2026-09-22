@@ -1,0 +1,1 @@
+`CormorantInfant-SemiBoldItalic.ttf` (OFL 1.1, см. `OFL.txt`) — статический экземпляр wght=600 из https://raw.githubusercontent.com/google/fonts/main/ofl/cormorantinfant/CormorantInfant-Italic%5Bwght%5D.ttf, пересборка: `fonttools varLib.instancer "CormorantInfant-Italic[wght].ttf" wght=600 --static`.
