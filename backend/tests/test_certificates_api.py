@@ -70,6 +70,9 @@ async def ready(client, congress):
 
 
 GHOST = {"id": 99999, "full_name": "Нет Такого"}  # получателя с таким id нет
+NUMBER_BOX_KEYS = ("number_box_x_mm", "number_box_y_mm", "number_box_w_mm", "number_box_h_mm")
+DEFAULT_NAME_BOX = [58, 94, 181, 15]
+DEFAULT_NUMBER_BOX = [259, 183, 22, 7]
 
 
 async def _issue(client, congress_id, recipient, phone=None, headers=None, full_name=None):
@@ -166,6 +169,7 @@ async def test_issue_with_phone_forms(client, ready, phone):
     assert "filename*=UTF-8''" + quote("Certificate_Шодиева_Ситора_Баходировна.pdf") in disposition
     text = PdfReader(io.BytesIO(response.content)).pages[0].extract_text()
     assert _squash("Шодиева Ситора Баходировна") in _squash(text)
+    assert with_phone["number"] == 1 and "001" in text
 
 
 async def test_issue_wrong_or_missing_phone_is_404(client, ready):
@@ -180,6 +184,15 @@ async def test_issue_without_phone_in_list(client, ready):
     response = await _issue(client, congress_id, without_phone)
     assert response.status_code == 200
     assert 'filename="Certificate_Karimov_Bobur.pdf"' in response.headers["content-disposition"]
+    assert "002" in PdfReader(io.BytesIO(response.content)).pages[0].extract_text()
+
+
+async def test_issue_without_number_box_prints_no_number(client, ready):
+    congress_id, _, without_phone = ready
+    await client.put(f"{BASE}/congresses/{congress_id}/certificate-settings", json={k: None for k in NUMBER_BOX_KEYS})
+    response = await _issue(client, congress_id, without_phone)
+    assert response.status_code == 200
+    assert "002" not in PdfReader(io.BytesIO(response.content)).pages[0].extract_text()
 
 
 async def test_issue_other_congress_is_404(client, ready, make_congress):
@@ -372,8 +385,12 @@ async def test_settings_defaults_without_row(client, congress):
     body = response.json()
     assert body["congress_id"] == congress.id
     assert body["has_template"] is False and body["pdf_filename"] is None
-    assert (body["font_max_pt"], body["font_min_pt"], body["text_color"], body["is_open"]) == (40, 16, "#1F2937", False)
-    assert {"box_x_mm", "box_y_mm", "box_w_mm", "box_h_mm", "updated_at"} <= set(body)
+    assert (body["font_max_pt"], body["font_min_pt"], body["text_color"], body["is_open"]) == (40, 16, "#1B3A7A", False)
+    # под бланк организаторов (A4 альбомный): линия под «of participation» и «No. ____»
+    assert [body[k] for k in ("box_x_mm", "box_y_mm", "box_w_mm", "box_h_mm")] == DEFAULT_NAME_BOX
+    assert [body[k] for k in NUMBER_BOX_KEYS] == DEFAULT_NUMBER_BOX
+    assert body["number_font_pt"] == 14
+    assert "updated_at" in body
     assert "pdf" not in body
 
 
@@ -394,6 +411,28 @@ async def test_settings_validation(client, congress):
     assert (await client.put(url, json={"text_color": "red"})).status_code == 422
     assert (await client.put(url, json={"box_w_mm": 0})).status_code == 422
     assert (await client.put(url, json={"font_min_pt": 50})).status_code == 422  # min > max (40)
+
+
+async def test_settings_number_box_can_be_cleared(client, congress):
+    url = f"{BASE}/congresses/{congress.id}/certificate-settings"
+    body = (await client.put(url, json={k: None for k in NUMBER_BOX_KEYS})).json()
+    assert [body[k] for k in NUMBER_BOX_KEYS] == [None] * 4
+    # null у рамки имени по-прежнему «не менять»
+    assert (await client.put(url, json={"box_x_mm": None})).json()["box_x_mm"] == DEFAULT_NAME_BOX[0]
+    body = (await client.put(url, json={"number_box_x_mm": 250, "number_box_y_mm": 180,
+                                        "number_box_w_mm": 30, "number_box_h_mm": 8, "number_font_pt": 12})).json()
+    assert [body[k] for k in (*NUMBER_BOX_KEYS, "number_font_pt")] == [250, 180, 30, 8, 12]
+
+
+async def test_settings_number_box_all_or_nothing(client, congress):
+    url = f"{BASE}/congresses/{congress.id}/certificate-settings"
+    response = await client.put(url, json={"number_box_w_mm": None})
+    assert (response.status_code, response.json()) == (422, {"detail": "number_box_incomplete"})
+    body = (await client.get(url)).json()
+    assert [body[k] for k in NUMBER_BOX_KEYS] == DEFAULT_NUMBER_BOX  # ничего не сохранилось
+    assert (await client.put(url, json={"number_box_w_mm": 0})).status_code == 422
+    assert (await client.put(url, json={"number_font_pt": 0})).status_code == 422
+    assert (await client.put(url, json={"number_font_pt": None})).json()["number_font_pt"] == 14
 
 
 async def test_settings_unknown_congress(client):
@@ -437,7 +476,9 @@ async def test_preview(client, congress, session_factory):
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/pdf"
     assert response.headers["content-disposition"].startswith("inline")
-    assert _squash("Пробное Имя") in _squash(PdfReader(io.BytesIO(response.content)).pages[0].extract_text())
+    text = PdfReader(io.BytesIO(response.content)).pages[0].extract_text()
+    assert _squash("Пробное Имя") in _squash(text)
+    assert "000" in text  # пробный номер
     async with session_factory() as s:
         row = await s.get(CertificateRecipient, recipient["id"])
     assert row.download_count == 0
@@ -517,6 +558,52 @@ async def test_add_recipient_unknown_congress(client):
     assert response.status_code == 404
 
 
+# ==================== admin: порядковые номера ====================
+
+async def _numbers(client, congress_id):
+    body = (await client.get(f"{BASE}/congresses/{congress_id}/certificate-recipients", params={"limit": 500})).json()
+    return [(i["number"], i["full_name"]) for i in body["items"]]
+
+
+async def test_numbers_assigned_in_order_and_permanent(client, ready):
+    congress_id, with_phone, without_phone = ready
+    third = await _add(client, congress_id, "Алиев Али")
+    assert (with_phone["number"], without_phone["number"], third["number"]) == (1, 2, 3)
+    # список — по номеру, а не по алфавиту
+    assert await _numbers(client, congress_id) == [
+        (1, "Шодиева Ситора Баходировна"), (2, "Karimov Bobur"), (3, "Алиев Али"),
+    ]
+    # правка и сброс счётчика номер не меняют
+    url = f"{BASE}/certificate-recipients/{without_phone['id']}"
+    assert (await client.put(url, json={"full_name": "Karimov Bobur Aliyevich"})).json()["number"] == 2
+    await _issue(client, congress_id, third)
+    assert (await client.post(f"{BASE}/certificate-recipients/{third['id']}/reset")).json()["number"] == 3
+    # удаление оставляет дырку
+    await client.delete(url)
+    assert (await _add(client, congress_id, "Новый Участник"))["number"] == 4
+    assert [n for n, _ in await _numbers(client, congress_id)] == [1, 3, 4]
+
+
+async def test_numbers_are_per_congress(client, ready, make_congress):
+    other = await make_congress("Другой")
+    assert (await _add(client, other.id, "Алиев Али"))["number"] == 1
+
+
+async def test_number_conflict_is_409(client, ready, monkeypatch):
+    """Редкая гонка двух вставок: уникальный индекс ловит одинаковый номер."""
+    congress_id, *_ = ready
+
+    async def _taken(db, cid):
+        return 1
+
+    monkeypatch.setattr(cert_api, "_next_number", _taken)
+    response = await client.post(f"{BASE}/congresses/{congress_id}/certificate-recipients", json={"full_name": "Гонка"})
+    assert (response.status_code, response.json()) == (409, {"detail": "number_conflict"})
+    response = await _import(client, congress_id)
+    assert (response.status_code, response.json()) == (409, {"detail": "number_conflict"})
+    assert len(await _numbers(client, congress_id)) == 2
+
+
 # ==================== admin: импорт ====================
 
 CSV = "ФИО;Телефон\nАлиев Али;+998 90 111 22 33\n;\nАлиев Али;+998 90 111 22 33\nKarimov Bobur;\n".encode("cp1251")
@@ -554,6 +641,13 @@ async def test_import_append_skips_existing(client, congress):
     assert (body["skipped_existing"], body["will_insert"], body["inserted"]) == (1, 1, 1)
     assert dry["will_insert"] == body["will_insert"]
     assert await _names(client, congress.id) == ["Karimov Bobur", "Karimov Bobur", "алиев али"]
+    assert (await _numbers(client, congress.id))[-1] == (3, "Karimov Bobur")  # продолжает нумерацию
+
+
+async def test_import_numbers_follow_file_order(client, congress):
+    data = "ФИО\nЯковлев Яков\nАлиев Али\nMirzayev Olim\n".encode()
+    await _import(client, congress.id, data)
+    assert await _numbers(client, congress.id) == [(1, "Яковлев Яков"), (2, "Алиев Али"), (3, "Mirzayev Olim")]
 
 
 # колонки: имя String(300), телефон String(20) — PostgreSQL на лишнем падает 500
@@ -596,6 +690,7 @@ async def test_import_replace_deletes_all(client, ready):
     listing = (await client.get(f"{BASE}/congresses/{congress_id}/certificate-recipients")).json()
     assert sorted(i["full_name"] for i in listing["items"]) == ["Karimov Bobur", "Алиев Али"]
     assert all(i["download_count"] == 0 for i in listing["items"])
+    assert await _numbers(client, congress_id) == [(1, "Алиев Али"), (2, "Karimov Bobur")]  # заново с 1
 
 
 async def test_import_replace_dry_run_keeps_rows(client, ready):

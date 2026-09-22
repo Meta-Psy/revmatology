@@ -44,6 +44,11 @@ def upgrade() -> None:
             sa.Column('font_min_pt', sa.Float(), nullable=False),
             sa.Column('text_color', sa.String(7), nullable=False),
             sa.Column('is_open', sa.Boolean(), nullable=False),
+            sa.Column('number_box_x_mm', sa.Float(), nullable=True),
+            sa.Column('number_box_y_mm', sa.Float(), nullable=True),
+            sa.Column('number_box_w_mm', sa.Float(), nullable=True),
+            sa.Column('number_box_h_mm', sa.Float(), nullable=True),
+            sa.Column('number_font_pt', sa.Float(), nullable=False),
             sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=True),
             sa.UniqueConstraint('congress_id'),
         )
@@ -57,7 +62,9 @@ def upgrade() -> None:
             sa.Column('name_key', sa.String(300), nullable=False),
             sa.Column('phone_digits', sa.String(20), nullable=True),
             sa.Column('download_count', sa.Integer(), nullable=False),
+            sa.Column('number', sa.Integer(), nullable=False),
             sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=True),
+            sa.UniqueConstraint('congress_id', 'number', name='uq_certificate_recipients_congress_number'),
         )
         op.create_index('ix_certificate_recipients_id', 'certificate_recipients', ['id'])
         op.create_index('ix_certificate_recipients_congress_id', 'certificate_recipients', ['congress_id'])

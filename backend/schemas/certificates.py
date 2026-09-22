@@ -41,6 +41,11 @@ class CertificateSettingsResponse(BaseModel):
     font_min_pt: float
     text_color: str
     is_open: bool
+    number_box_x_mm: Optional[float] = None
+    number_box_y_mm: Optional[float] = None
+    number_box_w_mm: Optional[float] = None
+    number_box_h_mm: Optional[float] = None
+    number_font_pt: float
     updated_at: Optional[datetime] = None
 
 
@@ -53,6 +58,12 @@ class CertificateSettingsUpdate(BaseModel):
     font_min_pt: Optional[float] = Field(None, gt=0, le=400)
     text_color: Optional[str] = Field(None, pattern=HEX_COLOR)
     is_open: Optional[bool] = None
+    # рамка номера: null — «номер не печатается» (все четыре сразу), а не «не менять»
+    number_box_x_mm: Optional[float] = Field(None, ge=0)
+    number_box_y_mm: Optional[float] = Field(None, ge=0)
+    number_box_w_mm: Optional[float] = Field(None, gt=0)
+    number_box_h_mm: Optional[float] = Field(None, gt=0)
+    number_font_pt: Optional[float] = Field(None, gt=0, le=400)
 
 
 class CertificatePreviewRequest(BaseModel):
@@ -94,6 +105,7 @@ class CertificateRecipientResponse(BaseModel):
     full_name: str
     phone_digits: Optional[str] = None
     download_count: int
+    number: int
     created_at: Optional[datetime] = None
 
 

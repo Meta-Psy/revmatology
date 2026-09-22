@@ -14,12 +14,13 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile
 from pypdf import PdfReader
 from sqlalchemy import delete, func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer
 from starlette.concurrency import run_in_threadpool
 
 from database import CertificateRecipient, CertificateTemplate, Congress, get_db
-from database.models import CERTIFICATE_DEFAULTS
+from database.models import CERTIFICATE_DEFAULTS, NUMBER_BOX_FIELDS
 from functions.auth import get_current_admin
 from functions.certificate_names import (
     NoNameColumn,
@@ -29,7 +30,7 @@ from functions.certificate_names import (
     parse_recipients_csv,
     phones_match,
 )
-from functions.certificate_pdf import Box, render_certificate
+from functions.certificate_pdf import Box, format_number, render_certificate
 from schemas.certificates import (
     CertificateImportReport,
     CertificateIssueRequest,
@@ -169,13 +170,37 @@ def _stored_phone(raw: Optional[str]) -> Optional[str]:
     return digits
 
 
-async def _render(pdf: bytes, template: CertificateTemplate, name: str, outline: bool = False) -> bytes:
+def _number_box(template: CertificateTemplate) -> Optional[Box]:
+    values = [getattr(template, key) for key in NUMBER_BOX_FIELDS]
+    return None if any(v is None for v in values) else Box(*values)
+
+
+async def _render(pdf: bytes, template: CertificateTemplate, name: str, number: Optional[str],
+                  outline: bool = False) -> bytes:
     """Сборка (CPU) — в пуле потоков; настройки читаются здесь, в цикле событий."""
     box = Box(template.box_x_mm, template.box_y_mm, template.box_w_mm, template.box_h_mm)
     return await run_in_threadpool(
         render_certificate, pdf, name, box, template.font_max_pt, template.font_min_pt,
-        color=template.text_color, outline=outline,
+        color=template.text_color, outline=outline, number=number,
+        number_box=_number_box(template), number_font_pt=template.number_font_pt,
     )
+
+
+async def _next_number(db: AsyncSession, congress_id: int) -> int:
+    """Следующий порядковый номер в конгрессе — в той же транзакции, что и вставка."""
+    result = await db.execute(
+        select(func.max(CertificateRecipient.number)).where(CertificateRecipient.congress_id == congress_id)
+    )
+    return (result.scalar_one_or_none() or 0) + 1
+
+
+async def _commit_numbered(db: AsyncSession) -> None:
+    """Две вставки разом получили один номер — уникальный индекс ловит, 409."""
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="number_conflict")
 
 
 def _like_words(q: Optional[str]) -> list[str]:
@@ -272,6 +297,7 @@ async def issue_certificate(
     if normalize_name(data.full_name) != recipient.name_key:
         raise not_found
     full_name = recipient.full_name
+    number = format_number(recipient.number)
 
     # условное списание: атомарно и при двух воркерах
     charged = await db.execute(
@@ -287,7 +313,7 @@ async def issue_certificate(
         template_pdf = (await db.execute(
             select(CertificateTemplate.pdf).where(CertificateTemplate.id == template.id)
         )).scalar_one()
-        pdf = await _render(template_pdf, template, full_name)
+        pdf = await _render(template_pdf, template, full_name, number)
     except Exception:
         # списание не зафиксировано — откат транзакции возвращает счётчик
         await db.rollback()
@@ -315,11 +341,15 @@ async def update_certificate_settings(
     await _ensure_congress(db, congress_id)
     template = await _get_or_create_template(db, congress_id)
     for key, value in data.model_dump(exclude_unset=True).items():
-        if value is not None:
+        # null у рамки номера — «не печатать»; у остальных полей — «не менять»
+        if value is not None or key in NUMBER_BOX_FIELDS:
             setattr(template, key, value)
     if template.font_min_pt > template.font_max_pt:
         await db.rollback()
         raise HTTPException(status_code=422, detail="font_min_gt_max")
+    if len({getattr(template, key) is None for key in NUMBER_BOX_FIELDS}) > 1:
+        await db.rollback()
+        raise HTTPException(status_code=422, detail="number_box_incomplete")
     await db.commit()
     await db.refresh(template)
     return _settings(congress_id, template)
@@ -343,7 +373,7 @@ async def upload_certificate_template(
         if not PdfReader(io.BytesIO(data)).pages:
             raise ValueError("no pages")
         # пробная сборка: шаблон, который не собирается, не должен дойти до участников
-        await _render(data, template, "Test")
+        await _render(data, template, "Test", format_number(0))
     except Exception:
         await db.rollback()
         raise HTTPException(status_code=400, detail="not_pdf")
@@ -361,11 +391,11 @@ async def preview_certificate(
     db: AsyncSession = Depends(get_db),
     admin=Depends(get_current_admin),
 ):
-    """Пробный PDF с контуром рамки; счётчиков не трогает."""
+    """Пробный PDF с номером 000 и контурами обеих рамок; счётчиков не трогает."""
     template = await _get_template(db, congress_id)
     if template is None or template.pdf is None:
         raise HTTPException(status_code=400, detail="no_template")
-    pdf = await _render(template.pdf, template, data.name, outline=True)
+    pdf = await _render(template.pdf, template, data.name, format_number(0), outline=True)
     return _pdf_response(pdf, _content_disposition("inline", data.name))
 
 
@@ -384,7 +414,7 @@ async def list_recipients(
     total = (await db.execute(select(func.count(CertificateRecipient.id)).where(*conditions))).scalar_one()
     result = await db.execute(
         select(CertificateRecipient).where(*conditions)
-        .order_by(CertificateRecipient.full_name, CertificateRecipient.id)
+        .order_by(CertificateRecipient.number)
         .offset(skip).limit(limit)
     )
     return {"items": result.scalars().all(), "total": total}
@@ -404,9 +434,10 @@ async def create_recipient(
         name_key=normalize_name(data.full_name),
         phone_digits=_stored_phone(data.phone),
         download_count=0,
+        number=await _next_number(db, congress_id),
     )
     db.add(recipient)
-    await db.commit()
+    await _commit_numbered(db)
     await db.refresh(recipient)
     return recipient
 
@@ -483,14 +514,16 @@ async def import_recipients(
     if not dry_run:
         if mode == "replace":
             await db.execute(delete(CertificateRecipient).where(CertificateRecipient.congress_id == congress_id))
+        # номера — по порядку строк файла; после replace — заново с 1
+        first = await _next_number(db, congress_id)
         db.add_all(
             CertificateRecipient(
                 congress_id=congress_id, full_name=r.full_name, name_key=r.name_key,
-                phone_digits=r.phone_digits, download_count=0,
+                phone_digits=r.phone_digits, download_count=0, number=first + n,
             )
-            for r in rows
+            for n, r in enumerate(rows)
         )
-        await db.commit()
+        await _commit_numbered(db)
 
     return CertificateImportReport(
         accepted=parsed.accepted,

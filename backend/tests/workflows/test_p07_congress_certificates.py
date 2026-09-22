@@ -74,6 +74,9 @@ async def test_p07(journey, client):
     imported = await j.step("import_recipients", _import)
     assert imported.status_code == 200, f"[import_recipients] {imported.status_code}: {imported.text}"
     assert imported.json()["inserted"] == 2, f"[import_recipients] {imported.json()}"
+    listing = await client.get(f"{BASE}/congresses/{congress_id}/certificate-recipients")
+    numbers = [(r["number"], r["full_name"]) for r in listing.json()["items"]]
+    assert numbers == [(1, OFFICIAL_NAME), (2, "Karimov Bobur")], f"[import_recipients] номера не по порядку файла: {numbers}"
 
     # --- open_issuing --------------------------------------------------------
     async def _open():
@@ -114,6 +117,7 @@ async def test_p07(journey, client):
     text = reader.pages[0].extract_text()
     assert _squash(OFFICIAL_NAME) in _squash(text), f"[official_name_on_pdf] в PDF нет имени из списка: {text!r}"
     assert "CERTIFICATE" in text, "[official_name_on_pdf] исходная страница бланка потеряна"
+    assert "001" in text, f"[official_name_on_pdf] на PDF нет порядкового номера 001: {text!r}"
     assert 'filename="Certificate_Shodieva_Sitora_Bakhodirovna.pdf"' in issued.headers["content-disposition"], (
         f"[official_name_on_pdf] {issued.headers['content-disposition']}"
     )

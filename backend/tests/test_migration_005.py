@@ -40,6 +40,12 @@ def test_offline_sql_creates_tables(monkeypatch):
     assert "ON DELETE CASCADE" in sql
     assert "UNIQUE (congress_id)" in sql
     assert "CREATE INDEX ix_certificate_recipients_name_key" in sql
+    # порядковый номер: обязателен и уникален в пределах конгресса
+    assert "number INTEGER NOT NULL" in sql
+    assert "CONSTRAINT uq_certificate_recipients_congress_number UNIQUE (congress_id, number)" in sql
+    for column in ("number_box_x_mm", "number_box_y_mm", "number_box_w_mm", "number_box_h_mm"):
+        assert f"{column} FLOAT," in sql and f"{column} FLOAT NOT NULL" not in sql
+    assert "number_font_pt FLOAT NOT NULL" in sql
     assert "UPDATE alembic_version SET version_num='005' WHERE alembic_version.version_num = '004'" in sql
 
 
@@ -85,8 +91,10 @@ def test_upgrade_is_idempotent_and_downgrade_reverts(monkeypatch, tmp_path):
 
     command.upgrade(cfg, "005")
     tables = _tables(url)
-    assert {"pdf", "box_x_mm", "font_max_pt", "text_color", "is_open", "updated_at"} <= tables["certificate_templates"]
-    assert {"full_name", "name_key", "phone_digits", "download_count", "created_at"} <= tables["certificate_recipients"]
+    assert {"pdf", "box_x_mm", "font_max_pt", "text_color", "is_open", "updated_at",
+            "number_box_x_mm", "number_box_y_mm", "number_box_w_mm", "number_box_h_mm",
+            "number_font_pt"} <= tables["certificate_templates"]
+    assert {"full_name", "name_key", "phone_digits", "download_count", "created_at", "number"} <= tables["certificate_recipients"]
 
 
 def test_005_follows_004():
