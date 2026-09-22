@@ -21,6 +21,8 @@ from .models import (
     MediaResource,
     HistoryContent,
     HeroImage,
+    CertificateTemplate,
+    CertificateRecipient,
 )
 
 __all__ = [
@@ -49,4 +51,6 @@ __all__ = [
     "MediaResource",
     "HistoryContent",
     "HeroImage",
+    "CertificateTemplate",
+    "CertificateRecipient",
 ]
