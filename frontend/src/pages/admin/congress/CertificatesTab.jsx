@@ -6,8 +6,8 @@ import {
 } from '../../../components/admin';
 
 // ---------------------------------------------------------------------------
-// Сертификаты участников конгресса (К-11): шаблон и рамка имени, импорт CSV,
-// список получателей со счётчиками выдач
+// Сертификаты участников конгресса (К-11): шаблон, рамки имени и номера,
+// импорт CSV, список получателей с номерами и счётчиками выдач
 // ---------------------------------------------------------------------------
 
 // Лимит выдач на участника — константа сервера, здесь только для «N из 5»
@@ -24,7 +24,19 @@ const NUMBER_FIELDS = [
   { key: 'box_h_mm', label: 'Высота рамки, мм' },
   { key: 'font_max_pt', label: 'Кегль максимум, pt' },
   { key: 'font_min_pt', label: 'Кегль минимум, pt' },
+  { key: 'number_font_pt', label: 'Кегль номера, pt' },
 ];
+
+// Рамка номера: все четыре пусто — номер не печатается (сервер хранит null)
+const NUMBER_BOX_FIELDS = [
+  { key: 'number_box_x_mm', label: 'Номер: слева, мм' },
+  { key: 'number_box_y_mm', label: 'Номер: сверху, мм' },
+  { key: 'number_box_w_mm', label: 'Номер: ширина, мм' },
+  { key: 'number_box_h_mm', label: 'Номер: высота, мм' },
+];
+
+// Номер на сертификате — с ведущими нулями до трёх знаков, как в PDF
+const formatNumber = (n) => (n == null ? '—' : String(n).padStart(3, '0'));
 
 const IMPORT_MODES = [
   { value: 'append', label: 'Добавить к списку' },
@@ -38,6 +50,8 @@ const ERROR_TEXT = {
   font_min_gt_max: 'Минимальный кегль больше максимального',
   empty_replace: 'В файле нет ни одной строки — список не заменён',
   invalid_phone: 'Телефон: нужно 9–15 цифр или пусто',
+  number_box_incomplete: 'Рамка номера: заполните все четыре поля или оставьте пустыми',
+  number_conflict: 'Номер сертификата уже занят — повторите',
   validation: 'Проверьте значения полей',
   entity_too_large: 'Файл слишком большой',
 };
@@ -58,8 +72,8 @@ const codeText = (code, err) => ERROR_TEXT[code] || code || err?.message || 'н�
 const errText = (err) => codeText(errCode(err), err);
 
 const toForm = (s) => ({
-  ...Object.fromEntries(NUMBER_FIELDS.map(({ key }) => [key, s?.[key] == null ? '' : String(s[key])])),
-  text_color: s?.text_color || '#1F2937',
+  ...Object.fromEntries([...NUMBER_FIELDS, ...NUMBER_BOX_FIELDS].map(({ key }) => [key, s?.[key] == null ? '' : String(s[key])])),
+  text_color: s?.text_color || '#1B3A7A',
   is_open: !!s?.is_open,
 });
 
@@ -159,8 +173,26 @@ const CertificatesTab = ({ congressId }) => {
 
   const handleSaveSettings = async () => {
     const payload = {};
+    const toNumber = (key) => parseFloat(String(form[key]).replace(',', '.'));
     for (const { key, label } of NUMBER_FIELDS) {
-      const n = parseFloat(String(form[key]).replace(',', '.'));
+      const n = toNumber(key);
+      if (!Number.isFinite(n)) {
+        toast.error(`Проверьте поле «${label}»`);
+        return;
+      }
+      payload[key] = n;
+    }
+    const filled = NUMBER_BOX_FIELDS.filter(({ key }) => String(form[key]).trim() !== '');
+    if (filled.length !== 0 && filled.length !== NUMBER_BOX_FIELDS.length) {
+      toast.error(ERROR_TEXT.number_box_incomplete);
+      return;
+    }
+    for (const { key, label } of NUMBER_BOX_FIELDS) {
+      if (filled.length === 0) {
+        payload[key] = null;
+        continue;
+      }
+      const n = toNumber(key);
       if (!Number.isFinite(n)) {
         toast.error(`Проверьте поле «${label}»`);
         return;
@@ -328,6 +360,7 @@ const CertificatesTab = ({ congressId }) => {
   };
 
   const columns = [
+    { key: 'number', label: '№', render: formatNumber },
     { key: 'full_name', label: 'Ф.И.О.' },
     { key: 'phone_digits', label: 'Телефон', render: (v) => v || '—' },
     { key: 'download_count', label: 'Выдано', render: (v) => `${v ?? 0} из ${MAX_DOWNLOADS}` },
@@ -372,7 +405,7 @@ const CertificatesTab = ({ congressId }) => {
                 onChange={updateField}
               />
             ))}
-            <AdminFormField label="Цвет имени" name="text_color">
+            <AdminFormField label="Цвет имени и номера" name="text_color">
               <input
                 id="text_color"
                 type="color"
@@ -382,6 +415,19 @@ const CertificatesTab = ({ congressId }) => {
                 className="h-9 w-16 border border-slate-300 rounded-md bg-white"
               />
             </AdminFormField>
+          </div>
+          <p className="text-xs text-slate-500">Рамка номера, мм — пусто: номер не печатается</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {NUMBER_BOX_FIELDS.map(({ key, label }) => (
+              <AdminFormField
+                key={key}
+                label={label}
+                name={key}
+                type="number"
+                value={form[key]}
+                onChange={updateField}
+              />
+            ))}
           </div>
           <AdminFormField
             label="Выдача открыта"
@@ -410,7 +456,7 @@ const CertificatesTab = ({ congressId }) => {
             {previewing ? 'Сборка…' : 'Пробный PDF'}
           </button>
         </div>
-        <p className="text-xs text-slate-400 mt-1">Пробный PDF строится по сохранённым настройкам, с контуром рамки; счётчики не трогает</p>
+        <p className="text-xs text-slate-400 mt-1">Пробный PDF строится по сохранённым настройкам, с контурами рамок имени и номера (номер 000); счётчики не трогает</p>
       </section>
 
       {/* ===== Импорт CSV ===== */}

@@ -19,21 +19,22 @@ const { contentAPI } = vi.hoisted(() => {
       congress_id: 1, has_template: true, pdf_filename: 'blank.pdf',
       box_x_mm: 40, box_y_mm: 90, box_w_mm: 217, box_h_mm: 25,
       font_max_pt: 40, font_min_pt: 16, text_color: '#1F2937', is_open: false, updated_at: null,
+      number_box_x_mm: 259, number_box_y_mm: 183, number_box_w_mm: 22, number_box_h_mm: 7, number_font_pt: 14,
     })),
     updateCertificateSettings: vi.fn((id, data) => ok({ congress_id: id, has_template: true, pdf_filename: 'blank.pdf', ...data })),
     uploadCertificateTemplate: vi.fn(),
     previewCertificate: vi.fn(),
     getCertificateRecipients: vi.fn(() => ok({
       items: [
-        { id: 11, full_name: 'Алиев Али', phone_digits: '998901112233', download_count: 3, created_at: '2026-09-22T10:00:00' },
-        { id: 12, full_name: 'Karimov Bobur', phone_digits: null, download_count: 5, created_at: '2026-09-22T10:00:00' },
+        { id: 11, number: 1, full_name: 'Алиев Али', phone_digits: '998901112233', download_count: 3, created_at: '2026-09-22T10:00:00' },
+        { id: 12, number: 12, full_name: 'Karimov Bobur', phone_digits: null, download_count: 5, created_at: '2026-09-22T10:00:00' },
       ],
       total: 2,
     })),
     createCertificateRecipient: vi.fn(),
     updateCertificateRecipient: vi.fn(),
     deleteCertificateRecipient: vi.fn(() => ok({ ok: true })),
-    resetCertificateRecipient: vi.fn((rid) => ok({ id: rid, full_name: 'Karimov Bobur', phone_digits: null, download_count: 0 })),
+    resetCertificateRecipient: vi.fn((rid) => ok({ id: rid, number: 12, full_name: 'Karimov Bobur', phone_digits: null, download_count: 0 })),
     importCertificateRecipients: vi.fn(),
 
     // для подключения вкладки в CongressAdmin
@@ -96,6 +97,14 @@ describe('CertificatesTab — список получателей', () => {
     expect(within(row).getByText('998901112233')).toBeInTheDocument();
     expect(within(row).getByText('3 из 5')).toBeInTheDocument();
     expect(contentAPI.getCertificateRecipients).toHaveBeenCalledWith(1, expect.objectContaining({ skip: 0 }));
+  });
+
+  it('колонка «№» — номер с ведущими нулями, как на сертификате', async () => {
+    renderTab();
+    const row = (await screen.findByText('Karimov Bobur')).closest('tr');
+    expect(screen.getByRole('columnheader', { name: /№/ })).toBeInTheDocument();
+    expect(within(row).getByText('012')).toBeInTheDocument();
+    expect(within((await screen.findByText('Алиев Али')).closest('tr')).getByText('001')).toBeInTheDocument();
   });
 
   it('сброс счётчика вызывает reset и обновляет строку', async () => {
@@ -383,7 +392,34 @@ describe('CertificatesTab — настройки', () => {
     expect(contentAPI.updateCertificateSettings).toHaveBeenCalledWith(1, {
       box_x_mm: 40, box_y_mm: 90, box_w_mm: 200.5, box_h_mm: 25,
       font_max_pt: 40, font_min_pt: 16, text_color: '#1F2937', is_open: true,
+      number_box_x_mm: 259, number_box_y_mm: 183, number_box_w_mm: 22, number_box_h_mm: 7, number_font_pt: 14,
     });
+  });
+
+  const numberBoxInputs = () => ['Номер: слева, мм', 'Номер: сверху, мм', 'Номер: ширина, мм', 'Номер: высота, мм']
+    .map((label) => screen.getByLabelText(label));
+
+  it('пустая рамка номера уходит null — номер не печатается', async () => {
+    const user = userEvent.setup();
+    renderTab();
+    expect(await screen.findByText('Рамка номера, мм — пусто: номер не печатается')).toBeInTheDocument();
+    for (const input of numberBoxInputs()) await user.clear(input);
+    await user.click(screen.getByRole('button', { name: 'Сохранить настройки' }));
+
+    expect(contentAPI.updateCertificateSettings).toHaveBeenCalledWith(1, expect.objectContaining({
+      number_box_x_mm: null, number_box_y_mm: null, number_box_w_mm: null, number_box_h_mm: null, number_font_pt: 14,
+    }));
+  });
+
+  it('рамка номера заполнена частично — не отправляем', async () => {
+    const user = userEvent.setup();
+    renderTab();
+    await screen.findByText(/blank\.pdf/);
+    await user.clear(numberBoxInputs()[2]);
+    await user.click(screen.getByRole('button', { name: 'Сохранить настройки' }));
+
+    expect(await screen.findByText(/Рамка номера: заполните все четыре поля или оставьте пустыми/)).toBeInTheDocument();
+    expect(contentAPI.updateCertificateSettings).not.toHaveBeenCalled();
   });
 });
 
