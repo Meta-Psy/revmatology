@@ -33,6 +33,7 @@ from database.models import Congress, CongressProgramDay, CongressProgramSection
 from functions.auth import get_current_admin, get_current_admin_user  # noqa: E402
 from main import app  # noqa: E402
 from api import congress as congress_api  # noqa: E402
+from api import certificates as certificates_api  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -47,6 +48,15 @@ def pdf_renders(monkeypatch):
 
     monkeypatch.setattr(congress_api, "launch_pdf_render", _record)
     return launched
+
+
+@pytest.fixture(autouse=True)
+def certificate_rate_limits():
+    """Окна частоты выдачи сертификатов (К-11) живут в памяти процесса —
+    каждый тест начинает с пустых."""
+    certificates_api.limiter.reset()
+    yield
+    certificates_api.limiter.reset()
 
 
 @pytest_asyncio.fixture
