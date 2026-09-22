@@ -12,7 +12,9 @@ import {
 
 // Лимит выдач на участника — константа сервера, здесь только для «N из 5»
 const MAX_DOWNLOADS = 5;
-const MAX_TEMPLATE_MB = 20;
+// nginx client_max_body_size 20M — на весь запрос, запас под multipart
+const MAX_TEMPLATE_MB = 19.5;
+const MAX_TEMPLATE_LABEL = '19,5';
 const PAGE_SIZE = 50;
 
 const NUMBER_FIELDS = [
@@ -31,20 +33,29 @@ const IMPORT_MODES = [
 
 const ERROR_TEXT = {
   not_pdf: 'Файл не похож на PDF',
-  too_large: `Файл больше ${MAX_TEMPLATE_MB} МБ`,
+  too_large: `Файл больше ${MAX_TEMPLATE_LABEL} МБ`,
   no_template: 'Сначала загрузите шаблон',
+  font_min_gt_max: 'Минимальный кегль больше максимального',
+  empty_replace: 'В файле нет ни одной строки — список не заменён',
+  invalid_phone: 'Телефон: нужно 9–15 цифр или пусто',
+  validation: 'Проверьте значения полей',
+  entity_too_large: 'Файл слишком большой',
 };
 
-// detail бывает строкой или объектом {code, ...}
+// detail бывает строкой, объектом {code, ...} или массивом ошибок pydantic (422).
+// 413 от nginx приходит HTML-страницей, без JSON.
 const errCode = (err) => {
   const detail = err?.response?.data?.detail;
-  return typeof detail === 'string' ? detail : detail?.code;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) return 'validation';
+  if (detail?.code) return detail.code;
+  if (err?.response?.status === 413) return 'entity_too_large';
+  return undefined;
 };
 
-const errText = (err) => {
-  const code = errCode(err);
-  return ERROR_TEXT[code] || code || err?.message || 'неизвестная ошибка';
-};
+const codeText = (code, err) => ERROR_TEXT[code] || code || err?.message || 'неизвестная ошибка';
+
+const errText = (err) => codeText(errCode(err), err);
 
 const toForm = (s) => ({
   ...Object.fromEntries(NUMBER_FIELDS.map(({ key }) => [key, s?.[key] == null ? '' : String(s[key])])),
@@ -191,16 +202,22 @@ const CertificatesTab = ({ congressId }) => {
   };
 
   const handlePreview = async () => {
+    // Вкладку открываем синхронно по клику: после await браузер счёл бы её всплывающим окном
+    const win = window.open('', '_blank');
+    if (!win) {
+      toast.error('Браузер заблокировал новую вкладку — разрешите всплывающие окна');
+      return;
+    }
     setPreviewing(true);
     try {
       const res = await contentAPI.previewCertificate(congressId, previewName.trim());
       const url = URL.createObjectURL(res.data);
-      const win = window.open(url, '_blank');
-      if (!win) toast.error('Браузер заблокировал новую вкладку — разрешите всплывающие окна');
+      win.location.href = url;
       setTimeout(() => URL.revokeObjectURL(url), 60000);
     } catch (err) {
-      const code = await readBlobError(err);
-      toast.error('Пробный PDF не собран: ' + (ERROR_TEXT[code] || code || err?.message || 'неизвестная ошибка'));
+      win.close();
+      const code = (await readBlobError(err)) || errCode(err);
+      toast.error('Пробный PDF не собран: ' + codeText(code, err));
     } finally {
       setPreviewing(false);
     }
@@ -251,6 +268,10 @@ const CertificatesTab = ({ congressId }) => {
       setConfirmReplace(false);
     }
   };
+
+  // Замена смотрит на принятые строки (пустой файл сервер отклонит), добавление — на то, что реально вставится
+  const canImport = !!report && (importMode === 'replace' ? report.accepted > 0 : report.will_insert !== 0);
+  const badPhones = (report?.short_phones || 0) + (report?.invalid_phones || 0);
 
   const handleImport = () => {
     // Замена стирает всех получателей со счётчиками — только через подтверждение
@@ -335,7 +356,7 @@ const CertificatesTab = ({ congressId }) => {
             preview={false}
           />
           {uploadingTemplate && <p className="text-xs text-slate-500 mt-1">Загрузка шаблона…</p>}
-          <p className="text-xs text-slate-400 mt-1">PDF до {MAX_TEMPLATE_MB} МБ, имя вписывается на первую страницу</p>
+          <p className="text-xs text-slate-400 mt-1">PDF до {MAX_TEMPLATE_LABEL} МБ, имя вписывается на первую страницу</p>
         </div>
 
         <AdminForm onSubmit={handleSaveSettings} loading={savingSettings} submitText="Сохранить настройки">
@@ -416,7 +437,7 @@ const CertificatesTab = ({ congressId }) => {
           <button type="button" onClick={handleCheck} disabled={!importFile || checking || importing} className={secondaryButtonClass}>
             {checking ? 'Проверка…' : 'Проверить'}
           </button>
-          <button type="button" onClick={handleImport} disabled={!report || importing} className={buttonClass}>
+          <button type="button" onClick={handleImport} disabled={!canImport || importing} className={buttonClass}>
             {importing ? 'Загрузка…' : 'Загрузить'}
           </button>
         </div>
@@ -425,8 +446,14 @@ const CertificatesTab = ({ congressId }) => {
 
         {report && (
           <div data-testid="import-summary" className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-md text-sm text-slate-700 space-y-1">
-            <p>Будет принято: <b>{report.accepted}</b></p>
+            <p>Будет добавлено: <b>{report.will_insert}</b></p>
             <p>Пустых строк: {report.empty_rows} · Дублей в файле: {report.duplicates_in_file} · Уже есть в списке: {report.skipped_existing}</p>
+            {badPhones > 0 && (
+              <p className="text-amber-700">Телефон не распознан: {badPhones} — участник будет искаться только по Ф.И.О.</p>
+            )}
+            {report.too_long_names > 0 && (
+              <p className="text-amber-700">Пропущено: слишком длинное Ф.И.О. — {report.too_long_names}</p>
+            )}
             {report.columns?.length > 0 && <p>Колонки: {report.columns.join(', ')}</p>}
             {report.sample?.length > 0 && <p>Пример: {report.sample.join('; ')}</p>}
             {importMode === 'replace' && <p className="text-red-600">Режим замены: текущий список и счётчики будут удалены</p>}
