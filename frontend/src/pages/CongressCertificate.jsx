@@ -31,6 +31,7 @@ const CongressCertificate = () => {
   const [query, setQuery] = useState('');
   const [options, setOptions] = useState([]);
   const [searched, setSearched] = useState(false); // подсказки по текущему тексту уже пришли
+  const [suggestError, setSuggestError] = useState(''); // ключ локали: подсказки не пришли
   const [listOpen, setListOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [selected, setSelected] = useState(null);
@@ -66,10 +67,13 @@ const CongressCertificate = () => {
         setOptions(list);
         setActiveIndex(-1);
         setListOpen(list.length > 0);
-      } catch {
+      } catch (err) {
         if (seq !== requestSeq.current) return;
         setOptions([]);
         setListOpen(false);
+        // не «совпадений нет»: ответа не было, человек может быть в списке
+        setSuggestError(err?.response?.status === 429 ? 'certificate.tooMany' : 'certificate.error');
+        return;
       }
       setSearched(true);
     }, SUGGEST_DELAY_MS);
@@ -77,6 +81,7 @@ const CongressCertificate = () => {
   }, [query, selected, congressId]);
 
   const choose = (option) => {
+    requestSeq.current += 1; // ответ на запрос до выбора список уже не откроет
     setSelected(option);
     setQuery(option.full_name);
     setListOpen(false);
@@ -89,6 +94,7 @@ const CongressCertificate = () => {
     setQuery(e.target.value);
     setSelected(null);
     setSearched(false);
+    setSuggestError('');
     setErrorText('');
     setCertificate(null);
   };
@@ -129,6 +135,7 @@ const CongressCertificate = () => {
     try {
       const res = await contentAPI.issueCertificate(congressId, {
         recipient_id: selected.id,
+        full_name: selected.full_name,
         phone: needsPhone ? phone : null,
       });
       setCertificate({ blob: res.data, filename: filenameFromDisposition(res.headers?.['content-disposition']) });
@@ -261,6 +268,9 @@ const CongressCertificate = () => {
                       </li>
                     ))}
                   </ul>
+                )}
+                {suggestError && (
+                  <p className="mt-2 text-sm text-red-700" style={serif}>{t(suggestError)}</p>
                 )}
                 {showNoMatches && (
                   <p className="mt-2 text-sm text-stone-500" style={serif}>{t('certificate.noMatches')}</p>
