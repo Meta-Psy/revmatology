@@ -133,6 +133,66 @@ describe('CongressCertificate — подсказки', () => {
   });
 });
 
+describe('CongressCertificate — ошибки подсказок', () => {
+  it('429 — «Слишком много попыток», без «Совпадений не найдено»', async () => {
+    contentAPI.suggestCertificateRecipients.mockRejectedValue({ response: { status: 429, data: { detail: 'too_many_requests' } } });
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.type(await screen.findByRole('combobox', { name: 'Ф.И.О.' }), 'Али');
+    expect(await screen.findByText('Слишком много попыток, подождите минуту')).toBeInTheDocument();
+    expect(screen.queryByText('Совпадений не найдено')).not.toBeInTheDocument();
+  });
+
+  it('другая ошибка — общее сообщение, без «Совпадений не найдено»', async () => {
+    contentAPI.suggestCertificateRecipients.mockRejectedValue({ response: { status: 500, data: {} } });
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.type(await screen.findByRole('combobox', { name: 'Ф.И.О.' }), 'Али');
+    expect(await screen.findByText('Не удалось получить сертификат. Попробуйте позже.')).toBeInTheDocument();
+    expect(screen.queryByText('Совпадений не найдено')).not.toBeInTheDocument();
+  });
+
+  it('правка текста после ошибки убирает сообщение', async () => {
+    contentAPI.suggestCertificateRecipients.mockRejectedValueOnce({ response: { status: 429, data: {} } });
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.type(await screen.findByRole('combobox', { name: 'Ф.И.О.' }), 'Али');
+    await screen.findByText('Слишком много попыток, подождите минуту');
+    await user.type(nameInput(), 'е');
+    expect(screen.queryByText('Слишком много попыток, подождите минуту')).not.toBeInTheDocument();
+  });
+
+  it('ответ на устаревший запрос после выбора не открывает список снова', async () => {
+    vi.useFakeTimers();
+    renderPage();
+    await act(async () => { await Promise.resolve(); });
+
+    fireEvent.change(nameInput(), { target: { value: 'Али' } });
+    await act(async () => { vi.advanceTimersByTime(300); });
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
+
+    // следующий запрос повис
+    let resolveLate;
+    contentAPI.suggestCertificateRecipients.mockImplementationOnce(() => new Promise((r) => { resolveLate = r; }));
+    fireEvent.change(nameInput(), { target: { value: 'Алие' } });
+    await act(async () => { vi.advanceTimersByTime(300); });
+    expect(contentAPI.suggestCertificateRecipients).toHaveBeenCalledTimes(2);
+
+    // выбор из ещё открытого списка, потом приходит старый ответ
+    fireEvent.mouseDown(screen.getByRole('option', { name: ALIEV.full_name }));
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    await act(async () => { resolveLate({ data: [ALIEV, KARIMOV] }); await Promise.resolve(); });
+
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    expect(nameInput()).toHaveAttribute('aria-expanded', 'false');
+    expect(nameInput()).toHaveValue(ALIEV.full_name);
+  });
+});
+
 describe('CongressCertificate — выбор и телефон', () => {
   it('кнопка неактивна до выбора; правка текста снимает выбор', async () => {
     const user = userEvent.setup();
@@ -161,7 +221,7 @@ describe('CongressCertificate — выбор и телефон', () => {
 
     await user.type(phone, '+998 90 123 45 67');
     await user.click(findButton());
-    expect(contentAPI.issueCertificate).toHaveBeenCalledWith(7, { recipient_id: 5, phone: '+998 90 123 45 67' });
+    expect(contentAPI.issueCertificate).toHaveBeenCalledWith(7, { recipient_id: 5, full_name: ALIEV.full_name, phone: '+998 90 123 45 67' });
   });
 
   it('needs_phone: false — поля телефона нет, phone: null', async () => {
@@ -173,7 +233,7 @@ describe('CongressCertificate — выбор и телефон', () => {
     expect(screen.queryByLabelText('Номер телефона')).not.toBeInTheDocument();
 
     await user.click(findButton());
-    expect(contentAPI.issueCertificate).toHaveBeenCalledWith(7, { recipient_id: 6, phone: null });
+    expect(contentAPI.issueCertificate).toHaveBeenCalledWith(7, { recipient_id: 6, full_name: KARIMOV.full_name, phone: null });
   });
 });
 

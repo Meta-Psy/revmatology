@@ -215,9 +215,9 @@ export const contentAPI = {
   getCertificateStatus: (congressId) => api.get(`/congress/congresses/${congressId}/certificates/status`),
   suggestCertificateRecipients: (congressId, q) =>
     api.get(`/congress/congresses/${congressId}/certificates/suggest`, { params: { q } }),
-  // Ответ — PDF блобом; ошибка тоже приходит блобом, код достаёт readBlobError
-  issueCertificate: (congressId, { recipient_id, phone = null }) =>
-    api.post(`/congress/congresses/${congressId}/certificates/issue`, { recipient_id, phone }, { responseType: 'blob' }),
+  // full_name — ровно строка из ответа suggest. Ответ — PDF блобом; ошибка тоже блобом, код достаёт readBlobError
+  issueCertificate: (congressId, { recipient_id, full_name, phone = null }) =>
+    api.post(`/congress/congresses/${congressId}/certificates/issue`, { recipient_id, full_name, phone }, { responseType: 'blob' }),
 
   // Сертификаты — админка
   getCertificateSettings: (congressId) => api.get(`/congress/congresses/${congressId}/certificate-settings`),

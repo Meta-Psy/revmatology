@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '../../../components/admin';
@@ -54,7 +54,8 @@ vi.mock('../../../services/api', async (importOriginal) => {
 });
 
 const REPORT = {
-  accepted: 298, empty_rows: 2, duplicates_in_file: 1, skipped_existing: 4, inserted: 0,
+  accepted: 298, will_insert: 294, empty_rows: 2, duplicates_in_file: 1, skipped_existing: 4, inserted: 0,
+  short_phones: 0, invalid_phones: 0, too_long_names: 0,
   sample: ['Алиев Али', 'Karimov Bobur'], columns: ['ФИО', 'Телефон'],
 };
 
@@ -68,6 +69,14 @@ const renderTab = () =>
 const csv = () => new File(['ФИО;Телефон\nАлиев Али;+998 90 111 22 33\n'], 'list.csv', { type: 'text/csv' });
 
 const importInput = () => document.querySelector('input[type="file"][accept*=".csv"]');
+const templateInput = () => document.querySelector('input[type="file"][accept*="pdf"]');
+
+// Размер задаём свойством: настоящие 20 МБ в памяти теста не нужны
+const pdfOfSize = (size) => {
+  const file = new File(['%PDF'], 'blank.pdf', { type: 'application/pdf' });
+  Object.defineProperty(file, 'size', { value: size });
+  return file;
+};
 
 const chooseCsv = async () => {
   await screen.findByText('Алиев Али');
@@ -112,7 +121,8 @@ describe('CertificatesTab — импорт CSV', () => {
     expect(contentAPI.importCertificateRecipients).toHaveBeenCalledWith(1, expect.any(File), { mode: 'append', dryRun: true });
 
     const summary = await screen.findByTestId('import-summary');
-    expect(summary).toHaveTextContent('Будет принято: 298');
+    expect(summary).toHaveTextContent('Будет добавлено: 294');
+    expect(summary).not.toHaveTextContent('Будет принято');
     expect(summary).toHaveTextContent('Пустых строк: 2');
     expect(summary).toHaveTextContent('Дублей в файле: 1');
     expect(summary).toHaveTextContent('Уже есть в списке: 4');
@@ -183,6 +193,178 @@ describe('CertificatesTab — импорт CSV', () => {
     await user.click(screen.getByRole('button', { name: 'Проверить' }));
 
     expect(await screen.findByText(/Не найдена колонка с Ф\.И\.О\..*Город, Возраст/)).toBeInTheDocument();
+  });
+});
+
+describe('CertificatesTab — сводка проверки', () => {
+  const check = async (user, report, mode = 'append') => {
+    contentAPI.importCertificateRecipients.mockResolvedValue({ data: { ...REPORT, ...report } });
+    renderTab();
+    await chooseCsv();
+    if (mode !== 'append') await user.selectOptions(screen.getByLabelText('Режим'), mode);
+    await user.click(screen.getByRole('button', { name: 'Проверить' }));
+    return screen.findByTestId('import-summary');
+  };
+
+  it('нулевые счётчики телефонов и длинных имён не показывает', async () => {
+    const summary = await check(userEvent.setup(), {});
+    expect(summary).not.toHaveTextContent(/не распознан/i);
+    expect(summary).not.toHaveTextContent('слишком длинное');
+  });
+
+  it('нераспознанные телефоны и длинные Ф.И.О. — отдельными строками', async () => {
+    const summary = await check(userEvent.setup(), { short_phones: 2, invalid_phones: 1, too_long_names: 4 });
+    expect(summary).toHaveTextContent(/Телефон не распознан: 3 — участник будет искаться только по Ф\.И\.О\./);
+    expect(summary).toHaveTextContent('Пропущено: слишком длинное Ф.И.О. — 4');
+  });
+
+  it('добавлять нечего (will_insert 0) — «Загрузить» недоступна', async () => {
+    await check(userEvent.setup(), { will_insert: 0 });
+    expect(screen.getByRole('button', { name: 'Загрузить' })).toBeDisabled();
+  });
+
+  it('замена без принятых строк — «Загрузить» недоступна', async () => {
+    await check(userEvent.setup(), { accepted: 0, will_insert: 0 }, 'replace');
+    expect(screen.getByRole('button', { name: 'Загрузить' })).toBeDisabled();
+  });
+
+  it('замена смотрит на accepted, а не на will_insert', async () => {
+    await check(userEvent.setup(), { accepted: 10, will_insert: 0 }, 'replace');
+    expect(screen.getByRole('button', { name: 'Загрузить' })).toBeEnabled();
+  });
+});
+
+describe('CertificatesTab — ошибки сервера', () => {
+  const nginx413 = {
+    message: 'Request failed with status code 413',
+    response: { status: 413, data: '<html>413 Request Entity Too Large</html>' },
+  };
+
+  it('empty_replace — список не заменён', async () => {
+    const user = userEvent.setup();
+    renderTab();
+    await chooseCsv();
+    await user.selectOptions(screen.getByLabelText('Режим'), 'replace');
+    await user.click(screen.getByRole('button', { name: 'Проверить' }));
+    await screen.findByTestId('import-summary');
+    contentAPI.importCertificateRecipients.mockRejectedValue({ response: { status: 400, data: { detail: 'empty_replace' } } });
+    await user.click(screen.getByRole('button', { name: 'Загрузить' }));
+    await user.click(screen.getByRole('button', { name: 'Заменить всех' }));
+    expect(await screen.findByText(/В файле нет ни одной строки — список не заменён/)).toBeInTheDocument();
+  });
+
+  it('413 от nginx без JSON — «Файл слишком большой» (импорт)', async () => {
+    contentAPI.importCertificateRecipients.mockRejectedValue(nginx413);
+    const user = userEvent.setup();
+    renderTab();
+    await chooseCsv();
+    await user.click(screen.getByRole('button', { name: 'Проверить' }));
+    expect(await screen.findByText('Ошибка импорта: Файл слишком большой')).toBeInTheDocument();
+  });
+
+  it('413 от nginx без JSON — «Файл слишком большой» (шаблон)', async () => {
+    contentAPI.uploadCertificateTemplate.mockRejectedValue(nginx413);
+    renderTab();
+    await screen.findByText('Алиев Али');
+    fireEvent.change(templateInput(), { target: { files: [pdfOfSize(1024)] } });
+    expect(await screen.findByText('Шаблон не загружен: Файл слишком большой')).toBeInTheDocument();
+  });
+
+  it('font_min_gt_max — понятный текст', async () => {
+    contentAPI.updateCertificateSettings.mockRejectedValueOnce({ response: { status: 422, data: { detail: 'font_min_gt_max' } } });
+    const user = userEvent.setup();
+    renderTab();
+    await user.click(await screen.findByRole('button', { name: 'Сохранить настройки' }));
+    expect(await screen.findByText(/Минимальный кегль больше максимального/)).toBeInTheDocument();
+  });
+
+  it('422 с массивом detail — «Проверьте значения полей»', async () => {
+    contentAPI.updateCertificateSettings.mockRejectedValueOnce({
+      response: { status: 422, data: { detail: [{ loc: ['body', 'box_w_mm'], msg: 'Input should be greater than 0', type: 'greater_than' }] } },
+    });
+    const user = userEvent.setup();
+    renderTab();
+    await user.click(await screen.findByRole('button', { name: 'Сохранить настройки' }));
+    expect(await screen.findByText(/Проверьте значения полей/)).toBeInTheDocument();
+  });
+
+  it('invalid_phone при добавлении получателя', async () => {
+    contentAPI.createCertificateRecipient.mockRejectedValueOnce({ response: { status: 422, data: { detail: 'invalid_phone' } } });
+    const user = userEvent.setup();
+    renderTab();
+    await screen.findByText('Алиев Али');
+    await user.click(screen.getByRole('button', { name: 'Добавить' }));
+    await user.type(screen.getByLabelText(/как на сертификате/), 'Иванов Иван');
+    await user.type(screen.getByLabelText('Телефон'), '123');
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }));
+    expect(await screen.findByText(/Телефон: нужно 9–15 цифр или пусто/)).toBeInTheDocument();
+  });
+});
+
+describe('CertificatesTab — шаблон', () => {
+  it('больше 19,5 МБ — не отправляем', async () => {
+    renderTab();
+    await screen.findByText('Алиев Али');
+    fireEvent.change(templateInput(), { target: { files: [pdfOfSize(19.6 * 1024 * 1024)] } });
+    expect(await screen.findByText('Файл больше 19,5 МБ')).toBeInTheDocument();
+    expect(contentAPI.uploadCertificateTemplate).not.toHaveBeenCalled();
+  });
+
+  it('19,4 МБ — отправляем', async () => {
+    contentAPI.uploadCertificateTemplate.mockResolvedValueOnce({ data: { has_template: true, pdf_filename: 'new.pdf' } });
+    renderTab();
+    await screen.findByText('Алиев Али');
+    fireEvent.change(templateInput(), { target: { files: [pdfOfSize(19.4 * 1024 * 1024)] } });
+    await vi.waitFor(() => expect(contentAPI.uploadCertificateTemplate).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe('CertificatesTab — пробный PDF', () => {
+  const fakeWin = () => ({ location: { href: '' }, close: vi.fn() });
+
+  const askPreview = async (user) => {
+    renderTab();
+    await user.type(await screen.findByLabelText('Имя для пробы'), 'Иванов Иван');
+    await user.click(screen.getByRole('button', { name: 'Пробный PDF' }));
+  };
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('вкладка открывается до запроса, потом получает адрес PDF', async () => {
+    const win = fakeWin();
+    const order = [];
+    vi.spyOn(window, 'open').mockImplementation((...args) => { order.push(['open', ...args]); return win; });
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:preview');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    contentAPI.previewCertificate.mockImplementationOnce(() => {
+      order.push(['request']);
+      return Promise.resolve({ data: new Blob(['%PDF']) });
+    });
+
+    await askPreview(userEvent.setup());
+    await vi.waitFor(() => expect(win.location.href).toBe('blob:preview'));
+    expect(order).toEqual([['open', '', '_blank'], ['request']]);
+    expect(contentAPI.previewCertificate).toHaveBeenCalledWith(1, 'Иванов Иван');
+  });
+
+  it('ошибка сборки — вкладка закрывается, тост', async () => {
+    const win = fakeWin();
+    vi.spyOn(window, 'open').mockReturnValue(win);
+    contentAPI.previewCertificate.mockRejectedValueOnce({
+      response: { status: 400, data: new Blob([JSON.stringify({ detail: 'no_template' })], { type: 'application/json' }) },
+    });
+
+    await askPreview(userEvent.setup());
+    expect(await screen.findByText('Пробный PDF не собран: Сначала загрузите шаблон')).toBeInTheDocument();
+    expect(win.close).toHaveBeenCalled();
+  });
+
+  it('всплывающие окна заблокированы — тост, запроса нет', async () => {
+    vi.spyOn(window, 'open').mockReturnValue(null);
+
+    await askPreview(userEvent.setup());
+    expect(await screen.findByText(/разрешите всплывающие окна/)).toBeInTheDocument();
+    expect(contentAPI.previewCertificate).not.toHaveBeenCalled();
   });
 });
 

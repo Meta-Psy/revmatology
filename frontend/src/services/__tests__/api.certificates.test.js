@@ -1,5 +1,30 @@
-import { describe, it, expect } from 'vitest';
-import { readBlobError, filenameFromDisposition } from '../api';
+import { describe, it, expect, vi } from 'vitest';
+import { readBlobError, filenameFromDisposition, contentAPI } from '../api';
+
+// Сеть — мок экземпляра axios: проверяем только тело запроса
+const { post } = vi.hoisted(() => ({ post: vi.fn(() => Promise.resolve({ data: null })) }));
+vi.mock('axios', () => ({
+  default: {
+    create: () => ({
+      post,
+      get: vi.fn(),
+      put: vi.fn(),
+      delete: vi.fn(),
+      interceptors: { request: { use: vi.fn() }, response: { use: vi.fn() } },
+    }),
+  },
+}));
+
+describe('contentAPI.issueCertificate', () => {
+  it('шлёт recipient_id, full_name и phone, ответ — блоб', async () => {
+    await contentAPI.issueCertificate(7, { recipient_id: 5, full_name: 'Алиев Али Валиевич', phone: '+998 90' });
+    expect(post).toHaveBeenCalledWith(
+      '/congress/congresses/7/certificates/issue',
+      { recipient_id: 5, full_name: 'Алиев Али Валиевич', phone: '+998 90' },
+      { responseType: 'blob' },
+    );
+  });
+});
 
 // Ошибка axios при responseType: 'blob' — тело JSON приходит блобом
 const blobError = (body, status = 404) => ({
