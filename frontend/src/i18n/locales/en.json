@@ -406,6 +406,24 @@
     "hint": "Check your connection and refresh the page.",
     "reload": "Refresh page"
   },
+  "certificate": {
+    "title": "Get your participant certificate",
+    "instruction": "Enter your full name as given when registering for the congress",
+    "nameLabel": "Full name",
+    "pickHint": "Select yourself from the suggestions",
+    "phoneLabel": "Phone number",
+    "phoneHint": "The number given at registration",
+    "find": "Find certificate",
+    "ready": "Your certificate is ready",
+    "download": "Download certificate",
+    "notFound": "No participant found with the details provided. Please check that the details are correct.",
+    "limitReached": "The maximum number of certificate downloads has been reached.",
+    "tooMany": "Too many attempts, please wait a minute",
+    "closed": "Certificates are not available yet",
+    "noMatches": "No matches found",
+    "link": "Get certificate",
+    "error": "Could not get the certificate. Please try again later."
+  },
   "common": {
     "loading": "Loading...",
     "error": "An error occurred",

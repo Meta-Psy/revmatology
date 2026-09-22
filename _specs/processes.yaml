@@ -187,3 +187,52 @@
     - frontend/src/App.jsx
   tests:
     api: backend/tests/workflows/test_p06_young_scientists_rules.py::test_p06
+
+- id: P-07
+  title: Участник получает именной сертификат конгресса
+  status: active
+  roles: [admin, visitor]
+  layers: [api]
+  chain:
+    - key: create_congress
+      step: админ создаёт конгресс
+      kind: mutation
+    - key: upload_template
+      step: админ загружает пустой PDF-бланк сертификата
+      kind: mutation
+    - key: import_recipients
+      step: админ импортирует CSV получателей (с телефоном и без) — сначала dry_run, затем запись; номера 1, 2 по порядку строк файла
+      kind: mutation
+    - key: open_issuing
+      step: админ открывает выдачу, статус для посетителя — open
+      kind: mutation
+    - key: suggest
+      step: посетитель без токена вводит часть Ф.И.О. и получает подсказки без телефонов
+      kind: list
+      positive_control: подсказка с официальным Ф.И.О. из списка и needs_phone = true; телефона в ответе нет
+    - key: issue_with_phone
+      step: посетитель выбирает себя, вводит телефон в другой форме записи и получает PDF
+      kind: mutation
+    - key: official_name_on_pdf
+      step: в PDF вписано официальное Ф.И.О. из списка, а не введённый текст, и порядковый номер 001; имя файла — латиницей
+      kind: readback
+    - key: limit_after_five
+      step: ещё четыре выдачи проходят, шестая отклонена (403 limit_reached)
+      kind: mutation
+  touches:
+    - backend/api/certificates.py
+    - backend/api/__init__.py
+    - backend/schemas/certificates.py
+    - backend/database/models.py
+    - backend/alembic/versions/005_add_certificates.py
+    - backend/functions/certificate_names.py
+    - backend/functions/certificate_pdf.py
+    - backend/assets/fonts/Caveat-Medium.ttf
+    - frontend/src/pages/CongressCertificate.jsx
+    - frontend/src/pages/Congress.jsx
+    - frontend/src/pages/admin/congress/CertificatesTab.jsx
+    - frontend/src/pages/admin/CongressAdmin.jsx
+    - frontend/src/App.jsx
+    - frontend/src/services/api.js
+  tests:
+    api: backend/tests/workflows/test_p07_congress_certificates.py::test_p07

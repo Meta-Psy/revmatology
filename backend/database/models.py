@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Date, ForeignKey, Enum, Time
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Date, ForeignKey, Enum, Time, Float, LargeBinary, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .connection import Base
@@ -283,6 +283,72 @@ class CongressSpeaker(Base):
 
     congress = relationship("Congress", back_populates="speakers")
     section = relationship("CongressProgramSection", back_populates="speakers")
+
+
+# ==================== СЕРТИФИКАТЫ КОНГРЕССА (К-11) ====================
+# Значения настроек, пока админ ничего не сохранял: рамка по центру A4 альбомного
+# Под бланк организаторов (A4 альбомный, 2026-09-22): имя — над длинной линией
+# под «of participation», номер — на линии после «No.» справа внизу
+CERTIFICATE_DEFAULTS = {
+    "box_x_mm": 58.0, "box_y_mm": 94.0, "box_w_mm": 181.0, "box_h_mm": 15.0,
+    "font_max_pt": 40.0, "font_min_pt": 16.0, "text_color": "#1B3A7A", "is_open": False,
+    "number_box_x_mm": 259.0, "number_box_y_mm": 183.0, "number_box_w_mm": 22.0, "number_box_h_mm": 7.0,
+    "number_font_pt": 14.0,
+}
+NUMBER_BOX_FIELDS = ("number_box_x_mm", "number_box_y_mm", "number_box_w_mm", "number_box_h_mm")
+
+
+class CertificateTemplate(Base):
+    """Шаблон сертификата — одна строка на конгресс.
+
+    Байты PDF в БД, а не в /uploads: nginx отдаёт /uploads публично целиком,
+    пустой бланк утёк бы. Отдельной таблицей, чтобы списки конгрессов не
+    тянули мегабайты PDF.
+    """
+    __tablename__ = "certificate_templates"
+
+    id = Column(Integer, primary_key=True, index=True)
+    congress_id = Column(Integer, ForeignKey("congresses.id", ondelete="CASCADE"), nullable=False, unique=True)
+    pdf = Column(LargeBinary, nullable=True)
+    pdf_filename = Column(String(255), nullable=True)
+    # рамка имени в мм от левого ВЕРХНЕГО угла первой страницы
+    box_x_mm = Column(Float, nullable=False, default=CERTIFICATE_DEFAULTS["box_x_mm"])
+    box_y_mm = Column(Float, nullable=False, default=CERTIFICATE_DEFAULTS["box_y_mm"])
+    box_w_mm = Column(Float, nullable=False, default=CERTIFICATE_DEFAULTS["box_w_mm"])
+    box_h_mm = Column(Float, nullable=False, default=CERTIFICATE_DEFAULTS["box_h_mm"])
+    font_max_pt = Column(Float, nullable=False, default=CERTIFICATE_DEFAULTS["font_max_pt"])
+    font_min_pt = Column(Float, nullable=False, default=CERTIFICATE_DEFAULTS["font_min_pt"])
+    text_color = Column(String(7), nullable=False, default=CERTIFICATE_DEFAULTS["text_color"])
+    is_open = Column(Boolean, nullable=False, default=CERTIFICATE_DEFAULTS["is_open"])
+    # рамка номера, мм от левого верхнего угла; все четыре NULL — номер не печатается
+    number_box_x_mm = Column(Float, nullable=True)
+    number_box_y_mm = Column(Float, nullable=True)
+    number_box_w_mm = Column(Float, nullable=True)
+    number_box_h_mm = Column(Float, nullable=True)
+    number_font_pt = Column(Float, nullable=False, default=CERTIFICATE_DEFAULTS["number_font_pt"])
+    # следующий порядковый номер получателя; удаление получателя его не уменьшает
+    next_number = Column(Integer, nullable=False, default=1, server_default="1")
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class CertificateRecipient(Base):
+    """Получатель сертификата: full_name ровно как в списке — идёт на сертификат.
+
+    number — порядковый номер сертификата в конгрессе: берётся при вставке из
+    certificate_templates.next_number и повторно не выдаётся; правкой и сбросом
+    счётчика скачиваний не меняется.
+    """
+    __tablename__ = "certificate_recipients"
+    __table_args__ = (UniqueConstraint("congress_id", "number", name="uq_certificate_recipients_congress_number"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    congress_id = Column(Integer, ForeignKey("congresses.id", ondelete="CASCADE"), nullable=False, index=True)
+    full_name = Column(String(300), nullable=False)
+    name_key = Column(String(300), nullable=False, index=True)  # normalize_name(full_name)
+    phone_digits = Column(String(20), nullable=True)
+    download_count = Column(Integer, nullable=False, default=0)
+    number = Column(Integer, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 # ==================== ЧЛЕНЫ ПРАВЛЕНИЯ ====================

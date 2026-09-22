@@ -210,6 +210,78 @@ export const contentAPI = {
   registerForCongress: (congressId, data) => api.post(`/congress/${congressId}/register`, data),
   getCongressRegistrations: (congressId = null) =>
     api.get('/congress/congress-registrations', { params: { congress_id: congressId } }),
+
+  // Сертификаты участников (К-11) — публичная выдача
+  getCertificateStatus: (congressId) => api.get(`/congress/congresses/${congressId}/certificates/status`),
+  suggestCertificateRecipients: (congressId, q) =>
+    api.get(`/congress/congresses/${congressId}/certificates/suggest`, { params: { q } }),
+  // full_name — ровно строка из ответа suggest. Ответ — PDF блобом; ошибка тоже блобом, код достаёт readBlobError
+  issueCertificate: (congressId, { recipient_id, full_name, phone = null }) =>
+    api.post(`/congress/congresses/${congressId}/certificates/issue`, { recipient_id, full_name, phone }, { responseType: 'blob' }),
+
+  // Сертификаты — админка
+  getCertificateSettings: (congressId) => api.get(`/congress/congresses/${congressId}/certificate-settings`),
+  updateCertificateSettings: (congressId, data) =>
+    api.put(`/congress/congresses/${congressId}/certificate-settings`, data),
+  uploadCertificateTemplate: (congressId, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post(`/congress/congresses/${congressId}/certificate-template`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  previewCertificate: (congressId, name) =>
+    api.post(`/congress/congresses/${congressId}/certificate-preview`, { name }, { responseType: 'blob' }),
+  getCertificateRecipients: (congressId, { q = '', skip = 0, limit = 50 } = {}) =>
+    api.get(`/congress/congresses/${congressId}/certificate-recipients`, { params: { q, skip, limit } }),
+  createCertificateRecipient: (congressId, data) =>
+    api.post(`/congress/congresses/${congressId}/certificate-recipients`, data),
+  updateCertificateRecipient: (rid, data) => api.put(`/congress/certificate-recipients/${rid}`, data),
+  deleteCertificateRecipient: (rid) => api.delete(`/congress/certificate-recipients/${rid}`),
+  resetCertificateRecipient: (rid) => api.post(`/congress/certificate-recipients/${rid}/reset`),
+  importCertificateRecipients: (congressId, file, { mode = 'append', dryRun = true } = {}) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('mode', mode);
+    formData.append('dry_run', dryRun ? 'true' : 'false');
+    return api.post(`/congress/congresses/${congressId}/certificate-recipients/import`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+};
+
+// Код ошибки из {"detail": ...}. При responseType: 'blob' тело — блоб с JSON.
+// detail бывает строкой или объектом {code, ...}. Не разобрать — null.
+export const readBlobError = async (err) => {
+  let data = err?.response?.data;
+  if (!data) return null;
+  try {
+    if (typeof Blob !== 'undefined' && data instanceof Blob) data = JSON.parse(await data.text());
+    else if (typeof data === 'string') data = JSON.parse(data);
+  } catch {
+    return null;
+  }
+  const detail = data?.detail;
+  if (typeof detail === 'string') return detail;
+  if (detail && typeof detail.code === 'string') return detail.code;
+  return null;
+};
+
+// Имя файла из Content-Disposition: латинское filename= (ТЗ — Certificate_<латиница>.pdf),
+// иначе filename*=UTF-8''…, иначе Certificate.pdf
+export const filenameFromDisposition = (header) => {
+  if (!header) return 'Certificate.pdf';
+  const plain = header.match(/filename="([^"]+)"/i) || header.match(/filename=([^;\s]+)/i);
+  if (plain) return plain[1];
+  const star = header.match(/filename\*=UTF-8''([^;\s]+)/i);
+  if (star) {
+    try {
+      return decodeURIComponent(star[1]);
+    } catch {
+      // битая кодировка — запасное имя
+    }
+  }
+  return 'Certificate.pdf';
 };
 
 // ==================== ADMIN API ====================

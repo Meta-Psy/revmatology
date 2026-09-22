@@ -17,6 +17,7 @@ const Schools = lazy(() => import('./pages/Schools'));
 const Congress = lazy(() => import('./pages/Congress'));
 const CongressProgram = lazy(() => import('./pages/CongressProgram'));
 const CongressYoungScientists = lazy(() => import('./pages/CongressYoungScientists'));
+const CongressCertificate = lazy(() => import('./pages/CongressCertificate'));
 const News = lazy(() => import('./pages/News'));
 const NewsDetail = lazy(() => import('./pages/NewsDetail'));
 const Login = lazy(() => import('./pages/Login'));
@@ -108,6 +109,7 @@ function App() {
                   <Route path="/congress/:id" element={<Congress />} />
                   <Route path="/congress/:id/program" element={<CongressProgram />} />
                   <Route path="/congress/:id/young-scientists" element={<CongressYoungScientists />} />
+                  <Route path="/congress/:id/certificate" element={<CongressCertificate />} />
 
                   {/* Новости */}
                   <Route path="/news" element={<News />} />
