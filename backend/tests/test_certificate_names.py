@@ -4,6 +4,7 @@ import pytest
 from functions.certificate_names import (
     NoNameColumn,
     certificate_filename,
+    clean_phone,
     normalize_name,
     parse_recipients_csv,
     phone_digits,
@@ -23,7 +24,13 @@ def test_normalize_yo_equals_ye():
 
 def test_normalize_all_apostrophes_are_one():
     assert normalize_name("Oʻgʻiloy") == normalize_name("O'g'iloy") == normalize_name("O’g’iloy")
-    assert normalize_name("Oʼgʼiloy") == normalize_name("O‘g‘iloy") == normalize_name("O`g`iloy") == "o'g'iloy"
+    assert normalize_name("Oʼgʼiloy") == normalize_name("O‘g‘iloy") == normalize_name("O`g`iloy") == normalize_name("O\u00b4g\u00b4iloy") == "o'g'iloy"
+
+
+def test_normalize_decomposed_letters_equal_composed():
+    """й и ё, набранные разложенными (буква + комбинирующий знак), — те же буквы."""
+    assert normalize_name("Сергеи\u0306") == normalize_name("Сергей")
+    assert normalize_name("Е\u0308лкина") == normalize_name("Елкина") == normalize_name("Ёлкина")
 
 
 # ==================== телефоны ====================
@@ -46,10 +53,29 @@ def test_phones_match_rejects_other_number():
     assert not phones_match("998901234567", "+998 91 123 45 67")
 
 
-def test_phones_match_short_stored_compares_whole():
-    assert phones_match("1234567", "1234567") is False  # введено < 9 цифр
-    assert phones_match("12345678", "123456789") is False
+def test_phones_match_short_stored_never_matches():
+    """Короткие телефоны в базу не попадают (clean_phone → None); если такой всё же
+    есть — он не совпадает ни с чем, отдельной ветки «сравнить целиком» нет."""
+    assert phones_match("12345678", "12345678") is False
+    assert phones_match("12345678", "112345678") is False
     assert phones_match("", "901234567") is False
+
+
+# ==================== clean_phone ====================
+
+@pytest.mark.parametrize("raw, expected", [
+    (None, (None, None)),
+    ("", (None, None)),
+    ("  -  ", (None, None)),
+    ("901234567", ("901234567", None)),
+    ("+998 90 123 45 67", ("998901234567", None)),
+    ("1234", (None, "short")),
+    ("12345678", (None, "short")),
+    ("123456789012345", ("123456789012345", None)),  # 15 цифр — предел E.164
+    ("+998 90 123 45 67, +998 91 765 43 21", (None, "invalid")),  # два номера в ячейке
+])
+def test_clean_phone(raw, expected):
+    assert clean_phone(raw) == expected
 
 
 # ==================== certificate_filename ====================
@@ -156,3 +182,31 @@ def test_csv_duplicate_by_normalized_name():
     result = parse_recipients_csv("ФИО;Телефон\nЁлкина Анна;\nелкина  анна;\n".encode())
     assert result.accepted == 1 and result.duplicates_in_file == 1
     assert result.rows[0].full_name == "Ёлкина Анна"
+
+
+def test_csv_short_and_invalid_phones_become_none():
+    data = (
+        "ФИО;Телефон\n"
+        "Алиев Али;1234\n"
+        "Karimov Bobur;+998 90 123 45 67 / +998 91 765 43 21\n"
+        "Шодиева Ситора;901234567\n"
+    ).encode()
+    result = parse_recipients_csv(data)
+    assert [(r.full_name, r.phone_digits) for r in result.rows] == [
+        ("Алиев Али", None), ("Karimov Bobur", None), ("Шодиева Ситора", "901234567"),
+    ]
+    assert (result.accepted, result.short_phones, result.invalid_phones) == (3, 1, 1)
+
+
+def test_csv_short_phone_duplicate_of_no_phone():
+    """Короткий телефон = нет телефона, поэтому совпадает с той же строкой без телефона."""
+    result = parse_recipients_csv("ФИО;Телефон\nАлиев Али;\nАлиев Али;12\n".encode())
+    assert (result.accepted, result.duplicates_in_file, result.short_phones) == (1, 1, 1)
+
+
+def test_csv_too_long_name_is_dropped():
+    result = parse_recipients_csv(f"ФИО\n{'А' * 301}\n{'Б' * 300}\n".encode())
+    assert [len(r.full_name) for r in result.rows] == [300]
+    assert (result.accepted, result.too_long_names) == (1, 1)
+
+

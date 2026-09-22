@@ -97,6 +97,49 @@ def test_render_rotated_template():
     assert page.rotation == 0
     assert float(page.mediabox.width) > float(page.mediabox.height)  # видимая страница альбомная
     assert _squash("Алиев Али") in _squash(page.extract_text())
+    _assert_name_inside_box(page, "Алиев Али", BOX)
+
+
+def _name_fragments(page, name: str) -> list[tuple[str, float, float, float]]:
+    """Куски текста имени: (текст, x, y базовой линии, ширина) в пунктах страницы."""
+    found = []
+
+    def _visit(text, cm, tm, font_dict, font_size):
+        text = text.strip()
+        if not _squash(text) or _squash(text) not in _squash(name):
+            return
+        a, b, c, d, e, f = tm
+        ca, cb, cc, cd, ce, cf = cm
+        # точка начала строки: tm × cm
+        x, y = e * ca + f * cc + ce, e * cb + f * cd + cf
+        scale = (a * ca + b * cc) or 1.0  # горизонтальный масштаб tm × cm
+        found.append((text, x, y, stringWidth(text, FONT_NAME, font_size * scale)))
+
+    page.extract_text(visitor_text=_visit)
+    return found
+
+
+def _assert_name_inside_box(page, name: str, box: Box) -> None:
+    top = float(page.cropbox.top)
+    left = float(page.cropbox.left)
+    x0, x1 = left + box.x_mm * mm, left + (box.x_mm + box.w_mm) * mm
+    y0, y1 = top - (box.y_mm + box.h_mm) * mm, top - box.y_mm * mm
+    fragments = _name_fragments(page, name)
+    assert fragments, "имя не найдено"
+    for text, x, y, width in fragments:
+        assert x0 - 0.5 <= x and x + width <= x1 + 0.5, (text, x, width, (x0, x1))
+        assert y0 <= y <= y1, (text, y, (y0, y1))
+
+
+def test_name_inside_box_check_catches_misplaced_name():
+    """Прибор различает: то же имя против сдвинутой рамки — падает."""
+    pdf = render_certificate(_template(landscape(A4)), "Алиев Али", BOX, 40, 16)
+    page = PdfReader(io.BytesIO(pdf)).pages[0]
+    _assert_name_inside_box(page, "Алиев Али", BOX)
+    with pytest.raises(AssertionError):
+        _assert_name_inside_box(page, "Алиев Али", Box(x_mm=BOX.x_mm, y_mm=BOX.y_mm + 40, w_mm=BOX.w_mm, h_mm=BOX.h_mm))
+    with pytest.raises(AssertionError):
+        _assert_name_inside_box(page, "Алиев Али", Box(x_mm=BOX.x_mm, y_mm=BOX.y_mm, w_mm=20, h_mm=BOX.h_mm))
 
 
 def test_outline_changes_output(landscape_template):

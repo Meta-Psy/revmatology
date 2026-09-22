@@ -67,7 +67,7 @@ async def test_p07(journey, client):
         dry = await client.post(url, files={"file": ("list.csv", CSV, "text/csv")},
                                 data={"mode": "append", "dry_run": "true"})
         assert dry.status_code == 200, f"[import_recipients] dry_run {dry.status_code}: {dry.text}"
-        assert (dry.json()["accepted"], dry.json()["inserted"]) == (2, 0), f"[import_recipients] dry_run {dry.json()}"
+        assert (dry.json()["accepted"], dry.json()["will_insert"], dry.json()["inserted"]) == (2, 2, 0), f"[import_recipients] dry_run {dry.json()}"
         return await client.post(url, files={"file": ("list.csv", CSV, "text/csv")},
                                  data={"mode": "append", "dry_run": "false"})
 
@@ -99,7 +99,7 @@ async def test_p07(journey, client):
     def _issue():
         return client.post(
             f"{BASE}/congresses/{congress_id}/certificates/issue",
-            json={"recipient_id": me["id"], "phone": "90 123 45 67"},
+            json={"recipient_id": me["id"], "full_name": me["full_name"], "phone": "90 123 45 67"},
         )
 
     issued = await j.step("issue_with_phone", _issue)

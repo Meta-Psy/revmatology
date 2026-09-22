@@ -21,7 +21,9 @@ class CertificateSuggestion(BaseModel):
 
 
 class CertificateIssueRequest(BaseModel):
+    """full_name — имя из выбранной подсказки: без него перебор id отдавал бы PDF любому."""
     recipient_id: int
+    full_name: str = Field(..., max_length=300)
     phone: Optional[str] = None
 
 
@@ -105,6 +107,10 @@ class CertificateImportReport(BaseModel):
     empty_rows: int
     duplicates_in_file: int
     skipped_existing: int
+    short_phones: int  # меньше 9 цифр — сохранены без телефона
+    invalid_phones: int  # больше 15 цифр — сохранены без телефона
+    too_long_names: int  # имя длиннее 300 знаков — строка отброшена
+    will_insert: int  # сколько строк вставится; без dry_run равно inserted
     inserted: int
     sample: list[str]
     columns: list[str]

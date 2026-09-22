@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Reques
 from pypdf import PdfReader
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import defer
 from starlette.concurrency import run_in_threadpool
 
 from database import CertificateRecipient, CertificateTemplate, Congress, get_db
@@ -23,9 +24,9 @@ from functions.auth import get_current_admin
 from functions.certificate_names import (
     NoNameColumn,
     certificate_filename,
+    clean_phone,
     normalize_name,
     parse_recipients_csv,
-    phone_digits,
     phones_match,
 )
 from functions.certificate_pdf import Box, render_certificate
@@ -49,8 +50,10 @@ logger = logging.getLogger(__name__)
 MAX_DOWNLOADS = 5
 SUGGEST_LIMIT = 7
 SUGGEST_MIN_CHARS = 3
-SUGGEST_PER_MINUTE = 30
-ISSUE_PER_MINUTE = 10
+SUGGEST_MAX_QUERY = 200
+# на площадке конгресса и у мобильных операторов (CGNAT) за одним IP много людей
+SUGGEST_PER_MINUTE = 60
+ISSUE_PER_MINUTE = 20
 RATE_WINDOW_SECONDS = 60
 MAX_TEMPLATE_SIZE = 20 * 1024 * 1024
 MAX_CSV_SIZE = 5 * 1024 * 1024
@@ -67,15 +70,32 @@ class RateLimiter:
     def __init__(self, window: float = RATE_WINDOW_SECONDS):
         self.window = window
         self._hits: dict[str, deque[float]] = {}
+        self._last_sweep = time.monotonic()
+
+    def _expire(self, key: str, now: float) -> deque[float]:
+        """Чистит окно ключа; пустое окно — ключ удаляется (IP не копятся)."""
+        hits = self._hits.get(key)
+        if hits is None:
+            return deque()
+        while hits and now - hits[0] >= self.window:
+            hits.popleft()
+        if not hits:
+            del self._hits[key]
+        return hits
 
     def allow(self, bucket: str, ip: str, limit: int) -> bool:
         now = time.monotonic()
-        hits = self._hits.setdefault(f"{bucket}:{ip}", deque())
-        while hits and now - hits[0] >= self.window:
-            hits.popleft()
+        if now - self._last_sweep >= self.window:
+            # раз в окно — проход по всем ключам: ушедшие IP сами не вернутся
+            for stale in list(self._hits):
+                self._expire(stale, now)
+            self._last_sweep = now
+        key = f"{bucket}:{ip}"
+        hits = self._expire(key, now)
         if len(hits) >= limit:
             return False
         hits.append(now)
+        self._hits[key] = hits
         return True
 
     def reset(self) -> None:
@@ -141,6 +161,14 @@ async def _get_or_create_template(db: AsyncSession, congress_id: int) -> Certifi
     return template
 
 
+def _stored_phone(raw: Optional[str]) -> Optional[str]:
+    """Телефон из админки: пусто — без телефона; короче 9 или длиннее 15 цифр — 422."""
+    digits, problem = clean_phone(raw)
+    if problem:
+        raise HTTPException(status_code=422, detail="invalid_phone")
+    return digits
+
+
 async def _render(pdf: bytes, template: CertificateTemplate, name: str, outline: bool = False) -> bytes:
     """Сборка (CPU) — в пуле потоков; настройки читаются здесь, в цикле событий."""
     box = Box(template.box_x_mm, template.box_y_mm, template.box_w_mm, template.box_h_mm)
@@ -192,7 +220,7 @@ async def certificate_status(congress_id: int, db: AsyncSession = Depends(get_db
 async def suggest_recipients(
     congress_id: int,
     request: Request,
-    q: str = "",
+    q: str = Query("", max_length=SUGGEST_MAX_QUERY),
     db: AsyncSession = Depends(get_db),
 ):
     _throttle(request, "suggest", SUGGEST_PER_MINUTE)
@@ -220,8 +248,15 @@ async def issue_certificate(
     _throttle(request, "issue", ISSUE_PER_MINUTE)
     not_found = HTTPException(status_code=404, detail="not_found")  # одинаково: не подсказываем, что не так
 
-    template = await _get_template(db, congress_id)
-    if not (template and template.is_open and template.pdf is not None):
+    # настройки без байтов PDF: шаблон читается только после списания
+    template = (await db.execute(
+        select(CertificateTemplate).options(defer(CertificateTemplate.pdf)).where(
+            CertificateTemplate.congress_id == congress_id,
+            CertificateTemplate.is_open.is_(True),
+            CertificateTemplate.pdf.isnot(None),
+        )
+    )).scalar_one_or_none()
+    if template is None:
         raise not_found
     recipient = (await db.execute(
         select(CertificateRecipient).where(
@@ -232,6 +267,9 @@ async def issue_certificate(
     if recipient is None:
         raise not_found
     if recipient.phone_digits and not phones_match(recipient.phone_digits, data.phone or ""):
+        raise not_found
+    # имя из подсказки должно совпасть: иначе перебор id выдаёт чужие сертификаты
+    if normalize_name(data.full_name) != recipient.name_key:
         raise not_found
     full_name = recipient.full_name
 
@@ -246,7 +284,10 @@ async def issue_certificate(
         await db.rollback()
         raise HTTPException(status_code=403, detail="limit_reached")
     try:
-        pdf = await _render(template.pdf, template, full_name)
+        template_pdf = (await db.execute(
+            select(CertificateTemplate.pdf).where(CertificateTemplate.id == template.id)
+        )).scalar_one()
+        pdf = await _render(template_pdf, template, full_name)
     except Exception:
         # списание не зафиксировано — откат транзакции возвращает счётчик
         await db.rollback()
@@ -361,7 +402,7 @@ async def create_recipient(
         congress_id=congress_id,
         full_name=data.full_name,
         name_key=normalize_name(data.full_name),
-        phone_digits=phone_digits(data.phone) or None,
+        phone_digits=_stored_phone(data.phone),
         download_count=0,
     )
     db.add(recipient)
@@ -379,11 +420,12 @@ async def update_recipient(
 ):
     recipient = await _get_recipient(db, rid)
     sent = data.model_dump(exclude_unset=True)
+    phone = _stored_phone(sent["phone"]) if "phone" in sent else None
     if sent.get("full_name"):
         recipient.full_name = sent["full_name"]
         recipient.name_key = normalize_name(sent["full_name"])
     if "phone" in sent:
-        recipient.phone_digits = phone_digits(sent["phone"]) or None
+        recipient.phone_digits = phone
     await db.commit()
     await db.refresh(recipient)
     return recipient
@@ -434,6 +476,10 @@ async def import_recipients(
         rows = [r for r in parsed.rows if (r.name_key, r.phone_digits) not in existing]
         skipped = len(parsed.rows) - len(rows)
 
+    if mode == "replace" and not rows and not dry_run:
+        # пустой файл не должен молча стереть весь список вместе со счётчиками
+        raise HTTPException(status_code=400, detail="empty_replace")
+
     if not dry_run:
         if mode == "replace":
             await db.execute(delete(CertificateRecipient).where(CertificateRecipient.congress_id == congress_id))
@@ -451,6 +497,10 @@ async def import_recipients(
         empty_rows=parsed.empty_rows,
         duplicates_in_file=parsed.duplicates_in_file,
         skipped_existing=skipped,
+        short_phones=parsed.short_phones,
+        invalid_phones=parsed.invalid_phones,
+        too_long_names=parsed.too_long_names,
+        will_insert=len(rows),
         inserted=0 if dry_run else len(rows),
         sample=[r.full_name for r in parsed.rows[:5]],
         columns=parsed.columns,

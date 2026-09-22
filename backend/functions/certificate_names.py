@@ -9,14 +9,20 @@ import unicodedata
 from dataclasses import dataclass, field
 from typing import Optional
 
-# Все виды апострофа, которыми пишут узбекскую латиницу (Oʻgʻiloy / O'g'iloy / O’g’iloy)
-APOSTROPHES = "ʻʼ'’‘`"
+# Все виды апострофа, которыми пишут узбекскую латиницу (Oʻgʻiloy / O'g'iloy / O’g’iloy / O´g´iloy)
+APOSTROPHES = "ʻʼ'’‘`\u00b4"
+NAME_MAX_LEN = 300  # = String(300) у full_name и name_key
+PHONE_MIN_DIGITS = 9  # сравнение идёт по последним 9 цифрам
+PHONE_MAX_DIGITS = 15  # E.164; больше — скорее два номера в ячейке
 _APOSTROPHE_TABLE = str.maketrans({ch: "'" for ch in APOSTROPHES})
 
 
 def normalize_name(s: str) -> str:
-    """Ключ поиска: регистр, пробелы, ё=е и апострофы не различаются."""
-    s = (s or "").casefold().replace("ё", "е").translate(_APOSTROPHE_TABLE)
+    """Ключ поиска: регистр, пробелы, ё=е и апострофы не различаются.
+
+    NFC первым: «й»/«ё», набранные буквой + комбинирующим знаком, становятся одной буквой.
+    """
+    s = unicodedata.normalize("NFC", s or "").casefold().replace("ё", "е").translate(_APOSTROPHE_TABLE)
     return " ".join(s.split())
 
 
@@ -24,17 +30,29 @@ def phone_digits(s: Optional[str]) -> str:
     return "".join(ch for ch in (s or "") if ch.isdigit())
 
 
+def clean_phone(s: Optional[str]) -> tuple[Optional[str], Optional[str]]:
+    """Телефон для хранения: (цифры или None, причина отказа или None).
+
+    Пусто → (None, None). Меньше 9 цифр → (None, "short"): такой номер запер бы
+    участника, сравнение идёт по 9 последним цифрам. Больше 15 → (None, "invalid").
+    """
+    digits = phone_digits(s)
+    if not digits:
+        return None, None
+    if len(digits) < PHONE_MIN_DIGITS:
+        return None, "short"
+    if len(digits) > PHONE_MAX_DIGITS:
+        return None, "invalid"
+    return digits, None
+
+
 def phones_match(stored: str, entered: str) -> bool:
     """Сравнение по последним 9 цифрам: +998 90 123 45 67 = 998901234567 = 90 123 45 67.
 
-    Введено меньше 9 цифр — не совпало; в базе меньше 9 — сравнение целиком.
+    Введено меньше 9 цифр — не совпало. Короче 9 в базе не хранится (clean_phone).
     """
     stored, entered = phone_digits(stored), phone_digits(entered)
-    if len(entered) < 9:
-        return False
-    if len(stored) < 9:
-        return stored == entered
-    return stored[-9:] == entered[-9:]
+    return len(entered) >= PHONE_MIN_DIGITS and stored[-PHONE_MIN_DIGITS:] == entered[-PHONE_MIN_DIGITS:]
 
 
 # ==================== имя файла ====================
@@ -101,6 +119,9 @@ class ParsedCsv:
     rows: list[ParsedRecipient] = field(default_factory=list)
     empty_rows: int = 0
     duplicates_in_file: int = 0
+    short_phones: int = 0
+    invalid_phones: int = 0
+    too_long_names: int = 0
     columns: list[str] = field(default_factory=list)
 
     @property
@@ -167,8 +188,15 @@ def parse_recipients_csv(data: bytes) -> ParsedCsv:
         if not full_name:
             result.empty_rows += 1
             continue
-        phone = phone_digits(_cell(row, phone_i)) or None
         key = normalize_name(full_name)
+        if len(full_name) > NAME_MAX_LEN or len(key) > NAME_MAX_LEN:
+            result.too_long_names += 1
+            continue
+        phone, problem = clean_phone(_cell(row, phone_i))
+        if problem == "short":
+            result.short_phones += 1
+        elif problem == "invalid":
+            result.invalid_phones += 1
         if (key, phone) in seen:
             result.duplicates_in_file += 1
             continue

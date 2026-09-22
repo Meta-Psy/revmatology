@@ -3,13 +3,14 @@
 Шаблон грузится через API, не через ORM: так проверяется и сама загрузка.
 """
 import io
+import re
 from urllib.parse import quote
 
 import pytest
 from pypdf import PdfReader
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.pdfgen import canvas
-from sqlalchemy import select
+from sqlalchemy import event, select
 
 from api import certificates as cert_api
 from database.models import CertificateRecipient
@@ -68,10 +69,14 @@ async def ready(client, congress):
     return congress.id, with_phone, without_phone
 
 
-async def _issue(client, congress_id, recipient_id, phone=None, headers=None):
+GHOST = {"id": 99999, "full_name": "Нет Такого"}  # получателя с таким id нет
+
+
+async def _issue(client, congress_id, recipient, phone=None, headers=None, full_name=None):
+    """recipient — ответ _add (id + full_name); full_name подменяет имя из подсказки."""
     return await client.post(
         f"{BASE}/congresses/{congress_id}/certificates/issue",
-        json={"recipient_id": recipient_id, "phone": phone},
+        json={"recipient_id": recipient["id"], "full_name": full_name or recipient["full_name"], "phone": phone},
         headers=headers,
     )
 
@@ -153,7 +158,7 @@ async def test_suggest_other_congress_not_leaked(client, ready, make_congress):
 @pytest.mark.parametrize("phone", ["+998 90 123 45 67", "998901234567", "90 123 45 67"])
 async def test_issue_with_phone_forms(client, ready, phone):
     congress_id, with_phone, _ = ready
-    response = await _issue(client, congress_id, with_phone["id"], phone)
+    response = await _issue(client, congress_id, with_phone, phone)
     assert response.status_code == 200, response.text
     assert response.headers["content-type"] == "application/pdf"
     disposition = response.headers["content-disposition"]
@@ -166,13 +171,13 @@ async def test_issue_with_phone_forms(client, ready, phone):
 async def test_issue_wrong_or_missing_phone_is_404(client, ready):
     congress_id, with_phone, _ = ready
     for phone in ["+998 91 123 45 67", None, "", "1234567"]:
-        response = await _issue(client, congress_id, with_phone["id"], phone)
+        response = await _issue(client, congress_id, with_phone, phone)
         assert (response.status_code, response.json()) == (404, {"detail": "not_found"}), phone
 
 
 async def test_issue_without_phone_in_list(client, ready):
     congress_id, _, without_phone = ready
-    response = await _issue(client, congress_id, without_phone["id"])
+    response = await _issue(client, congress_id, without_phone)
     assert response.status_code == 200
     assert 'filename="Certificate_Karimov_Bobur.pdf"' in response.headers["content-disposition"]
 
@@ -182,23 +187,88 @@ async def test_issue_other_congress_is_404(client, ready, make_congress):
     other = await make_congress("Другой")
     assert (await _upload_template(client, other.id)).status_code == 200
     await _open(client, other.id)
-    response = await _issue(client, other.id, without_phone["id"])
+    response = await _issue(client, other.id, without_phone)
     assert (response.status_code, response.json()) == (404, {"detail": "not_found"})
-    assert (await _issue(client, congress_id, 99999)).status_code == 404
+    assert (await _issue(client, congress_id, GHOST)).status_code == 404
 
 
 async def test_issue_closed_is_404(client, ready):
     congress_id, _, without_phone = ready
     await _open(client, congress_id, False)
-    response = await _issue(client, congress_id, without_phone["id"])
+    response = await _issue(client, congress_id, without_phone)
     assert (response.status_code, response.json()) == (404, {"detail": "not_found"})
+
+
+async def test_issue_requires_matching_name(client, ready, session_factory):
+    """Перебор id не даёт PDF: имя из подсказки должно совпасть с именем получателя."""
+    congress_id, with_phone, without_phone = ready
+    for name in ["Шодиева Ситора Баходировна", "Karimov", "Karimov Boburjon"]:
+        response = await _issue(client, congress_id, without_phone, full_name=name)
+        assert (response.status_code, response.json()) == (404, {"detail": "not_found"}), name
+    # верный телефон, но чужое имя — тоже 404
+    response = await _issue(client, congress_id, with_phone, "901234567", full_name="Karimov Bobur")
+    assert response.status_code == 404
+    async with session_factory() as s:
+        counts = (await s.execute(select(CertificateRecipient.download_count))).scalars().all()
+    assert counts == [0, 0]  # 404 — до списания
+
+
+async def test_issue_name_is_normalized(client, ready):
+    congress_id, _, without_phone = ready
+    response = await _issue(client, congress_id, without_phone, full_name="  karimov   BOBUR ")
+    assert response.status_code == 200, response.text
+
+
+async def test_issue_name_validation(client, ready):
+    congress_id, _, without_phone = ready
+    url = f"{BASE}/congresses/{congress_id}/certificates/issue"
+    assert (await client.post(url, json={"recipient_id": without_phone["id"]})).status_code == 422
+    too_long = {"recipient_id": without_phone["id"], "full_name": "А" * 301}
+    assert (await client.post(url, json=too_long)).status_code == 422
+
+
+def _selects_pdf(statement: str) -> bool:
+    """В списке выбираемых колонок есть байты шаблона (WHERE ... pdf IS NOT NULL — не в счёт)."""
+    head = re.split(r"\sFROM\s", statement, maxsplit=1)[0]
+    return statement.lstrip().upper().startswith("SELECT") and re.search(r"certificate_templates\.pdf\b", head) is not None
+
+
+@pytest.fixture
+def statements(engine):
+    seen: list[str] = []
+
+    def _record(conn, cursor, statement, parameters, context, executemany):
+        seen.append(statement)
+
+    event.listen(engine.sync_engine, "before_cursor_execute", _record)
+    yield seen
+    event.remove(engine.sync_engine, "before_cursor_execute", _record)
+
+
+async def test_issue_reads_pdf_only_after_charge(client, ready, statements):
+    congress_id, _, without_phone = ready
+    statements.clear()
+    assert (await _issue(client, congress_id, without_phone, full_name="Чужое Имя")).status_code == 404
+    assert not any(_selects_pdf(s) for s in statements), statements
+
+    for _ in range(cert_api.MAX_DOWNLOADS - 1):
+        assert (await _issue(client, congress_id, without_phone)).status_code == 200
+    statements.clear()
+    assert (await _issue(client, congress_id, without_phone)).status_code == 200
+    charge = next(i for i, s in enumerate(statements) if s.lstrip().upper().startswith("UPDATE CERTIFICATE_RECIPIENTS"))
+    pdf_reads = [i for i, s in enumerate(statements) if _selects_pdf(s)]
+    assert pdf_reads and min(pdf_reads) > charge, statements
+
+    statements.clear()
+    assert (await _issue(client, congress_id, without_phone)).status_code == 403
+    assert not any(_selects_pdf(s) for s in statements), statements
 
 
 async def test_sixth_issue_is_403(client, ready, session_factory):
     congress_id, _, without_phone = ready
     for _ in range(cert_api.MAX_DOWNLOADS):
-        assert (await _issue(client, congress_id, without_phone["id"])).status_code == 200
-    response = await _issue(client, congress_id, without_phone["id"])
+        assert (await _issue(client, congress_id, without_phone)).status_code == 200
+    response = await _issue(client, congress_id, without_phone)
     assert (response.status_code, response.json()) == (403, {"detail": "limit_reached"})
     async with session_factory() as s:
         row = (await s.execute(select(CertificateRecipient).where(CertificateRecipient.id == without_phone["id"]))).scalar_one()
@@ -212,7 +282,7 @@ async def test_render_failure_returns_counter(client, ready, monkeypatch, sessio
         raise RuntimeError("broken")
 
     monkeypatch.setattr(cert_api, "render_certificate", _boom)
-    response = await _issue(client, congress_id, without_phone["id"])
+    response = await _issue(client, congress_id, without_phone)
     assert response.status_code == 500
     async with session_factory() as s:
         row = (await s.execute(select(CertificateRecipient).where(CertificateRecipient.id == without_phone["id"]))).scalar_one()
@@ -223,11 +293,11 @@ async def test_issue_rate_limit(client, ready):
     congress_id, _, without_phone = ready
     headers = {"X-Real-IP": "10.0.0.1"}
     for _ in range(cert_api.ISSUE_PER_MINUTE):
-        assert (await _issue(client, congress_id, 99999, headers=headers)).status_code == 404
-    response = await _issue(client, congress_id, without_phone["id"], headers=headers)
+        assert (await _issue(client, congress_id, GHOST, headers=headers)).status_code == 404
+    response = await _issue(client, congress_id, without_phone, headers=headers)
     assert (response.status_code, response.json()) == (429, {"detail": "too_many_requests"})
     # другой IP — своё окно
-    assert (await _issue(client, congress_id, without_phone["id"], headers={"X-Real-IP": "10.0.0.2"})).status_code == 200
+    assert (await _issue(client, congress_id, without_phone, headers={"X-Real-IP": "10.0.0.2"})).status_code == 200
 
 
 async def test_suggest_rate_limit(client, ready):
@@ -247,6 +317,29 @@ def test_rate_limiter_window_slides(monkeypatch):
     assert not limiter.allow("b", "ip", 2)
     now[0] += 61
     assert limiter.allow("b", "ip", 2)
+
+
+def test_rate_limiter_forgets_idle_ips(monkeypatch):
+    """Ключ IP удаляется, когда его окно опустело, — словарь не растёт бесконечно."""
+    now = [1000.0]
+    monkeypatch.setattr(cert_api.time, "monotonic", lambda: now[0])
+    limiter = cert_api.RateLimiter()
+    for n in range(100):
+        assert limiter.allow("b", f"10.0.0.{n}", 5)
+    now[0] += 61
+    assert limiter.allow("b", "fresh", 5)
+    assert set(limiter._hits) == {"b:fresh"}
+
+
+def test_rate_limits_fit_shared_ip():
+    """На площадке и у операторов с CGNAT за одним IP много людей."""
+    assert (cert_api.SUGGEST_PER_MINUTE, cert_api.ISSUE_PER_MINUTE) == (60, 20)
+
+
+async def test_suggest_query_length_limit(client, ready):
+    congress_id, *_ = ready
+    assert (await _suggest(client, congress_id, "ш" * 200)).status_code == 200
+    assert (await _suggest(client, congress_id, "ш" * 201)).status_code == 422
 
 
 # ==================== admin: доступ ====================
@@ -386,10 +479,37 @@ async def test_recipients_list_pagination_and_phone_visible(client, congress):
 
 async def test_reset_counter(client, ready):
     congress_id, _, without_phone = ready
-    await _issue(client, congress_id, without_phone["id"])
+    await _issue(client, congress_id, without_phone)
     response = await client.post(f"{BASE}/certificate-recipients/{without_phone['id']}/reset")
     assert response.status_code == 200 and response.json()["download_count"] == 0
     assert (await client.post(f"{BASE}/certificate-recipients/99999/reset")).status_code == 404
+
+
+@pytest.mark.parametrize("phone", ["1234", "12345678", "+998 90 123 45 67, +998 91 765 43 21"])
+async def test_recipient_bad_phone_is_422(client, congress, phone):
+    url = f"{BASE}/congresses/{congress.id}/certificate-recipients"
+    response = await client.post(url, json={"full_name": "Алиев Али", "phone": phone})
+    assert (response.status_code, response.json()) == (422, {"detail": "invalid_phone"})
+    created = await _add(client, congress.id, "Алиев Али", "901234567")
+    response = await client.put(f"{BASE}/certificate-recipients/{created['id']}", json={"phone": phone})
+    assert (response.status_code, response.json()) == (422, {"detail": "invalid_phone"})
+    listing = (await client.get(url)).json()
+    assert [(i["full_name"], i["phone_digits"]) for i in listing["items"]] == [("Алиев Али", "901234567")]
+
+
+async def test_recipient_empty_phone_means_none(client, congress):
+    created = await _add(client, congress.id, "Алиев Али", " - ")
+    assert created["phone_digits"] is None
+    updated = await client.put(f"{BASE}/certificate-recipients/{created['id']}", json={"phone": ""})
+    assert updated.status_code == 200 and updated.json()["phone_digits"] is None
+
+
+async def test_recipient_too_long_name_is_422(client, congress):
+    url = f"{BASE}/congresses/{congress.id}/certificate-recipients"
+    assert (await client.post(url, json={"full_name": "А" * 301})).status_code == 422
+    created = await _add(client, congress.id, "А" * 300)
+    response = await client.put(f"{BASE}/certificate-recipients/{created['id']}", json={"full_name": "А" * 301})
+    assert response.status_code == 422
 
 
 async def test_add_recipient_unknown_congress(client):
@@ -420,6 +540,7 @@ async def test_import_dry_run_writes_nothing(client, congress):
     assert response.status_code == 200, response.text
     assert response.json() == {
         "accepted": 2, "empty_rows": 1, "duplicates_in_file": 1, "skipped_existing": 0,
+        "short_phones": 0, "invalid_phones": 0, "too_long_names": 0, "will_insert": 2,
         "inserted": 0, "sample": ["Алиев Али", "Karimov Bobur"], "columns": ["ФИО", "Телефон"],
     }
     assert await _names(client, congress.id) == []
@@ -428,16 +549,50 @@ async def test_import_dry_run_writes_nothing(client, congress):
 async def test_import_append_skips_existing(client, congress):
     await _add(client, congress.id, "алиев  али", "+998 90 111 22 33")  # тот же name_key + телефон
     await _add(client, congress.id, "Karimov Bobur", "901234567")  # другой телефон — не тот же
+    dry = (await _import(client, congress.id, dry_run=True)).json()
     body = (await _import(client, congress.id)).json()
-    assert (body["skipped_existing"], body["inserted"]) == (1, 1)
+    assert (body["skipped_existing"], body["will_insert"], body["inserted"]) == (1, 1, 1)
+    assert dry["will_insert"] == body["will_insert"]
     assert await _names(client, congress.id) == ["Karimov Bobur", "Karimov Bobur", "алиев али"]
+
+
+# колонки: имя String(300), телефон String(20) — PostgreSQL на лишнем падает 500
+BAD_CSV = (
+    "ФИО;Телефон\n"
+    f"{'Д' * 301};901234567\n"
+    "Алиев Али;12-34\n"
+    "Karimov Bobur;+998 90 123 45 67 / +998 91 765 43 21\n"
+    "Шодиева Ситора;+998 90 555 44 33\n"
+).encode()
+
+
+async def test_import_counts_bad_values_same_in_dry_run(client, congress):
+    dry = (await _import(client, congress.id, BAD_CSV, dry_run=True)).json()
+    body = (await _import(client, congress.id, BAD_CSV)).json()
+    counters = ("accepted", "short_phones", "invalid_phones", "too_long_names", "will_insert")
+    assert [dry[k] for k in counters] == [body[k] for k in counters] == [3, 1, 1, 1, 3]
+    assert (dry["inserted"], body["inserted"]) == (0, 3)
+    listing = (await client.get(f"{BASE}/congresses/{congress.id}/certificate-recipients")).json()
+    assert sorted((i["full_name"], i["phone_digits"]) for i in listing["items"]) == [
+        ("Karimov Bobur", None), ("Алиев Али", None), ("Шодиева Ситора", "998905554433"),
+    ]
+
+
+async def test_import_replace_with_empty_list_is_refused(client, ready):
+    congress_id, *_ = ready
+    empty = "ФИО;Телефон\n;\n".encode()
+    response = await _import(client, congress_id, empty, mode="replace")
+    assert (response.status_code, response.json()) == (400, {"detail": "empty_replace"})
+    assert len(await _names(client, congress_id)) == 2  # никто не удалён
+    dry = await _import(client, congress_id, empty, mode="replace", dry_run=True)
+    assert dry.status_code == 200 and dry.json()["will_insert"] == 0
 
 
 async def test_import_replace_deletes_all(client, ready):
     congress_id, *_ = ready
-    await _issue(client, congress_id, ready[2]["id"])
+    await _issue(client, congress_id, ready[2])
     body = (await _import(client, congress_id, mode="replace")).json()
-    assert (body["skipped_existing"], body["inserted"]) == (0, 2)
+    assert (body["skipped_existing"], body["will_insert"], body["inserted"]) == (0, 2, 2)
     listing = (await client.get(f"{BASE}/congresses/{congress_id}/certificate-recipients")).json()
     assert sorted(i["full_name"] for i in listing["items"]) == ["Karimov Bobur", "Алиев Али"]
     assert all(i["download_count"] == 0 for i in listing["items"])
