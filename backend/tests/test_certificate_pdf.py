@@ -14,10 +14,13 @@ from reportlab.pdfgen import canvas
 
 from functions import certificate_pdf as cpdf
 from functions.certificate_names import normalize_name
-from functions.certificate_pdf import FONT_NAME, FONT_PATH, REQUIRED_CHARS, Box, fit_lines, render_certificate
+from functions.certificate_pdf import (
+    FONT_NAME, FONT_PATH, REQUIRED_CHARS, Box, fit_lines, format_number, render_certificate,
+)
 
 LONGEST_NAME = "Абдурахманова Маликахон Шухратжоновна"  # самое длинное имя ТЗ §11
 BOX = Box(x_mm=30, y_mm=90, w_mm=237, h_mm=25)
+NUMBER_BOX = Box(x_mm=258, y_mm=183, w_mm=22, h_mm=7)
 
 
 def _template(pagesize, pages=1) -> bytes:
@@ -193,10 +196,18 @@ def test_no_space_falls_back_to_min_single_line():
 # ==================== подмена апострофа ====================
 
 def test_apostrophe_substitution_when_font_lacks_it():
-    cmap_without_okina = {ord(ch) for ch in "Ogiloy’'"}
-    assert cpdf.substitute_missing("Oʻgʻiloy", cmap_without_okina) == "O’g’iloy"
+    """Для узбекского oʻ/gʻ ближе всего ‘ (U+2018), затем ’, затем '."""
+    assert cpdf.substitute_missing("Oʻgʻiloy", {ord(ch) for ch in "Ogiloy‘’'"}) == "O‘g‘iloy"
+    assert cpdf.substitute_missing("Oʻgʻiloy", {ord(ch) for ch in "Ogiloy’'"}) == "O’g’iloy"
     assert cpdf.substitute_missing("Oʻgʻiloy", {ord(ch) for ch in "Ogiloy'"}) == "O'g'iloy"
     assert cpdf.substitute_missing("Oʻgʻiloy", {ord(ch) for ch in "Ogiloyʻ"}) == "Oʻgʻiloy"
+
+
+def test_okina_on_pdf_is_left_quote(landscape_template):
+    """В шрифте нет U+02BB — в итоговом PDF вместо него стоит ‘ (U+2018)."""
+    pdf = render_certificate(landscape_template, "Oʻrinboyeva Dilnoza", BOX, 40, 16)
+    text = _first_page_text(pdf)
+    assert "O‘rinboyeva" in text, repr(text)
 
 
 # ==================== прибор покрытия шрифта ====================
@@ -209,13 +220,62 @@ def test_required_chars_set():
 def test_font_covers_required_chars():
     font = FontToolsFont(str(FONT_PATH))
     assert "glyf" in font, "контуры не TrueType — reportlab CFF не встраивает"
+    assert "fvar" not in font, "нужен статический экземпляр, не вариативный шрифт"
     cmap = font.getBestCmap()
     missing = [ch for ch in REQUIRED_CHARS if ord(ch) not in cmap]
-    if missing == ["ʻ"]:  # допущенная подмена — тогда нужен запасной знак
-        assert ord("’") in cmap or ord("'") in cmap
+    if missing == ["ʻ"]:  # допущенная подмена — тогда нужен хотя бы один запасной знак
+        assert any(ord(ch) in cmap for ch in cpdf._APOSTROPHE_FALLBACKS)
     else:
         assert not missing, f"в шрифте нет знаков: {missing!r}"
+    assert all(ord(ch) in cmap for ch in "0123456789"), "номер сертификата — цифрами того же шрифта"
 
 
 def test_font_license_is_next_to_font():
-    assert (FONT_PATH.parent / "OFL.txt").is_file()
+    """Лицензия и происхождение — именно этого шрифта."""
+    assert FONT_PATH.name == "Caveat-Medium.ttf"
+    ofl = (FONT_PATH.parent / "OFL.txt").read_text(encoding="utf-8")
+    assert "Caveat" in ofl and "SIL OPEN FONT LICENSE" in ofl.upper()
+    readme = (FONT_PATH.parent / "README.md").read_text(encoding="utf-8")
+    assert FONT_PATH.name in readme and "wght=500" in readme
+    assert [p.name for p in FONT_PATH.parent.glob("*.ttf")] == [FONT_PATH.name]
+
+
+# ==================== номер сертификата ====================
+
+@pytest.mark.parametrize("n, text", [(1, "001"), (7, "007"), (123, "123"), (1234, "1234")])
+def test_format_number(n, text):
+    assert format_number(n) == text
+
+
+def test_number_inside_its_box(landscape_template):
+    pdf = render_certificate(landscape_template, "Алиев Али", BOX, 40, 16, number="123", number_box=NUMBER_BOX)
+    page = PdfReader(io.BytesIO(pdf)).pages[0]
+    assert "123" in page.extract_text()
+    _assert_name_inside_box(page, "123", NUMBER_BOX)
+    _assert_name_inside_box(page, "Алиев Али", BOX)
+
+
+def test_number_is_centred_and_sized(landscape_template):
+    pdf = render_certificate(landscape_template, "Алиев Али", BOX, 40, 16,
+                             number="007", number_box=NUMBER_BOX, number_font_pt=12)
+    page = PdfReader(io.BytesIO(pdf)).pages[0]
+    [(_, x, _, width)] = _name_fragments(page, "007")
+    left = float(page.cropbox.left) + NUMBER_BOX.x_mm * mm
+    centre = left + NUMBER_BOX.w_mm * mm / 2
+    assert abs((x + width / 2) - centre) < 0.5
+    assert abs(width - stringWidth("007", FONT_NAME, 12)) < 0.5
+
+
+@pytest.mark.parametrize("kwargs", [{}, {"number": "123"}, {"number_box": NUMBER_BOX}, {"number": None, "number_box": NUMBER_BOX}])
+def test_no_number_without_number_or_box(landscape_template, kwargs):
+    pdf = render_certificate(landscape_template, "Алиев Али", BOX, 40, 16, **kwargs)
+    assert "123" not in _first_page_text(pdf)
+
+
+def test_outline_draws_number_box_too(landscape_template):
+    only_name = render_certificate(landscape_template, "Алиев Али", BOX, 40, 16, outline=True)
+    both = render_certificate(landscape_template, "Алиев Али", BOX, 40, 16, outline=True,
+                              number="000", number_box=NUMBER_BOX)
+    content = PdfReader(io.BytesIO(both)).pages[0].get_contents().get_data()
+    base = PdfReader(io.BytesIO(only_name)).pages[0].get_contents().get_data()
+    assert content.count(b" re") == base.count(b" re") + 1, "контур рамки номера не нарисован"
