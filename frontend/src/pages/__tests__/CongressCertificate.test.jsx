@@ -8,6 +8,9 @@ import CongressCertificate from '../CongressCertificate';
 import { contentAPI } from '../../services/api';
 import { createTestI18n } from '../../test/i18n-test-utils';
 
+// userEvent-сценарии: в полном прогоне под нагрузкой 5 с по умолчанию не хватает
+vi.setConfig({ testTimeout: 15000 });
+
 // Хелперы разбора — настоящие, сеть — моки
 vi.mock('../../services/api', async (importOriginal) => {
   const real = await importOriginal();
