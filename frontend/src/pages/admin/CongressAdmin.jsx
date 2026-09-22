@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Building2, Calendar, LayoutList, Mic, Users, Download } from 'lucide-react';
+import { Plus, Building2, Calendar, LayoutList, Mic, Users, Download, Award } from 'lucide-react';
 import { contentAPI } from '../../services/api';
 import {
   PageHeader, AdminTable, AdminModal, ConfirmDialog, AdminForm,
   AdminFormField, LangTabs, FileUpload, StatusBadge, Skeleton, EmptyState, useToast,
 } from '../../components/admin';
 import PdfPagesStatus from '../../components/pdf/PdfPagesStatus';
+import CertificatesTab from './congress/CertificatesTab';
 
 // ---------------------------------------------------------------------------
 // TABS CONFIG
@@ -17,6 +18,7 @@ const TABS = [
   { key: 'sections', label: 'Секции', icon: LayoutList },
   { key: 'speakers', label: 'Спикеры', icon: Mic },
   { key: 'registrations', label: 'Регистрации', icon: Users },
+  { key: 'certificates', label: 'Сертификаты', icon: Award },
 ];
 
 // ---------------------------------------------------------------------------
@@ -1039,6 +1041,13 @@ const CongressAdmin = () => {
             emptyDescription="Заявки появятся после открытия регистрации"
           />
         </>
+      )}
+
+      {/* ===================================================================== */}
+      {/* CERTIFICATES TAB — своим файлом, грузит данные сам при открытии        */}
+      {/* ===================================================================== */}
+      {activeTab === 'certificates' && !needsCongress && (
+        <CertificatesTab key={selectedCongressId} congressId={selectedCongressId} />
       )}
 
       {/* ===================================================================== */}

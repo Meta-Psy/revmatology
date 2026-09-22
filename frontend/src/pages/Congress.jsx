@@ -30,8 +30,25 @@ const Congress = () => {
     is_young_scientist: false, needs_hotel: false,
   });
   const [submitting, setSubmitting] = useState(false);
+  const [certificateOpen, setCertificateOpen] = useState(false);
 
   useEffect(() => { loadCongresses(); }, []);
+
+  // Ссылка на выдачу сертификатов — только когда выдача открыта; ошибка запроса = ссылки нет
+  useEffect(() => {
+    setCertificateOpen(false);
+    if (!congress?.id) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await contentAPI.getCertificateStatus(congress.id);
+        if (!cancelled) setCertificateOpen(!!res.data?.open);
+      } catch {
+        // страница конгресса не должна ломаться из-за сертификатов
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [congress?.id]);
 
   useEffect(() => {
     if (id) {
@@ -312,6 +329,17 @@ const Congress = () => {
     </a>
   );
 
+  // Выдача сертификатов (К-11) — ссылка только при открытой выдаче
+  const renderCertificateLink = () => certificateOpen && (
+    <Link
+      to={`/congress/${congress.id}/certificate`}
+      className="flex items-center justify-center gap-3 bg-white text-cyan-700 border-2 border-cyan-500 rounded-2xl px-5 py-4 md:px-6 shadow-sm hover:bg-cyan-50 transition-colors"
+    >
+      <svg className="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>
+      <span className="text-base md:text-lg whitespace-nowrap" style={{ fontFamily: 'Georgia, serif' }}>{t('certificate.link')}</span>
+    </Link>
+  );
+
   const renderMainTab = () => (
     <div className="space-y-6">
       {/* Ссылка на полную программу и её PDF */}
@@ -327,6 +355,7 @@ const Congress = () => {
           <svg className="w-5 h-5 flex-shrink-0 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
         </Link>
         {renderProgramPdfLink()}
+        {renderCertificateLink()}
       </div>
 
       {/* Description */}
@@ -514,6 +543,7 @@ const Congress = () => {
           <svg className="w-5 h-5 text-cyan-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
         </Link>
         {renderProgramPdfLink()}
+        {renderCertificateLink()}
       </div>
       {programDays.length === 0 ? (
         // Есть PDF — программа уже опубликована, «добавим позже» не пишем
