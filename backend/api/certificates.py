@@ -335,7 +335,7 @@ async def list_recipients(
     congress_id: int,
     q: Optional[str] = None,
     skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=1000),
+    limit: int = Query(50, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
     admin=Depends(get_current_admin),
 ):

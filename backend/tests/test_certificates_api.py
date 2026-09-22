@@ -380,6 +380,8 @@ async def test_recipients_list_pagination_and_phone_visible(client, congress):
     assert body["total"] == 5
     assert [i["full_name"] for i in body["items"]] == ["Участник 1", "Участник 2"]
     assert body["items"][0]["phone_digits"] == "901234561"
+    assert (await client.get(url, params={"limit": 500})).status_code == 200  # админка грузит страницами до 500
+    assert (await client.get(url, params={"limit": 501})).status_code == 422
 
 
 async def test_reset_counter(client, ready):
