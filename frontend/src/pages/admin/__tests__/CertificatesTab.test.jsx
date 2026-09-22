@@ -58,6 +58,7 @@ const REPORT = {
   accepted: 298, will_insert: 294, empty_rows: 2, duplicates_in_file: 1, skipped_existing: 4, inserted: 0,
   short_phones: 0, invalid_phones: 0, too_long_names: 0,
   sample: ['Алиев Али', 'Karimov Bobur'], columns: ['ФИО', 'Телефон'],
+  numbering_restarted: false, first_number: 1,
 };
 
 const renderTab = () =>
@@ -235,6 +236,21 @@ describe('CertificatesTab — сводка проверки', () => {
   it('замена без принятых строк — «Загрузить» недоступна', async () => {
     await check(userEvent.setup(), { accepted: 0, will_insert: 0 }, 'replace');
     expect(screen.getByRole('button', { name: 'Загрузить' })).toBeDisabled();
+  });
+
+  it('замена после скачиваний — «Нумерация продолжится с N»', async () => {
+    const summary = await check(userEvent.setup(), { numbering_restarted: false, first_number: 42 }, 'replace');
+    expect(summary).toHaveTextContent('Нумерация продолжится с 42 (сертификаты уже скачивали)');
+  });
+
+  it('замена без скачиваний — строки о нумерации нет', async () => {
+    const summary = await check(userEvent.setup(), { numbering_restarted: true, first_number: 1 }, 'replace');
+    expect(summary).not.toHaveTextContent('Нумерация продолжится');
+  });
+
+  it('добавление — строки о нумерации нет', async () => {
+    const summary = await check(userEvent.setup(), { numbering_restarted: false, first_number: 7 });
+    expect(summary).not.toHaveTextContent('Нумерация продолжится');
   });
 
   it('замена смотрит на accepted, а не на will_insert', async () => {

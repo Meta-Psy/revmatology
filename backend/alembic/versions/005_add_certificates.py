@@ -49,6 +49,7 @@ def upgrade() -> None:
             sa.Column('number_box_w_mm', sa.Float(), nullable=True),
             sa.Column('number_box_h_mm', sa.Float(), nullable=True),
             sa.Column('number_font_pt', sa.Float(), nullable=False),
+            sa.Column('next_number', sa.Integer(), nullable=False, server_default='1'),
             sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=True),
             sa.UniqueConstraint('congress_id'),
         )

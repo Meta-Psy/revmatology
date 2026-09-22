@@ -186,12 +186,32 @@ async def _render(pdf: bytes, template: CertificateTemplate, name: str, number: 
     )
 
 
-async def _next_number(db: AsyncSession, congress_id: int) -> int:
-    """Следующий порядковый номер в конгрессе — в той же транзакции, что и вставка."""
-    result = await db.execute(
-        select(func.max(CertificateRecipient.number)).where(CertificateRecipient.congress_id == congress_id)
+async def _counter_row(db: AsyncSession, congress_id: int, lock: bool) -> Optional[CertificateTemplate]:
+    query = select(CertificateTemplate).options(defer(CertificateTemplate.pdf)).where(
+        CertificateTemplate.congress_id == congress_id
     )
-    return (result.scalar_one_or_none() or 0) + 1
+    return (await db.execute(query.with_for_update() if lock else query)).scalar_one_or_none()
+
+
+async def _peek_number(db: AsyncSession, congress_id: int) -> int:
+    """Номер, который получит следующая вставка, — без резерва (для dry_run)."""
+    template = await _counter_row(db, congress_id, lock=False)
+    return template.next_number if template else 1
+
+
+async def _next_number(db: AsyncSession, congress_id: int, count: int = 1, restart: bool = False) -> int:
+    """Резерв count номеров из счётчика шаблона — в той же транзакции, что и вставка.
+
+    Строка шаблона блокируется до коммита (на SQLite FOR UPDATE игнорируется).
+    Номер не выдаётся повторно: удаление получателя счётчик не уменьшает.
+    """
+    template = await _counter_row(db, congress_id, lock=True)
+    if template is None:
+        template = CertificateTemplate(congress_id=congress_id, next_number=1, **CERTIFICATE_DEFAULTS)
+        db.add(template)
+    first = 1 if restart else template.next_number
+    template.next_number = first + count
+    return first
 
 
 async def _commit_numbered(db: AsyncSession) -> None:
@@ -511,11 +531,21 @@ async def import_recipients(
         # пустой файл не должен молча стереть весь список вместе со счётчиками
         raise HTTPException(status_code=400, detail="empty_replace")
 
-    if not dry_run:
+    # replace сбрасывает нумерацию, только если ни один сертификат ещё не скачан:
+    # скачанный уже несёт номер, повтор дал бы двоих с одним номером
+    restart = mode == "replace" and (await db.execute(
+        select(CertificateRecipient.id)
+        .where(CertificateRecipient.congress_id == congress_id, CertificateRecipient.download_count > 0)
+        .limit(1)
+    )).scalar_one_or_none() is None
+
+    if dry_run:
+        first = 1 if restart else await _peek_number(db, congress_id)
+    else:
         if mode == "replace":
             await db.execute(delete(CertificateRecipient).where(CertificateRecipient.congress_id == congress_id))
-        # номера — по порядку строк файла; после replace — заново с 1
-        first = await _next_number(db, congress_id)
+        # номера — по порядку строк файла
+        first = await _next_number(db, congress_id, len(rows), restart=restart)
         db.add_all(
             CertificateRecipient(
                 congress_id=congress_id, full_name=r.full_name, name_key=r.name_key,
@@ -537,4 +567,6 @@ async def import_recipients(
         inserted=0 if dry_run else len(rows),
         sample=[r.full_name for r in parsed.rows[:5]],
         columns=parsed.columns,
+        numbering_restarted=restart,
+        first_number=first,
     )

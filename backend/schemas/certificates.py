@@ -126,3 +126,6 @@ class CertificateImportReport(BaseModel):
     inserted: int
     sample: list[str]
     columns: list[str]
+    # replace без единого скачивания — номера заново с 1; иначе продолжаются
+    numbering_restarted: bool
+    first_number: int  # номер первой вставленной строки

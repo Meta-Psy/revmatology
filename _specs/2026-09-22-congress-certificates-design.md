@@ -32,6 +32,7 @@
 | `text_color` | String(7), по умолчанию `#1B3A7A` | Цвет имени и номера (синий дизайна бланка) |
 | `number_box_x_mm`, `number_box_y_mm`, `number_box_w_mm`, `number_box_h_mm` | Float, **nullable**, по умолчанию 259 / 183 / 22 / 7 | Рамка порядкового номера, те же мм от верхнего левого угла. Все четыре NULL — номер не печатается; частично заполненная рамка не сохраняется (422) |
 | `number_font_pt` | Float, по умолчанию 14 | Кегль номера (постоянный, без подбора) |
+| `next_number` | Integer, NOT NULL, по умолчанию 1 | Счётчик порядковых номеров конгресса: номер, который получит следующая вставка |
 | `is_open` | Boolean, по умолчанию false | «Выдача открыта» |
 | `updated_at` | DateTime | — |
 
@@ -47,11 +48,11 @@
 | `number` | Integer, NOT NULL, `UNIQUE (congress_id, number)` | Порядковый номер сертификата в конгрессе (поле «No. ____» бланка) |
 | `created_at` | DateTime | — |
 
-**Порядковый номер** (решение Alex 2026-09-22). Назначается при вставке — импорт (в порядке строк файла) и ручное добавление — как `max(number) + 1` по конгрессу, вычисляется в той же транзакции, что и вставка. Постоянный: правка и сброс счётчика его не меняют; удаление оставляет дырку; `replace` удаляет всех — нумерация заново с 1. Гонки: импорт и добавление админские и редкие — одновременную вставку с тем же номером ловит уникальный индекс → **409** `number_conflict`. Следствие `max + 1`: удалённый *последний* номер получит следующий добавленный.
+**Порядковый номер** (решение Alex 2026-09-22). Назначается при вставке — импорт (в порядке строк файла) и ручное добавление — из счётчика `certificate_templates.next_number` конгресса (строка шаблона создаётся лениво, как для настроек): строка блокируется `SELECT … FOR UPDATE`, счётчик увеличивается в той же транзакции, что и вставка. **Номер не выдаётся повторно в пределах конгресса**: удалённый получатель мог уже скачать сертификат со своим номером, поэтому удаление счётчик не трогает (дырка остаётся, и после удаления *последнего* номера следующий добавленный получит следующий, а не тот же). Постоянный: правка и сброс счётчика скачиваний его не меняют. `replace` сбрасывает счётчик в 1, **только если ни у одного текущего получателя конгресса нет `download_count > 0`**; иначе нумерация продолжается (ответ импорта: `numbering_restarted`). Известный предел: админский «сбросить счётчик» обнуляет `download_count`, и после него скачивание этого получателя для правила `replace` уже не видно. Уникальный индекс `(congress_id, number)` → **409** `number_conflict` оставлен страховкой (в том числе на гонку ленивого создания строки шаблона).
 
 **Значения по умолчанию** подогнаны под настоящий бланк организаторов (A4 альбомный 842.65×596.35 pt, весь растровый) по пробному PDF: имя — над длинной линией под «of participation», номер — на линии после «No.» справа внизу.
 
-Миграция `005` дописана на месте (номер и рамка номера): на 2026-09-22 она нигде не применена.
+Миграция `005` дописана на месте (номер, рамка номера, счётчик `next_number`): на 2026-09-22 она нигде не применена.
 
 Шаблон отдельной таблицей, а не колонками `Congress`: иначе каждый список конгрессов тянул бы мегабайты PDF.
 
@@ -90,10 +91,10 @@
 | POST | `/congresses/{id}/certificate-template` | multipart, только PDF (проверка `%PDF-` и что pypdf открывает), лимит 20 МБ |
 | POST | `/congresses/{id}/certificate-preview` `{name}` | PDF с номером `000` и контурами обеих рамок; счётчиков не трогает |
 | GET | `/congresses/{id}/certificate-recipients?q=&skip=&limit=` | `{items, total}`, у каждого `number`; сортировка по `number`; телефоны видны (админ) |
-| POST | `/congresses/{id}/certificate-recipients` | Добавить одного, номер — `max + 1`. Ф.И.О. > 300 знаков → 422; телефон 1–8 или > 15 цифр → 422 `invalid_phone` (пустой — «без телефона»); номер занят параллельной вставкой → 409 `number_conflict` |
+| POST | `/congresses/{id}/certificate-recipients` | Добавить одного, номер — из счётчика `next_number` (не повторяется). Ф.И.О. > 300 знаков → 422; телефон 1–8 или > 15 цифр → 422 `invalid_phone` (пустой — «без телефона»); номер занят параллельной вставкой → 409 `number_conflict` |
 | PUT / DELETE | `/certificate-recipients/{rid}` | Правка (пересчёт `name_key`, `phone_digits`; проверки те же, что при добавлении) / удаление |
 | POST | `/certificate-recipients/{rid}/reset` | `download_count = 0` |
-| POST | `/congresses/{id}/certificate-recipients/import` | multipart `file`, `mode=append|replace`, `dry_run=true|false`. Ответ: `{accepted, empty_rows, duplicates_in_file, skipped_existing, short_phones, invalid_phones, too_long_names, will_insert, inserted, sample, columns}` — отчёт `parse_recipients_csv` + `skipped_existing` (для append — уже есть такой `name_key`+`phone_digits`) + `will_insert` (сколько вставится: append — `accepted − skipped_existing`, replace — `accepted`; без `dry_run` равно `inserted`). `dry_run` считает ровно так же, как настоящий импорт. `replace` удаляет всех получателей конгресса вместе со счётчиками; `replace` с `accepted = 0` (не `dry_run`) → 400 `empty_replace`, ничего не удаляется. Номера — по порядку строк файла, продолжая `max` конгресса (после `replace` — с 1); конфликт номера → 409 `number_conflict` |
+| POST | `/congresses/{id}/certificate-recipients/import` | multipart `file`, `mode=append|replace`, `dry_run=true|false`. Ответ: `{accepted, empty_rows, duplicates_in_file, skipped_existing, short_phones, invalid_phones, too_long_names, will_insert, inserted, sample, columns, numbering_restarted, first_number}` — отчёт `parse_recipients_csv` + `skipped_existing` (для append — уже есть такой `name_key`+`phone_digits`) + `will_insert` (сколько вставится: append — `accepted − skipped_existing`, replace — `accepted`; без `dry_run` равно `inserted`). `dry_run` считает ровно так же, как настоящий импорт. `replace` удаляет всех получателей конгресса вместе со счётчиками; `replace` с `accepted = 0` (не `dry_run`) → 400 `empty_replace`, ничего не удаляется. Номера — по порядку строк файла из счётчика конгресса; `replace` начинает с 1, только если никто ещё не скачивал (`numbering_restarted=true`), иначе продолжает. `first_number` — номер первой вставленной строки; `dry_run` возвращает оба поля так же, админка при `replace` и `numbering_restarted=false` показывает «Нумерация продолжится с N (сертификаты уже скачивали)»; конфликт номера → 409 `number_conflict` |
 
 ## 6. Фронтенд
 

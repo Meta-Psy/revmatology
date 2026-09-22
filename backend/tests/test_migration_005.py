@@ -46,6 +46,8 @@ def test_offline_sql_creates_tables(monkeypatch):
     for column in ("number_box_x_mm", "number_box_y_mm", "number_box_w_mm", "number_box_h_mm"):
         assert f"{column} FLOAT," in sql and f"{column} FLOAT NOT NULL" not in sql
     assert "number_font_pt FLOAT NOT NULL" in sql
+    # счётчик номеров: удаление получателя номер не освобождает
+    assert "next_number INTEGER DEFAULT '1' NOT NULL" in sql
     assert "UPDATE alembic_version SET version_num='005' WHERE alembic_version.version_num = '004'" in sql
 
 

@@ -326,14 +326,17 @@ class CertificateTemplate(Base):
     number_box_w_mm = Column(Float, nullable=True)
     number_box_h_mm = Column(Float, nullable=True)
     number_font_pt = Column(Float, nullable=False, default=CERTIFICATE_DEFAULTS["number_font_pt"])
+    # следующий порядковый номер получателя; удаление получателя его не уменьшает
+    next_number = Column(Integer, nullable=False, default=1, server_default="1")
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class CertificateRecipient(Base):
     """Получатель сертификата: full_name ровно как в списке — идёт на сертификат.
 
-    number — порядковый номер сертификата в конгрессе: назначается при вставке
-    (max+1), правкой и сбросом счётчика не меняется.
+    number — порядковый номер сертификата в конгрессе: берётся при вставке из
+    certificate_templates.next_number и повторно не выдаётся; правкой и сбросом
+    счётчика скачиваний не меняется.
     """
     __tablename__ = "certificate_recipients"
     __table_args__ = (UniqueConstraint("congress_id", "number", name="uq_certificate_recipients_congress_number"),)

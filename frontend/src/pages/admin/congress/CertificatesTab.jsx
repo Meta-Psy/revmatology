@@ -503,6 +503,9 @@ const CertificatesTab = ({ congressId }) => {
             {report.columns?.length > 0 && <p>Колонки: {report.columns.join(', ')}</p>}
             {report.sample?.length > 0 && <p>Пример: {report.sample.join('; ')}</p>}
             {importMode === 'replace' && <p className="text-red-600">Режим замены: текущий список и счётчики будут удалены</p>}
+            {importMode === 'replace' && report.numbering_restarted === false && (
+              <p className="text-amber-700">Нумерация продолжится с {report.first_number} (сертификаты уже скачивали)</p>
+            )}
           </div>
         )}
       </section>

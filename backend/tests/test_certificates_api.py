@@ -584,6 +584,14 @@ async def test_numbers_assigned_in_order_and_permanent(client, ready):
     assert [n for n, _ in await _numbers(client, congress_id)] == [1, 3, 4]
 
 
+async def test_deleted_last_number_is_not_reissued(client, ready):
+    """Удалённый мог уже скачать сертификат со своим номером — номер не выдаётся повторно."""
+    congress_id, _, last = ready
+    await client.delete(f"{BASE}/certificate-recipients/{last['id']}")
+    assert (await _add(client, congress_id, "Новый Участник"))["number"] == 3
+    assert [n for n, _ in await _numbers(client, congress_id)] == [1, 3]
+
+
 async def test_numbers_are_per_congress(client, ready, make_congress):
     other = await make_congress("Другой")
     assert (await _add(client, other.id, "Алиев Али"))["number"] == 1
@@ -593,7 +601,7 @@ async def test_number_conflict_is_409(client, ready, monkeypatch):
     """Редкая гонка двух вставок: уникальный индекс ловит одинаковый номер."""
     congress_id, *_ = ready
 
-    async def _taken(db, cid):
+    async def _taken(db, cid, count=1, restart=False):
         return 1
 
     monkeypatch.setattr(cert_api, "_next_number", _taken)
@@ -629,6 +637,7 @@ async def test_import_dry_run_writes_nothing(client, congress):
         "accepted": 2, "empty_rows": 1, "duplicates_in_file": 1, "skipped_existing": 0,
         "short_phones": 0, "invalid_phones": 0, "too_long_names": 0, "will_insert": 2,
         "inserted": 0, "sample": ["Алиев Али", "Karimov Bobur"], "columns": ["ФИО", "Телефон"],
+        "numbering_restarted": False, "first_number": 1,
     }
     assert await _names(client, congress.id) == []
 
@@ -684,13 +693,37 @@ async def test_import_replace_with_empty_list_is_refused(client, ready):
 
 async def test_import_replace_deletes_all(client, ready):
     congress_id, *_ = ready
-    await _issue(client, congress_id, ready[2])
+    dry = (await _import(client, congress_id, mode="replace", dry_run=True)).json()
+    assert (dry["numbering_restarted"], dry["first_number"]) == (True, 1)
     body = (await _import(client, congress_id, mode="replace")).json()
     assert (body["skipped_existing"], body["will_insert"], body["inserted"]) == (0, 2, 2)
+    assert (body["numbering_restarted"], body["first_number"]) == (True, 1)
     listing = (await client.get(f"{BASE}/congresses/{congress_id}/certificate-recipients")).json()
     assert sorted(i["full_name"] for i in listing["items"]) == ["Karimov Bobur", "Алиев Али"]
+    # никто не скачивал — нумерация заново с 1
+    assert await _numbers(client, congress_id) == [(1, "Алиев Али"), (2, "Karimov Bobur")]
+    assert (await _add(client, congress_id, "Новый Участник"))["number"] == 3
+
+
+async def test_import_replace_after_download_continues_numbering(client, ready):
+    """Скачанный сертификат уже несёт номер — после replace номера не повторяются."""
+    congress_id, *_ = ready
+    await _issue(client, congress_id, ready[2])
+    dry = (await _import(client, congress_id, mode="replace", dry_run=True)).json()
+    assert (dry["numbering_restarted"], dry["first_number"]) == (False, 3)
+    body = (await _import(client, congress_id, mode="replace")).json()
+    assert (body["inserted"], body["numbering_restarted"], body["first_number"]) == (2, False, 3)
+    listing = (await client.get(f"{BASE}/congresses/{congress_id}/certificate-recipients")).json()
     assert all(i["download_count"] == 0 for i in listing["items"])
-    assert await _numbers(client, congress_id) == [(1, "Алиев Али"), (2, "Karimov Bobur")]  # заново с 1
+    assert await _numbers(client, congress_id) == [(3, "Алиев Али"), (4, "Karimov Bobur")]
+
+
+async def test_import_append_reports_first_number(client, ready):
+    congress_id, *_ = ready
+    dry = (await _import(client, congress_id, dry_run=True)).json()
+    body = (await _import(client, congress_id)).json()
+    assert (dry["numbering_restarted"], dry["first_number"]) == (False, 3)
+    assert (body["numbering_restarted"], body["first_number"]) == (False, 3)
 
 
 async def test_import_replace_dry_run_keeps_rows(client, ready):
