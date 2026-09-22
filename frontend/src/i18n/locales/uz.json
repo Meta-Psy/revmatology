@@ -406,6 +406,24 @@
     "hint": "Internet aloqasini tekshiring va sahifani yangilang.",
     "reload": "Sahifani yangilash"
   },
+  "certificate": {
+    "title": "Ishtirokchi sertifikatini olish",
+    "instruction": "Kongressga ro'yxatdan o'tishda ko'rsatilgan F.I.Sh.ni kiriting",
+    "nameLabel": "F.I.Sh.",
+    "pickHint": "Takliflar ro'yxatidan o'zingizni tanlang",
+    "phoneLabel": "Telefon raqami",
+    "phoneHint": "Ro'yxatdan o'tishda ko'rsatilgan raqam",
+    "find": "Sertifikatni topish",
+    "ready": "Sertifikat tayyor",
+    "download": "Sertifikatni yuklab olish",
+    "notFound": "Ko'rsatilgan ma'lumotlarga ega ishtirokchi topilmadi. Iltimos, kiritilgan ma'lumotlar to'g'riligini tekshiring.",
+    "limitReached": "Sertifikatni yuklab olishlar soni chegarasiga yetildi.",
+    "tooMany": "Urinishlar juda ko'p, bir daqiqa kuting",
+    "closed": "Sertifikatlar berish hali ochilmagan",
+    "noMatches": "Mos keladigan natija topilmadi",
+    "link": "Sertifikat olish",
+    "error": "Sertifikatni olib bo'lmadi. Keyinroq urinib ko'ring."
+  },
   "common": {
     "loading": "Yuklanmoqda...",
     "error": "Xatolik yuz berdi",
