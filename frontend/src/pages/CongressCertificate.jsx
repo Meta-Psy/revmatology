@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router-dom';
 import { contentAPI, readBlobError, filenameFromDisposition } from '../services/api';
+import { formatDotDate } from '../utils/dates';
+import { saveBlob } from '../utils/saveBlob';
 
 const SUGGEST_DELAY_MS = 300;
 const SUGGEST_MIN_CHARS = 3;
@@ -28,6 +30,7 @@ const CongressCertificate = () => {
   const listId = useId();
 
   const [status, setStatus] = useState('loading'); // loading | open | closed | error
+  const [opensOn, setOpensOn] = useState(null); // дата открытия выдачи, пока закрыта
   const [query, setQuery] = useState('');
   const [options, setOptions] = useState([]);
   const [searched, setSearched] = useState(false); // подсказки по текущему тексту уже пришли
@@ -44,7 +47,11 @@ const CongressCertificate = () => {
   useEffect(() => {
     let cancelled = false;
     contentAPI.getCertificateStatus(congressId)
-      .then((res) => { if (!cancelled) setStatus(res.data?.open ? 'open' : 'closed'); })
+      .then((res) => {
+        if (cancelled) return;
+        setStatus(res.data?.open ? 'open' : 'closed');
+        setOpensOn(res.data?.opens_on || null);
+      })
       .catch(() => { if (!cancelled) setStatus('error'); });
     return () => { cancelled = true; };
   }, [congressId]);
@@ -148,16 +155,7 @@ const CongressCertificate = () => {
   };
 
   // Скачивание из памяти: PDF уже получен, повторный запрос съел бы ещё одну выдачу
-  const handleDownload = () => {
-    const url = URL.createObjectURL(certificate.blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = certificate.filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  };
+  const handleDownload = () => saveBlob(certificate.blob, certificate.filename);
 
   const title = t('certificate.title');
   const showNoMatches = !selected && searched && options.length === 0;
@@ -215,7 +213,11 @@ const CongressCertificate = () => {
           {(status === 'closed' || status === 'error') && (
             <div className="bg-white rounded-2xl p-10 shadow-sm border border-stone-200/60 text-center">
               <p className="text-stone-500" style={serif}>
-                {t(status === 'closed' ? 'certificate.closed' : 'certificate.error')}
+                {status !== 'closed'
+                  ? t('certificate.error')
+                  : opensOn
+                    ? t('certificate.opensOn', { date: formatDotDate(opensOn) })
+                    : t('certificate.closed')}
               </p>
             </div>
           )}
@@ -326,6 +328,13 @@ const CongressCertificate = () => {
                 </button>
               )}
             </form>
+          )}
+
+          {/* У вошедшего сертификат лежит в кабинете — телефон там не нужен */}
+          {(status === 'open' || status === 'closed') && (
+            <p className="mt-4 text-sm text-stone-500 text-center" style={serif}>
+              <Link to="/profile" className="hover:text-cyan-700 transition-colors">{t('certificate.accountHint')}</Link>
+            </p>
           )}
         </div>
       </section>

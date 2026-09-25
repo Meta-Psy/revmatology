@@ -308,9 +308,31 @@ describe('CongressCertificate — выдача закрыта', () => {
     expect(screen.queryByRole('button', { name: 'Найти сертификат' })).not.toBeInTheDocument();
   });
 
+  it('закрыто с opens_on — «Выдача откроется ДД.ММ.ГГГГ»', async () => {
+    contentAPI.getCertificateStatus.mockResolvedValue({ data: { open: false, opens_on: '2026-09-26' } });
+    renderPage();
+
+    expect(await screen.findByText('Выдача откроется 26.09.2026')).toBeInTheDocument();
+    expect(screen.queryByText('Выдача сертификатов пока не открыта')).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+  });
+
   it('на узбекском — латиница', async () => {
     renderPage({ lng: 'uz' });
     expect(await screen.findByRole('heading', { name: 'Ishtirokchi sertifikatini olish' })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'F.I.Sh.' })).toBeInTheDocument();
+  });
+});
+
+describe('CongressCertificate — личный кабинет', () => {
+  it.each([
+    ['открыта', { open: true }],
+    ['закрыта', { open: false, opens_on: '2026-09-26' }],
+  ])('выдача %s — ссылка на /profile', async (_, status) => {
+    contentAPI.getCertificateStatus.mockResolvedValue({ data: status });
+    renderPage();
+
+    const link = await screen.findByRole('link', { name: 'Есть учётная запись? Сертификат доступен в личном кабинете' });
+    expect(link).toHaveAttribute('href', '/profile');
   });
 });

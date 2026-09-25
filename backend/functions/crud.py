@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
+from sqlalchemy import func, select, desc
 from typing import List, Optional
 
 from database import User, News, Congress, RheumatologyCenter, ChiefRheumatologist, Disease, SchoolApplication
@@ -8,14 +8,33 @@ from schemas import UserCreate, NewsCreate, NewsUpdate
 
 
 # User CRUD
+def normalize_email(email: str) -> str:
+    """Почта в том виде, в каком её хранит регистрация и ищет вход (К-12).
+
+    Кабинет связывает сертификаты с учётной записью по этой строке, поэтому
+    вид один на все пути: заведший «Sitora@Mail.UZ» входит как «sitora@mail.uz».
+    """
+    return (email or "").strip().lower()
+
+
 async def get_user_by_email(db: AsyncSession, email: str) -> Optional[User]:
-    result = await db.execute(select(User).where(User.email == email))
-    return result.scalar_one_or_none()
+    """Поиск без оглядки на регистр.
+
+    В живой базе могли осесть записи, различающиеся регистром (до нормализации
+    почта сохранялась как введена), поэтому берётся младшая по id, а не
+    scalar_one_or_none: иначе вход падал бы с MultipleResultsFound.
+    """
+    result = await db.execute(
+        select(User)
+        .where(func.lower(User.email) == normalize_email(email))
+        .order_by(User.id)
+    )
+    return result.scalars().first()
 
 
 async def create_user(db: AsyncSession, user: UserCreate, hashed_password: str) -> User:
     db_user = User(
-        email=user.email,
+        email=normalize_email(user.email),
         hashed_password=hashed_password,
         last_name=user.last_name,
         first_name=user.first_name,

@@ -236,3 +236,53 @@
     - frontend/src/services/api.js
   tests:
     api: backend/tests/workflows/test_p07_congress_certificates.py::test_p07
+
+- id: P-08
+  title: Участник забирает сертификат в личном кабинете
+  status: active
+  roles: [admin, participant]
+  layers: [api]
+  chain:
+    - key: create_congress
+      step: админ создаёт конгресс с датой окончания
+      kind: mutation
+    - key: register_participant
+      step: участник регистрируется на конгресс, указав почту
+      kind: mutation
+    - key: upload_template
+      step: админ загружает пустой PDF-бланк; режим выдачи по умолчанию — автоматический
+      kind: mutation
+    - key: import_from_registrations
+      step: админ берёт получателей из регистраций — сначала dry_run, затем запись
+      kind: mutation
+    - key: create_account
+      step: участник заводит учётную запись на ту же почту и входит
+      kind: mutation
+    - key: closed_before_the_end
+      step: до окончания конгресса кабинет показывает сертификат закрытым с датой открытия, скачивание отклонено
+      kind: list
+      positive_control: своя карточка с Ф.И.О. из регистрации, open = false и opens_on = следующий день после окончания; телефона в ответе нет
+    - key: download_after_the_end
+      step: на следующий день после окончания участник скачивает сертификат из кабинета без телефона
+      kind: mutation
+    - key: name_from_registration_on_pdf
+      step: в PDF вписано Ф.И.О. из регистрации и порядковый номер 001, бланк сохранён
+      kind: readback
+    - key: counter_in_account
+      step: в кабинете остаток выдач уменьшился на единицу
+      kind: list
+      positive_control: та же карточка с open = true и downloads_left = 4
+  touches:
+    - backend/api/certificates.py
+    - backend/schemas/certificates.py
+    - backend/database/models.py
+    - backend/alembic/versions/006_certificates_account.py
+    - backend/functions/certificate_names.py
+    - backend/functions/certificate_schedule.py
+    - frontend/src/pages/Profile.jsx
+    - frontend/src/pages/CongressCertificate.jsx
+    - frontend/src/pages/admin/congress/CertificatesTab.jsx
+    - frontend/src/App.jsx
+    - frontend/src/services/api.js
+  tests:
+    api: backend/tests/workflows/test_p08_certificate_in_account.py::test_p08

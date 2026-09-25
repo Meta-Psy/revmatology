@@ -4,7 +4,9 @@ import pytest
 from functions.certificate_names import (
     NoNameColumn,
     certificate_filename,
+    clean_email,
     clean_phone,
+    collect_recipients,
     normalize_name,
     parse_recipients_csv,
     phone_digits,
@@ -210,3 +212,66 @@ def test_csv_too_long_name_is_dropped():
     assert (result.accepted, result.too_long_names) == (1, 1)
 
 
+
+
+# ==================== clean_email (К-12) ====================
+
+@pytest.mark.parametrize("raw", ["  Ivan@Mail.RU ", "ivan@mail.ru"])
+def test_email_is_normalized(raw):
+    assert clean_email(raw) == ("ivan@mail.ru", True)
+
+
+@pytest.mark.parametrize("raw", [None, "", "   "])
+def test_empty_email_is_none_and_valid(raw):
+    assert clean_email(raw) == (None, True)
+
+
+@pytest.mark.parametrize("raw", ["ivan", "ivan.mail.ru", " - ", "a" * 250 + "@mail.ru"])
+def test_bad_email_is_none_and_invalid(raw):
+    assert clean_email(raw) == (None, False)
+
+
+# ==================== колонка email в CSV (К-12) ====================
+
+@pytest.mark.parametrize("header", ["Email", "e-mail", "Почта", "Эл. почта", "Электронная почта"])
+def test_csv_email_header_variants(header):
+    result = parse_recipients_csv(f"ФИО;{header}\nАлиев Али;Ali@Mail.RU\n".encode())
+    assert [r.email for r in result.rows] == ["ali@mail.ru"]
+
+
+def test_csv_without_email_column_leaves_none():
+    result = parse_recipients_csv("ФИО;Телефон\nАлиев Али;901234567\n".encode())
+    assert result.rows[0].email is None
+
+
+def test_csv_broken_email_is_dropped_but_row_stays():
+    result = parse_recipients_csv("ФИО;Email\nАлиев Али;не-почта\nKarimov Bobur;bobur@mail.uz\n".encode())
+    assert [(r.full_name, r.email) for r in result.rows] == [("Алиев Али", None), ("Karimov Bobur", "bobur@mail.uz")]
+    assert result.accepted == 2
+
+
+def test_csv_duplicate_ignores_email():
+    """Дубль считается по имени и телефону: две почты у одного человека — всё равно один."""
+    result = parse_recipients_csv("ФИО;Email\nАлиев Али;a@mail.ru\nАлиев Али;b@mail.ru\n".encode())
+    assert (result.accepted, result.duplicates_in_file) == (1, 1)
+    assert result.rows[0].email == "a@mail.ru"
+
+
+# ==================== collect_recipients (общий сборщик, К-12) ====================
+
+def test_collect_recipients_counts_like_csv():
+    result = collect_recipients([
+        ("Шодиева Ситора Баходировна", "+998 90 123 45 67", "SITORA@mail.uz"),
+        ("  Karimov   Bobur ", "", ""),
+        ("", "901234567", "x@mail.ru"),
+        ("Шодиева Ситора Баходировна", "998901234567", "other@mail.uz"),
+        ("Алиев Али", "12", "не-почта"),
+    ])
+    assert [(r.full_name, r.phone_digits, r.email) for r in result.rows] == [
+        ("Шодиева Ситора Баходировна", "998901234567", "sitora@mail.uz"),
+        ("Karimov Bobur", None, None),
+        ("Алиев Али", None, None),
+    ]
+    assert (result.accepted, result.empty_rows, result.duplicates_in_file) == (3, 1, 1)
+    assert (result.short_phones, result.invalid_phones, result.too_long_names) == (1, 0, 0)
+    assert result.columns == []  # источник не CSV — колонок нет

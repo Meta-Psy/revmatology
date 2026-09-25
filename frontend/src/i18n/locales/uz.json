@@ -422,7 +422,20 @@
     "closed": "Sertifikatlar berish hali ochilmagan",
     "noMatches": "Mos keladigan natija topilmadi",
     "link": "Sertifikat olish",
-    "error": "Sertifikatni olib bo'lmadi. Keyinroq urinib ko'ring."
+    "error": "Sertifikatni olib bo'lmadi. Keyinroq urinib ko'ring.",
+    "opensOn": "Sertifikatlar berish {{date}} dan ochiladi",
+    "accountHint": "Hisobingiz bormi? Sertifikat shaxsiy kabinetda mavjud"
+  },
+  "profile": {
+    "title": "Shaxsiy kabinet",
+    "myCertificates": "Mening sertifikatlarim",
+    "certificateNumber": "No. {{number}}",
+    "downloadsLeft": "Qolgan yuklab olishlar: {{left}} / {{max}}",
+    "availableFrom": "{{date}} dan mavjud bo'ladi",
+    "notOpen": "Sertifikatlar berish hali ochilmagan",
+    "empty": "Sertifikatlar kongressga ro'yxatdan o'tishda ko'rsatilgan email bilan bog'lanadi. Agar boshqa email bilan ro'yxatdan o'tgan bo'lsangiz, kongress sahifasida o'zingizni F.I.Sh. bo'yicha toping.",
+    "loadError": "Sertifikatlarni yuklab bo'lmadi. Keyinroq urinib ko'ring.",
+    "unavailable": "Sertifikat hozir mavjud emas. Sahifani yangilang."
   },
   "common": {
     "loading": "Yuklanmoqda...",

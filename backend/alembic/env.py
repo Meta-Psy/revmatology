@@ -13,7 +13,10 @@ from database.models import *  # noqa: F401,F403 — import all models so metada
 config = context.config
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # disable_existing_loggers по умолчанию True — alembic.ini заглушил бы все
+    # уже созданные логгеры приложения. Миграции теперь идут одним процессом с
+    # кодом (db_upgrade.py), и молчащий логгер — это потерянные предупреждения
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 

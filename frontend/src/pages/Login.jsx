@@ -1,11 +1,14 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const Login = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
+  // Страница, отправившая на вход (кабинет), — возвращаемся туда, иначе на главную
+  const from = location.state?.from || '/';
   const { login } = useAuth();
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
@@ -18,7 +21,7 @@ const Login = () => {
 
     try {
       await login(formData.email, formData.password);
-      navigate('/');
+      navigate(from, { replace: true });
     } catch (err) {
       setError(err.response?.data?.detail || 'Ошибка входа');
     } finally {

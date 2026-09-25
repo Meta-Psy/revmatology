@@ -18,7 +18,7 @@ const { contentAPI } = vi.hoisted(() => {
     getCertificateSettings: vi.fn(() => ok({
       congress_id: 1, has_template: true, pdf_filename: 'blank.pdf',
       box_x_mm: 40, box_y_mm: 90, box_w_mm: 217, box_h_mm: 25,
-      font_max_pt: 40, font_min_pt: 16, text_color: '#1F2937', is_open: false, updated_at: null,
+      font_max_pt: 40, font_min_pt: 16, text_color: '#1F2937', issue_mode: 'auto', open: false, opens_on: '2026-09-26', updated_at: null,
       number_box_x_mm: 259, number_box_y_mm: 183, number_box_w_mm: 22, number_box_h_mm: 7, number_font_pt: 14,
     })),
     updateCertificateSettings: vi.fn((id, data) => ok({ congress_id: id, has_template: true, pdf_filename: 'blank.pdf', ...data })),
@@ -26,8 +26,8 @@ const { contentAPI } = vi.hoisted(() => {
     previewCertificate: vi.fn(),
     getCertificateRecipients: vi.fn(() => ok({
       items: [
-        { id: 11, number: 1, full_name: 'Алиев Али', phone_digits: '998901112233', download_count: 3, created_at: '2026-09-22T10:00:00' },
-        { id: 12, number: 12, full_name: 'Karimov Bobur', phone_digits: null, download_count: 5, created_at: '2026-09-22T10:00:00' },
+        { id: 11, number: 1, full_name: 'Алиев Али', phone_digits: '998901112233', email: 'aliev@example.com', download_count: 3, created_at: '2026-09-22T10:00:00' },
+        { id: 12, number: 12, full_name: 'Karimov Bobur', phone_digits: null, email: null, download_count: 5, created_at: '2026-09-22T10:00:00' },
       ],
       total: 2,
     })),
@@ -36,6 +36,7 @@ const { contentAPI } = vi.hoisted(() => {
     deleteCertificateRecipient: vi.fn(() => ok({ ok: true })),
     resetCertificateRecipient: vi.fn((rid) => ok({ id: rid, number: 12, full_name: 'Karimov Bobur', phone_digits: null, download_count: 0 })),
     importCertificateRecipients: vi.fn(),
+    importCertificateRecipientsFromRegistrations: vi.fn(),
 
     // для подключения вкладки в CongressAdmin
     getCongresses: vi.fn(() => ok([{ id: 1, title_ru: 'Конгресс LEAR 2026', is_active: true }])),
@@ -89,6 +90,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   contentAPI.importCertificateRecipients.mockImplementation((id, file, { dryRun }) =>
     Promise.resolve({ data: { ...REPORT, inserted: dryRun ? 0 : 298 } }));
+  contentAPI.importCertificateRecipientsFromRegistrations.mockImplementation((id, { dryRun }) =>
+    Promise.resolve({ data: { ...REPORT, columns: [], inserted: dryRun ? 0 : 298 } }));
 });
 
 describe('CertificatesTab — список получателей', () => {
@@ -394,7 +397,7 @@ describe('CertificatesTab — пробный PDF', () => {
 });
 
 describe('CertificatesTab — настройки', () => {
-  it('сохраняет рамку, кегль, цвет и «Выдача открыта» числами', async () => {
+  it('сохраняет рамку, кегль, цвет и режим выдачи', async () => {
     const user = userEvent.setup();
     renderTab();
     expect(await screen.findByText(/blank\.pdf/)).toBeInTheDocument();
@@ -402,14 +405,42 @@ describe('CertificatesTab — настройки', () => {
     const width = screen.getByLabelText('Ширина рамки, мм');
     await user.clear(width);
     await user.type(width, '200.5');
-    await user.click(screen.getByLabelText('Выдача открыта'));
+    await user.selectOptions(screen.getByLabelText('Выдача'), 'open');
     await user.click(screen.getByRole('button', { name: 'Сохранить настройки' }));
 
     expect(contentAPI.updateCertificateSettings).toHaveBeenCalledWith(1, {
       box_x_mm: 40, box_y_mm: 90, box_w_mm: 200.5, box_h_mm: 25,
-      font_max_pt: 40, font_min_pt: 16, text_color: '#1F2937', is_open: true,
+      font_max_pt: 40, font_min_pt: 16, text_color: '#1F2937', issue_mode: 'open',
       number_box_x_mm: 259, number_box_y_mm: 183, number_box_w_mm: 22, number_box_h_mm: 7, number_font_pt: 14,
     });
+  });
+
+  it('режим по умолчанию — из ответа сервера, рядом текущее состояние', async () => {
+    renderTab();
+    expect(await screen.findByLabelText('Выдача')).toHaveValue('auto');
+    expect(screen.getByText('Сейчас закрыта, откроется 26.09.2026')).toBeInTheDocument();
+  });
+
+  it('выдача открыта — так и написано', async () => {
+    contentAPI.getCertificateSettings.mockResolvedValueOnce({
+      data: { congress_id: 1, has_template: true, pdf_filename: 'blank.pdf',
+        box_x_mm: 40, box_y_mm: 90, box_w_mm: 217, box_h_mm: 25, font_max_pt: 40, font_min_pt: 16,
+        text_color: '#1F2937', issue_mode: 'open', open: true, opens_on: null,
+        number_box_x_mm: null, number_box_y_mm: null, number_box_w_mm: null, number_box_h_mm: null, number_font_pt: 14 },
+    });
+    renderTab();
+    expect(await screen.findByText('Сейчас открыта')).toBeInTheDocument();
+  });
+
+  it('закрыта без даты открытия — без обещания даты', async () => {
+    contentAPI.getCertificateSettings.mockResolvedValueOnce({
+      data: { congress_id: 1, has_template: false, pdf_filename: null,
+        box_x_mm: 40, box_y_mm: 90, box_w_mm: 217, box_h_mm: 25, font_max_pt: 40, font_min_pt: 16,
+        text_color: '#1F2937', issue_mode: 'auto', open: false, opens_on: null,
+        number_box_x_mm: null, number_box_y_mm: null, number_box_w_mm: null, number_box_h_mm: null, number_font_pt: 14 },
+    });
+    renderTab();
+    expect(await screen.findByText('Сейчас закрыта')).toBeInTheDocument();
   });
 
   const numberBoxInputs = () => ['Номер: слева, мм', 'Номер: сверху, мм', 'Номер: ширина, мм', 'Номер: высота, мм']
@@ -436,6 +467,113 @@ describe('CertificatesTab — настройки', () => {
 
     expect(await screen.findByText(/Рамка номера: заполните все четыре поля или оставьте пустыми/)).toBeInTheDocument();
     expect(contentAPI.updateCertificateSettings).not.toHaveBeenCalled();
+  });
+});
+
+describe('CertificatesTab — email получателя', () => {
+  it('колонка Email: адрес или прочерк', async () => {
+    renderTab();
+    const row = (await screen.findByText('Алиев Али')).closest('tr');
+    expect(screen.getByRole('columnheader', { name: 'Email' })).toBeInTheDocument();
+    expect(within(row).getByText('aliev@example.com')).toBeInTheDocument();
+    expect(within((await screen.findByText('Karimov Bobur')).closest('tr')).getAllByText('—').length).toBeGreaterThan(0);
+  });
+
+  it('email уходит при добавлении получателя', async () => {
+    contentAPI.createCertificateRecipient.mockResolvedValueOnce({ data: { id: 13 } });
+    const user = userEvent.setup();
+    renderTab();
+    await screen.findByText('Алиев Али');
+    await user.click(screen.getByRole('button', { name: 'Добавить' }));
+    await user.type(screen.getByLabelText(/как на сертификате/), 'Иванов Иван');
+    await user.type(screen.getByLabelText('Email'), 'ivanov@example.com');
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }));
+
+    expect(contentAPI.createCertificateRecipient).toHaveBeenCalledWith(1, {
+      full_name: 'Иванов Иван', phone: null, email: 'ivanov@example.com',
+    });
+  });
+
+  it('правка получателя подставляет его email', async () => {
+    const user = userEvent.setup();
+    renderTab();
+    const row = (await screen.findByText('Алиев Али')).closest('tr');
+    await user.click(within(row).getByTitle('Редактировать'));
+    expect(screen.getByLabelText('Email')).toHaveValue('aliev@example.com');
+  });
+
+  it('invalid_email — понятный текст', async () => {
+    contentAPI.createCertificateRecipient.mockRejectedValueOnce({ response: { status: 422, data: { detail: 'invalid_email' } } });
+    const user = userEvent.setup();
+    renderTab();
+    await screen.findByText('Алиев Али');
+    await user.click(screen.getByRole('button', { name: 'Добавить' }));
+    await user.type(screen.getByLabelText(/как на сертификате/), 'Иванов Иван');
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }));
+    expect(await screen.findByText(/Email: проверьте адрес/)).toBeInTheDocument();
+  });
+});
+
+describe('CertificatesTab — «Взять из регистраций»', () => {
+  const takeFromRegistrations = async (user) => {
+    renderTab();
+    await screen.findByText('Алиев Али');
+    await user.click(screen.getByRole('button', { name: 'Взять из регистраций' }));
+    return screen.findByTestId('import-summary');
+  };
+
+  it('сначала сводка dry_run, в базу ничего не пишется', async () => {
+    const user = userEvent.setup();
+    const summary = await takeFromRegistrations(user);
+
+    expect(contentAPI.importCertificateRecipientsFromRegistrations).toHaveBeenCalledTimes(1);
+    expect(contentAPI.importCertificateRecipientsFromRegistrations).toHaveBeenCalledWith(1, { mode: 'append', dryRun: true });
+    expect(summary).toHaveTextContent('Будет добавлено: 294');
+    expect(summary).toHaveTextContent('Источник: регистрации на конгресс');
+    expect(contentAPI.importCertificateRecipients).not.toHaveBeenCalled();
+  });
+
+  it('«Загрузить» после сводки пишет из регистраций и перечитывает список', async () => {
+    const user = userEvent.setup();
+    await takeFromRegistrations(user);
+    await user.click(screen.getByRole('button', { name: 'Загрузить' }));
+
+    expect(contentAPI.importCertificateRecipientsFromRegistrations).toHaveBeenLastCalledWith(1, { mode: 'append', dryRun: false });
+    expect(contentAPI.importCertificateRecipients).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(contentAPI.getCertificateRecipients).toHaveBeenCalledTimes(2));
+  });
+
+  it('замена — только через подтверждение', async () => {
+    const user = userEvent.setup();
+    renderTab();
+    await screen.findByText('Алиев Али');
+    await user.selectOptions(screen.getByLabelText('Режим'), 'replace');
+    await user.click(screen.getByRole('button', { name: 'Взять из регистраций' }));
+    await screen.findByTestId('import-summary');
+
+    await user.click(screen.getByRole('button', { name: 'Загрузить' }));
+    expect(await screen.findByText(/Все получатели будут удалены, счётчики скачиваний обнулятся/)).toBeInTheDocument();
+    expect(contentAPI.importCertificateRecipientsFromRegistrations).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole('button', { name: 'Заменить всех' }));
+    expect(contentAPI.importCertificateRecipientsFromRegistrations).toHaveBeenLastCalledWith(1, { mode: 'replace', dryRun: false });
+  });
+
+  it('смена режима после сводки требует взять заново', async () => {
+    const user = userEvent.setup();
+    await takeFromRegistrations(user);
+    await user.selectOptions(screen.getByLabelText('Режим'), 'replace');
+    expect(screen.queryByTestId('import-summary')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Загрузить' })).toBeDisabled();
+  });
+
+  it('в регистрациях никого — «Загрузить» недоступна', async () => {
+    contentAPI.importCertificateRecipientsFromRegistrations.mockResolvedValue({
+      data: { ...REPORT, columns: [], accepted: 0, will_insert: 0 },
+    });
+    const user = userEvent.setup();
+    await takeFromRegistrations(user);
+    expect(screen.getByRole('button', { name: 'Загрузить' })).toBeDisabled();
   });
 });
 
