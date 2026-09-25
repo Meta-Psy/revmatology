@@ -110,7 +110,7 @@ def test_migrations_do_not_silence_application_loggers(db):
 # ==================== база под Alembic ====================
 
 def test_existing_database_is_migrated_not_stamped(db):
-    """Обжитая БД под Alembic: 006 должна примениться, а не быть проштампована."""
+    """Обжитая БД под Alembic: миграции должны примениться, а не быть проштампованы."""
     _create_all_but_certificates(db)
     command.stamp(_alembic_config(), "004")
     command.upgrade(_alembic_config(), "005")
@@ -119,7 +119,8 @@ def test_existing_database_is_migrated_not_stamped(db):
 
     columns = _tables(db)
     assert "issue_mode" in columns["certificate_templates"]
-    assert "is_open" in columns["certificate_templates"]  # 006 расширяет, не сужает
+    # 006 колонку оставляла (расширить), 007 снимает (сузить) — до head дошли обе
+    assert "is_open" not in columns["certificate_templates"]
     assert _version(db) == _head()
 
 

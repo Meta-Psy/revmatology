@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Date, ForeignKey, Enum, Time, Float, LargeBinary, UniqueConstraint, CheckConstraint
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Date, ForeignKey, Enum, Time, Float, LargeBinary, UniqueConstraint, CheckConstraint, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .connection import Base
@@ -29,6 +29,12 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Вход ищет почту без оглядки на регистр (functions/crud.get_user_by_email),
+    # то есть ровно по этому выражению; без индекса это seq scan по всей
+    # таблице. Не уникальный: в живой базе есть пары «одна почта в разном
+    # регистре» (миграция 007). Уникальность самой email-колонки — выше.
+    __table_args__ = (Index('ix_users_email_lower', func.lower(email)),)
 
     @property
     def full_name(self):
