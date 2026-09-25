@@ -219,6 +219,12 @@ export const contentAPI = {
   issueCertificate: (congressId, { recipient_id, full_name, phone = null }) =>
     api.post(`/congress/congresses/${congressId}/certificates/issue`, { recipient_id, full_name, phone }, { responseType: 'blob' }),
 
+  // Сертификаты в личном кабинете (К-12): свои — по email учётной записи, без телефона.
+  // Ответ скачивания — PDF блобом; ошибка тоже блобом, код достаёт readBlobError
+  getMyCertificates: () => api.get('/congress/my-certificates'),
+  downloadMyCertificate: (recipientId) =>
+    api.post(`/congress/my-certificates/${recipientId}/download`, null, { responseType: 'blob' }),
+
   // Сертификаты — админка
   getCertificateSettings: (congressId) => api.get(`/congress/congresses/${congressId}/certificate-settings`),
   updateCertificateSettings: (congressId, data) =>
@@ -245,6 +251,15 @@ export const contentAPI = {
     formData.append('mode', mode);
     formData.append('dry_run', dryRun ? 'true' : 'false');
     return api.post(`/congress/congresses/${congressId}/certificate-recipients/import`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  // Тот же импорт, но строки берутся из регистраций на конгресс (К-12)
+  importCertificateRecipientsFromRegistrations: (congressId, { mode = 'append', dryRun = true } = {}) => {
+    const formData = new FormData();
+    formData.append('mode', mode);
+    formData.append('dry_run', dryRun ? 'true' : 'false');
+    return api.post(`/congress/congresses/${congressId}/certificate-recipients/import-registrations`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Award, RotateCcw, FileText } from 'lucide-react';
+import { Plus, Award, RotateCcw, FileText, Users } from 'lucide-react';
 import { contentAPI, readBlobError } from '../../../services/api';
+import { formatDotDate } from '../../../utils/dates';
 import {
   AdminTable, AdminModal, ConfirmDialog, AdminForm, AdminFormField, FileUpload, Skeleton, useToast,
 } from '../../../components/admin';
@@ -38,6 +39,13 @@ const NUMBER_BOX_FIELDS = [
 // Номер на сертификате — с ведущими нулями до трёх знаков, как в PDF
 const formatNumber = (n) => (n == null ? '—' : String(n).padStart(3, '0'));
 
+// Режим выдачи: auto — сама на следующий день после конгресса (К-12)
+const ISSUE_MODES = [
+  { value: 'auto', label: 'Автоматически после окончания конгресса' },
+  { value: 'open', label: 'Открыта сейчас' },
+  { value: 'closed', label: 'Закрыта' },
+];
+
 const IMPORT_MODES = [
   { value: 'append', label: 'Добавить к списку' },
   { value: 'replace', label: 'Заменить всех' },
@@ -50,6 +58,7 @@ const ERROR_TEXT = {
   font_min_gt_max: 'Минимальный кегль больше максимального',
   empty_replace: 'В файле нет ни одной строки — список не заменён',
   invalid_phone: 'Телефон: нужно 9–15 цифр или пусто',
+  invalid_email: 'Email: проверьте адрес',
   number_box_incomplete: 'Рамка номера: заполните все четыре поля или оставьте пустыми',
   number_conflict: 'Номер сертификата уже занят — повторите',
   validation: 'Проверьте значения полей',
@@ -74,10 +83,16 @@ const errText = (err) => codeText(errCode(err), err);
 const toForm = (s) => ({
   ...Object.fromEntries([...NUMBER_FIELDS, ...NUMBER_BOX_FIELDS].map(({ key }) => [key, s?.[key] == null ? '' : String(s[key])])),
   text_color: s?.text_color || '#1B3A7A',
-  is_open: !!s?.is_open,
+  issue_mode: s?.issue_mode || 'auto',
 });
 
-const EMPTY_RECIPIENT = { full_name: '', phone: '' };
+const EMPTY_RECIPIENT = { full_name: '', phone: '', email: '' };
+
+// Текущее состояние выдачи считает сервер (open / opens_on) — здесь только словами
+const issueStateText = (settings) => {
+  if (settings.open) return 'Сейчас открыта';
+  return settings.opens_on ? `Сейчас закрыта, откроется ${formatDotDate(settings.opens_on)}` : 'Сейчас закрыта';
+};
 
 const cardClass = 'bg-white border border-slate-200 rounded-lg p-4';
 const buttonClass = 'px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 inline-flex items-center gap-1.5';
@@ -98,9 +113,10 @@ const CertificatesTab = ({ congressId }) => {
   // --- Импорт ---
   const [importFile, setImportFile] = useState(null);
   const [importMode, setImportMode] = useState('append');
-  const [report, setReport] = useState(null); // сводка dry_run для текущих файла и режима
+  const [report, setReport] = useState(null); // сводка dry_run для текущих источника и режима
+  const [reportSource, setReportSource] = useState('csv'); // csv | registrations
   const [importError, setImportError] = useState('');
-  const [checking, setChecking] = useState(false);
+  const [checking, setChecking] = useState(null); // источник проверки, пока идёт запрос
   const [importing, setImporting] = useState(false);
   const [confirmReplace, setConfirmReplace] = useState(false);
 
@@ -200,7 +216,7 @@ const CertificatesTab = ({ congressId }) => {
       payload[key] = n;
     }
     payload.text_color = form.text_color;
-    payload.is_open = form.is_open;
+    payload.issue_mode = form.issue_mode;
 
     setSavingSettings(true);
     try {
@@ -272,25 +288,33 @@ const CertificatesTab = ({ congressId }) => {
     setImportError('');
   };
 
-  const handleCheck = async () => {
-    setChecking(true);
+  // Строки берутся либо из файла, либо из регистраций конгресса — дальше поток общий
+  const callImport = (source, dryRun) => (
+    source === 'registrations'
+      ? contentAPI.importCertificateRecipientsFromRegistrations(congressId, { mode: importMode, dryRun })
+      : contentAPI.importCertificateRecipients(congressId, importFile, { mode: importMode, dryRun })
+  );
+
+  const handleCheck = async (source) => {
+    setChecking(source);
     resetReport();
     try {
-      const res = await contentAPI.importCertificateRecipients(congressId, importFile, { mode: importMode, dryRun: true });
+      const res = await callImport(source, true);
       setReport(res.data);
+      setReportSource(source);
     } catch (err) {
       setImportError(importErrorText(err));
     } finally {
-      setChecking(false);
+      setChecking(null);
     }
   };
 
   const doImport = async () => {
     setImporting(true);
     try {
-      const res = await contentAPI.importCertificateRecipients(congressId, importFile, { mode: importMode, dryRun: false });
+      const res = await callImport(reportSource, false);
       toast.success(`Загружено получателей: ${res.data?.inserted ?? 0}`);
-      setImportFile(null);
+      if (reportSource === 'csv') setImportFile(null);
       resetReport();
       await loadRecipients();
     } catch (err) {
@@ -315,8 +339,8 @@ const CertificatesTab = ({ congressId }) => {
   // ПОЛУЧАТЕЛИ
   // ---------------------------------------------------------------------------
   const handleSaveRecipient = async () => {
-    const { id, full_name, phone } = editRecipient;
-    const data = { full_name: full_name.trim(), phone: phone.trim() || null };
+    const { id, full_name, phone, email } = editRecipient;
+    const data = { full_name: full_name.trim(), phone: phone.trim() || null, email: email.trim() || null };
     if (!data.full_name) {
       toast.error('Укажите Ф.И.О.');
       return;
@@ -363,6 +387,7 @@ const CertificatesTab = ({ congressId }) => {
     { key: 'number', label: '№', render: formatNumber },
     { key: 'full_name', label: 'Ф.И.О.' },
     { key: 'phone_digits', label: 'Телефон', render: (v) => v || '—' },
+    { key: 'email', label: 'Email', render: (v) => v || '—' },
     { key: 'download_count', label: 'Выдано', render: (v) => `${v ?? 0} из ${MAX_DOWNLOADS}` },
   ];
 
@@ -430,12 +455,14 @@ const CertificatesTab = ({ congressId }) => {
             ))}
           </div>
           <AdminFormField
-            label="Выдача открыта"
-            name="is_open"
-            type="checkbox"
-            value={form.is_open}
-            onChange={(e) => setForm((f) => ({ ...f, is_open: e.target.value }))}
+            label="Выдача"
+            name="issue_mode"
+            type="select"
+            value={form.issue_mode}
+            onChange={updateField}
+            options={ISSUE_MODES}
           />
+          <p className="text-xs text-slate-500">{issueStateText(settings)}</p>
         </AdminForm>
 
         <div className="mt-4 pt-4 border-t border-slate-200 flex flex-wrap items-end gap-3">
@@ -459,9 +486,9 @@ const CertificatesTab = ({ congressId }) => {
         <p className="text-xs text-slate-400 mt-1">Пробный PDF строится по сохранённым настройкам, с контурами рамок имени и номера (номер 000); счётчики не трогает</p>
       </section>
 
-      {/* ===== Импорт CSV ===== */}
+      {/* ===== Импорт списка ===== */}
       <section className={cardClass}>
-        <h3 className="text-sm font-semibold text-slate-800 mb-3">Импорт списка (CSV)</h3>
+        <h3 className="text-sm font-semibold text-slate-800 mb-3">Импорт списка</h3>
         <div className="grid md:grid-cols-2 gap-3 items-start">
           <FileUpload
             value={importFile}
@@ -477,11 +504,15 @@ const CertificatesTab = ({ congressId }) => {
             options={IMPORT_MODES}
           />
         </div>
-        <p className="text-xs text-slate-400 mt-1">Колонки: ФИО (или Фамилия, Имя, Отчество) и Телефон (необязательно)</p>
+        <p className="text-xs text-slate-400 mt-1">Колонки: ФИО (или Фамилия, Имя, Отчество), Телефон и Email (необязательные)</p>
 
-        <div className="flex gap-2 mt-3">
-          <button type="button" onClick={handleCheck} disabled={!importFile || checking || importing} className={secondaryButtonClass}>
-            {checking ? 'Проверка…' : 'Проверить'}
+        <div className="flex flex-wrap gap-2 mt-3">
+          <button type="button" onClick={() => handleCheck('csv')} disabled={!importFile || !!checking || importing} className={secondaryButtonClass}>
+            {checking === 'csv' ? 'Проверка…' : 'Проверить'}
+          </button>
+          <button type="button" onClick={() => handleCheck('registrations')} disabled={!!checking || importing} className={secondaryButtonClass}>
+            <Users className="w-4 h-4" />
+            {checking === 'registrations' ? 'Проверка…' : 'Взять из регистраций'}
           </button>
           <button type="button" onClick={handleImport} disabled={!canImport || importing} className={buttonClass}>
             {importing ? 'Загрузка…' : 'Загрузить'}
@@ -492,6 +523,7 @@ const CertificatesTab = ({ congressId }) => {
 
         {report && (
           <div data-testid="import-summary" className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-md text-sm text-slate-700 space-y-1">
+            <p>Источник: {reportSource === 'registrations' ? 'регистрации на конгресс' : 'файл CSV'}</p>
             <p>Будет добавлено: <b>{report.will_insert}</b></p>
             <p>Пустых строк: {report.empty_rows} · Дублей в файле: {report.duplicates_in_file} · Уже есть в списке: {report.skipped_existing}</p>
             {badPhones > 0 && (
@@ -532,7 +564,7 @@ const CertificatesTab = ({ congressId }) => {
           columns={columns}
           data={recipients}
           loading={listLoading}
-          onEdit={(row) => setEditRecipient({ id: row.id, full_name: row.full_name, phone: row.phone_digits || '' })}
+          onEdit={(row) => setEditRecipient({ id: row.id, full_name: row.full_name, phone: row.phone_digits || '', email: row.email || '' })}
           onDelete={(row) => setDeleteTarget(row)}
           actions={(row) => (
             <button
@@ -571,6 +603,13 @@ const CertificatesTab = ({ congressId }) => {
               value={editRecipient.phone}
               onChange={(e) => setEditRecipient((r) => ({ ...r, phone: e.target.value }))}
               placeholder="Без телефона — проверка только по Ф.И.О."
+            />
+            <AdminFormField
+              label="Email"
+              name="recipient_email"
+              value={editRecipient.email}
+              onChange={(e) => setEditRecipient((r) => ({ ...r, email: e.target.value }))}
+              placeholder="Email регистрации — по нему сертификат виден в личном кабинете"
             />
           </AdminForm>
         )}

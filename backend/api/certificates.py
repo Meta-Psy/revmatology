@@ -1,13 +1,15 @@
-"""Именные сертификаты конгресса (К-11): публичная выдача и админские маршруты.
+"""Именные сертификаты конгресса (К-11, К-12): выдача, кабинет, админка.
 
 Подключён в api/__init__.py под /api/congress. Поведение — design-doc
-_specs/2026-09-22-congress-certificates-design.md §5.
+_specs/2026-09-22-congress-certificates-design.md §5 и
+_specs/2026-09-22-certificates-account-design.md §4–§5.
 """
 import io
 import logging
 import re
 import time
 from collections import deque
+from datetime import date
 from typing import Literal, Optional
 from urllib.parse import quote
 
@@ -20,17 +22,21 @@ from sqlalchemy.orm import defer
 from starlette.concurrency import run_in_threadpool
 
 from database import CertificateRecipient, CertificateTemplate, Congress, get_db
-from database.models import CERTIFICATE_DEFAULTS, NUMBER_BOX_FIELDS
-from functions.auth import get_current_admin
+from database.models import CERTIFICATE_DEFAULTS, NUMBER_BOX_FIELDS, CongressRegistration, User
+from functions.auth import get_current_admin, get_current_user
 from functions.certificate_names import (
     NoNameColumn,
+    ParsedCsv,
     certificate_filename,
+    clean_email,
     clean_phone,
+    collect_recipients,
     normalize_name,
     parse_recipients_csv,
     phones_match,
 )
 from functions.certificate_pdf import Box, format_number, render_certificate
+from functions.certificate_schedule import certificate_opens_on, certificates_open, today_in_tashkent
 from schemas.certificates import (
     CertificateImportReport,
     CertificateIssueRequest,
@@ -43,6 +49,7 @@ from schemas.certificates import (
     CertificateSettingsUpdate,
     CertificateStatus,
     CertificateSuggestion,
+    MyCertificate,
 )
 
 router = APIRouter()
@@ -118,10 +125,18 @@ def _throttle(request: Request, bucket: str, limit: int) -> None:
 
 # ==================== помощники ====================
 
-async def _ensure_congress(db: AsyncSession, congress_id: int) -> None:
-    result = await db.execute(select(Congress.id).where(Congress.id == congress_id))
-    if result.scalar_one_or_none() is None:
+def _today() -> date:
+    """Сегодня по Ташкенту — одна точка, которую подменяют тесты."""
+    return today_in_tashkent()
+
+
+async def _ensure_congress(db: AsyncSession, congress_id: int):
+    """Проверка, что конгресс есть; возвращает дату окончания (нужна для режима auto)."""
+    result = await db.execute(select(Congress.date_end).where(Congress.id == congress_id))
+    row = result.first()
+    if row is None:
         raise HTTPException(status_code=404, detail="Congress not found")
+    return row[0]
 
 
 async def _get_template(db: AsyncSession, congress_id: int) -> Optional[CertificateTemplate]:
@@ -129,27 +144,48 @@ async def _get_template(db: AsyncSession, congress_id: int) -> Optional[Certific
     return result.scalar_one_or_none()
 
 
+async def _open_state(db: AsyncSession, congress_id: int) -> tuple[bool, Optional[date]]:
+    """(открыта ли выдача, дата автооткрытия) — без чтения байтов PDF.
+
+    Зовётся на каждую подсказку, поэтому наличие бланка проверяется условием
+    в WHERE, а не выборкой самого PDF.
+    """
+    row = (await db.execute(
+        select(CertificateTemplate.issue_mode, Congress.date_end)
+        .join(Congress, Congress.id == CertificateTemplate.congress_id)
+        .where(CertificateTemplate.congress_id == congress_id, CertificateTemplate.pdf.isnot(None))
+    )).first()
+    if row is None:
+        return False, None
+    return _state(row[0], True, row[1])
+
+
+def _state(mode: str, has_pdf: bool, date_end) -> tuple[bool, Optional[date]]:
+    today = _today()
+    return certificates_open(mode, has_pdf, date_end, today), certificate_opens_on(mode, has_pdf, date_end, today)
+
+
 async def _is_open(db: AsyncSession, congress_id: int) -> bool:
-    """Выдача открыта и шаблон загружен — без чтения байтов PDF (зовётся на каждую подсказку)."""
-    result = await db.execute(
-        select(CertificateTemplate.id).where(
-            CertificateTemplate.congress_id == congress_id,
-            CertificateTemplate.is_open.is_(True),
-            CertificateTemplate.pdf.isnot(None),
-        )
-    )
-    return result.scalar_one_or_none() is not None
+    return (await _open_state(db, congress_id))[0]
 
 
-def _settings(congress_id: int, template: Optional[CertificateTemplate]) -> CertificateSettingsResponse:
+def _settings(congress_id: int, template: Optional[CertificateTemplate], date_end) -> CertificateSettingsResponse:
     """Настройки без байтов PDF; строки ещё нет — значения по умолчанию."""
     if template is None:
-        return CertificateSettingsResponse(congress_id=congress_id, has_template=False, **CERTIFICATE_DEFAULTS)
+        is_open, opens_on = _state(CERTIFICATE_DEFAULTS["issue_mode"], False, date_end)
+        return CertificateSettingsResponse(
+            congress_id=congress_id, has_template=False, open=is_open, opens_on=opens_on,
+            **CERTIFICATE_DEFAULTS,
+        )
+    has_template = template.pdf is not None
+    is_open, opens_on = _state(template.issue_mode, has_template, date_end)
     return CertificateSettingsResponse(
         congress_id=congress_id,
-        has_template=template.pdf is not None,
+        has_template=has_template,
         pdf_filename=template.pdf_filename,
         updated_at=template.updated_at,
+        open=is_open,
+        opens_on=opens_on,
         **{key: getattr(template, key) for key in CERTIFICATE_DEFAULTS},
     )
 
@@ -168,6 +204,14 @@ def _stored_phone(raw: Optional[str]) -> Optional[str]:
     if problem:
         raise HTTPException(status_code=422, detail="invalid_phone")
     return digits
+
+
+def _stored_email(raw: Optional[str]) -> Optional[str]:
+    """Почта из админки: пусто — без почты; непустая без «@» — 422 (К-12)."""
+    email, ok = clean_email(raw)
+    if not ok:
+        raise HTTPException(status_code=422, detail="invalid_email")
+    return email
 
 
 def _number_box(template: CertificateTemplate) -> Optional[Box]:
@@ -247,6 +291,55 @@ def _pdf_response(pdf: bytes, disposition: str) -> Response:
     )
 
 
+async def _open_template(db: AsyncSession, congress_id: int) -> Optional[CertificateTemplate]:
+    """Шаблон конгресса, если выдача сейчас открыта; иначе None.
+
+    Байты PDF отложены: они читаются только после списания попытки.
+    """
+    row = (await db.execute(
+        select(CertificateTemplate, Congress.date_end)
+        .options(defer(CertificateTemplate.pdf))
+        .join(Congress, Congress.id == CertificateTemplate.congress_id)
+        .where(CertificateTemplate.congress_id == congress_id, CertificateTemplate.pdf.isnot(None))
+    )).first()
+    if row is None:
+        return None
+    template, date_end = row
+    return template if certificates_open(template.issue_mode, True, date_end, _today()) else None
+
+
+async def _charge_and_render(db: AsyncSession, template: CertificateTemplate,
+                             recipient: CertificateRecipient) -> Response:
+    """Списание попытки и сборка PDF — общее для страницы поиска и кабинета (К-12)."""
+    # значения снимаются заранее: после отката строка в сессии уже недоступна
+    recipient_id, template_id = recipient.id, template.id
+    full_name = recipient.full_name
+    number = format_number(recipient.number)
+
+    # условное списание: атомарно и при двух воркерах
+    charged = await db.execute(
+        update(CertificateRecipient)
+        .where(CertificateRecipient.id == recipient_id, CertificateRecipient.download_count < MAX_DOWNLOADS)
+        .values(download_count=CertificateRecipient.download_count + 1)
+        .returning(CertificateRecipient.id)
+    )
+    if charged.scalar_one_or_none() is None:
+        await db.rollback()
+        raise HTTPException(status_code=403, detail="limit_reached")
+    try:
+        template_pdf = (await db.execute(
+            select(CertificateTemplate.pdf).where(CertificateTemplate.id == template_id)
+        )).scalar_one()
+        pdf = await _render(template_pdf, template, full_name, number)
+    except Exception:
+        # списание не зафиксировано — откат транзакции возвращает счётчик
+        await db.rollback()
+        logger.exception("Сертификат не собран: получатель %s", recipient_id)
+        raise HTTPException(status_code=500, detail="render_failed")
+    await db.commit()
+    return _pdf_response(pdf, _content_disposition("attachment", full_name))
+
+
 async def _get_recipient(db: AsyncSession, rid: int) -> CertificateRecipient:
     recipient = await db.get(CertificateRecipient, rid)
     if recipient is None:
@@ -258,7 +351,8 @@ async def _get_recipient(db: AsyncSession, rid: int) -> CertificateRecipient:
 
 @router.get("/congresses/{congress_id}/certificates/status", response_model=CertificateStatus)
 async def certificate_status(congress_id: int, db: AsyncSession = Depends(get_db)):
-    return {"open": await _is_open(db, congress_id)}
+    is_open, opens_on = await _open_state(db, congress_id)
+    return {"open": is_open, "opens_on": opens_on}
 
 
 @router.get("/congresses/{congress_id}/certificates/suggest", response_model=list[CertificateSuggestion])
@@ -293,14 +387,7 @@ async def issue_certificate(
     _throttle(request, "issue", ISSUE_PER_MINUTE)
     not_found = HTTPException(status_code=404, detail="not_found")  # одинаково: не подсказываем, что не так
 
-    # настройки без байтов PDF: шаблон читается только после списания
-    template = (await db.execute(
-        select(CertificateTemplate).options(defer(CertificateTemplate.pdf)).where(
-            CertificateTemplate.congress_id == congress_id,
-            CertificateTemplate.is_open.is_(True),
-            CertificateTemplate.pdf.isnot(None),
-        )
-    )).scalar_one_or_none()
+    template = await _open_template(db, congress_id)
     if template is None:
         raise not_found
     recipient = (await db.execute(
@@ -316,39 +403,79 @@ async def issue_certificate(
     # имя из подсказки должно совпасть: иначе перебор id выдаёт чужие сертификаты
     if normalize_name(data.full_name) != recipient.name_key:
         raise not_found
-    full_name = recipient.full_name
-    number = format_number(recipient.number)
+    return await _charge_and_render(db, template, recipient)
 
-    # условное списание: атомарно и при двух воркерах
-    charged = await db.execute(
-        update(CertificateRecipient)
-        .where(CertificateRecipient.id == recipient.id, CertificateRecipient.download_count < MAX_DOWNLOADS)
-        .values(download_count=CertificateRecipient.download_count + 1)
-        .returning(CertificateRecipient.id)
-    )
-    if charged.scalar_one_or_none() is None:
-        await db.rollback()
-        raise HTTPException(status_code=403, detail="limit_reached")
-    try:
-        template_pdf = (await db.execute(
-            select(CertificateTemplate.pdf).where(CertificateTemplate.id == template.id)
-        )).scalar_one()
-        pdf = await _render(template_pdf, template, full_name, number)
-    except Exception:
-        # списание не зафиксировано — откат транзакции возвращает счётчик
-        await db.rollback()
-        logger.exception("Сертификат не собран: конгресс %s, получатель %s", congress_id, data.recipient_id)
-        raise HTTPException(status_code=500, detail="render_failed")
-    await db.commit()
-    return _pdf_response(pdf, _content_disposition("attachment", full_name))
+
+# ==================== личный кабинет (К-12) ====================
+
+def _account_email(user: User) -> str:
+    """Почта учётной записи в том же виде, в каком хранится у получателя."""
+    return (user.email or "").strip().lower()
+
+
+@router.get("/my-certificates", response_model=list[MyCertificate])
+async def my_certificates(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+    """Сертификаты, привязанные к почте учётной записи; свежие конгрессы сверху."""
+    rows = (await db.execute(
+        select(CertificateRecipient, Congress, CertificateTemplate.issue_mode,
+               # только признак: байты бланка не читаются
+               CertificateTemplate.pdf.isnot(None).label("has_pdf"))
+        .join(Congress, Congress.id == CertificateRecipient.congress_id)
+        .outerjoin(CertificateTemplate, CertificateTemplate.congress_id == CertificateRecipient.congress_id)
+        .where(CertificateRecipient.email == _account_email(user))
+        .order_by(Congress.date_start.desc().nulls_last(), Congress.id.desc(), CertificateRecipient.number)
+    )).all()
+
+    items = []
+    for recipient, congress, issue_mode, has_pdf in rows:
+        is_open, opens_on = _state(issue_mode or CERTIFICATE_DEFAULTS["issue_mode"],
+                                   bool(has_pdf), congress.date_end)
+        items.append(MyCertificate(
+            recipient_id=recipient.id,
+            congress_id=congress.id,
+            congress_title_ru=congress.title_ru,
+            congress_title_uz=congress.title_uz,
+            congress_title_en=congress.title_en,
+            full_name=recipient.full_name,
+            number=recipient.number,
+            downloads_left=max(0, MAX_DOWNLOADS - recipient.download_count),
+            open=is_open,
+            opens_on=opens_on,
+        ))
+    return items
+
+
+@router.post("/my-certificates/{recipient_id}/download")
+async def download_my_certificate(
+    recipient_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Своя выдача из кабинета: телефон не нужен, лимит общий со страницей поиска."""
+    _throttle(request, "issue", ISSUE_PER_MINUTE)
+    not_found = HTTPException(status_code=404, detail="not_found")
+
+    recipient = (await db.execute(
+        select(CertificateRecipient).where(
+            CertificateRecipient.id == recipient_id,
+            CertificateRecipient.email == _account_email(user),
+        )
+    )).scalar_one_or_none()
+    if recipient is None:
+        raise not_found
+    template = await _open_template(db, recipient.congress_id)
+    if template is None:
+        raise not_found
+    return await _charge_and_render(db, template, recipient)
 
 
 # ==================== админские: настройки и шаблон ====================
 
 @router.get("/congresses/{congress_id}/certificate-settings", response_model=CertificateSettingsResponse)
 async def get_certificate_settings(congress_id: int, db: AsyncSession = Depends(get_db), admin=Depends(get_current_admin)):
-    await _ensure_congress(db, congress_id)
-    return _settings(congress_id, await _get_template(db, congress_id))
+    date_end = await _ensure_congress(db, congress_id)
+    return _settings(congress_id, await _get_template(db, congress_id), date_end)
 
 
 @router.put("/congresses/{congress_id}/certificate-settings", response_model=CertificateSettingsResponse)
@@ -358,7 +485,7 @@ async def update_certificate_settings(
     db: AsyncSession = Depends(get_db),
     admin=Depends(get_current_admin),
 ):
-    await _ensure_congress(db, congress_id)
+    date_end = await _ensure_congress(db, congress_id)
     template = await _get_or_create_template(db, congress_id)
     for key, value in data.model_dump(exclude_unset=True).items():
         # null у рамки номера — «не печатать»; у остальных полей — «не менять»
@@ -372,7 +499,7 @@ async def update_certificate_settings(
         raise HTTPException(status_code=422, detail="number_box_incomplete")
     await db.commit()
     await db.refresh(template)
-    return _settings(congress_id, template)
+    return _settings(congress_id, template, date_end)
 
 
 @router.post("/congresses/{congress_id}/certificate-template", response_model=CertificateSettingsResponse)
@@ -382,7 +509,7 @@ async def upload_certificate_template(
     db: AsyncSession = Depends(get_db),
     admin=Depends(get_current_admin),
 ):
-    await _ensure_congress(db, congress_id)
+    date_end = await _ensure_congress(db, congress_id)
     data = await file.read(MAX_TEMPLATE_SIZE + 1)
     if len(data) > MAX_TEMPLATE_SIZE:
         raise HTTPException(status_code=413, detail="too_large")
@@ -401,7 +528,7 @@ async def upload_certificate_template(
     template.pdf_filename = (file.filename or "template.pdf")[:255]
     await db.commit()
     await db.refresh(template)
-    return _settings(congress_id, template)
+    return _settings(congress_id, template, date_end)
 
 
 @router.post("/congresses/{congress_id}/certificate-preview")
@@ -453,6 +580,7 @@ async def create_recipient(
         full_name=data.full_name,
         name_key=normalize_name(data.full_name),
         phone_digits=_stored_phone(data.phone),
+        email=_stored_email(data.email),
         download_count=0,
         number=await _next_number(db, congress_id),
     )
@@ -471,12 +599,16 @@ async def update_recipient(
 ):
     recipient = await _get_recipient(db, rid)
     sent = data.model_dump(exclude_unset=True)
+    # разбор до правки: 422 не должен оставить получателя наполовину изменённым
     phone = _stored_phone(sent["phone"]) if "phone" in sent else None
+    email = _stored_email(sent["email"]) if "email" in sent else None
     if sent.get("full_name"):
         recipient.full_name = sent["full_name"]
         recipient.name_key = normalize_name(sent["full_name"])
     if "phone" in sent:
         recipient.phone_digits = phone
+    if "email" in sent:
+        recipient.email = email
     await db.commit()
     await db.refresh(recipient)
     return recipient
@@ -516,7 +648,36 @@ async def import_recipients(
         parsed = parse_recipients_csv(data)
     except NoNameColumn as exc:
         raise HTTPException(status_code=400, detail={"code": "no_name_column", "columns": exc.columns})
+    return await _store_import(db, congress_id, parsed, mode, dry_run)
 
+
+@router.post("/congresses/{congress_id}/certificate-recipients/import-registrations",
+             response_model=CertificateImportReport)
+async def import_recipients_from_registrations(
+    congress_id: int,
+    mode: Literal["append", "replace"] = Form("append"),
+    dry_run: bool = Form(False),
+    db: AsyncSession = Depends(get_db),
+    admin=Depends(get_current_admin),
+):
+    """Получатели из регистраций на этот конгресс (К-12) — те же правила, что у CSV."""
+    await _ensure_congress(db, congress_id)
+    registrations = (await db.execute(
+        select(CongressRegistration.last_name, CongressRegistration.first_name,
+               CongressRegistration.patronymic, CongressRegistration.phone, CongressRegistration.email)
+        .where(CongressRegistration.congress_id == congress_id)
+        .order_by(CongressRegistration.id)
+    )).all()
+    parsed = collect_recipients(
+        (" ".join(part or "" for part in (last, first, patronymic)), phone, email)
+        for last, first, patronymic, phone, email in registrations
+    )
+    return await _store_import(db, congress_id, parsed, mode, dry_run)
+
+
+async def _store_import(db: AsyncSession, congress_id: int, parsed: ParsedCsv,
+                        mode: str, dry_run: bool) -> CertificateImportReport:
+    """Запись разобранного списка: дубли, нумерация, replace — общее для обоих импортов."""
     rows = parsed.rows
     skipped = 0
     if mode == "append":
@@ -549,7 +710,7 @@ async def import_recipients(
         db.add_all(
             CertificateRecipient(
                 congress_id=congress_id, full_name=r.full_name, name_key=r.name_key,
-                phone_digits=r.phone_digits, download_count=0, number=first + n,
+                phone_digits=r.phone_digits, email=r.email, download_count=0, number=first + n,
             )
             for n, r in enumerate(rows)
         )

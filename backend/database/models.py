@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Date, ForeignKey, Enum, Time, Float, LargeBinary, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Date, ForeignKey, Enum, Time, Float, LargeBinary, UniqueConstraint, CheckConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .connection import Base
@@ -291,11 +291,16 @@ class CongressSpeaker(Base):
 # под «of participation», номер — на линии после «No.» справа внизу
 CERTIFICATE_DEFAULTS = {
     "box_x_mm": 58.0, "box_y_mm": 94.0, "box_w_mm": 181.0, "box_h_mm": 15.0,
-    "font_max_pt": 40.0, "font_min_pt": 16.0, "text_color": "#1B3A7A", "is_open": False,
+    "font_max_pt": 40.0, "font_min_pt": 16.0, "text_color": "#1B3A7A", "issue_mode": "auto",
     "number_box_x_mm": 259.0, "number_box_y_mm": 183.0, "number_box_w_mm": 22.0, "number_box_h_mm": 7.0,
     "number_font_pt": 14.0,
 }
 NUMBER_BOX_FIELDS = ("number_box_x_mm", "number_box_y_mm", "number_box_w_mm", "number_box_h_mm")
+# режим выдачи (К-12): auto — сама на следующий день после окончания конгресса.
+# Список один на весь бэкенд: отсюда и CHECK в БД, и Literal в схемах
+CERTIFICATE_ISSUE_MODES = ("auto", "open", "closed")
+ISSUE_MODE_CHECK = "issue_mode IN ({})".format(", ".join(f"'{mode}'" for mode in CERTIFICATE_ISSUE_MODES))
+ISSUE_MODE_CHECK_NAME = "ck_certificate_templates_issue_mode"
 
 
 class CertificateTemplate(Base):
@@ -306,6 +311,7 @@ class CertificateTemplate(Base):
     тянули мегабайты PDF.
     """
     __tablename__ = "certificate_templates"
+    __table_args__ = (CheckConstraint(ISSUE_MODE_CHECK, name=ISSUE_MODE_CHECK_NAME),)
 
     id = Column(Integer, primary_key=True, index=True)
     congress_id = Column(Integer, ForeignKey("congresses.id", ondelete="CASCADE"), nullable=False, unique=True)
@@ -319,7 +325,8 @@ class CertificateTemplate(Base):
     font_max_pt = Column(Float, nullable=False, default=CERTIFICATE_DEFAULTS["font_max_pt"])
     font_min_pt = Column(Float, nullable=False, default=CERTIFICATE_DEFAULTS["font_min_pt"])
     text_color = Column(String(7), nullable=False, default=CERTIFICATE_DEFAULTS["text_color"])
-    is_open = Column(Boolean, nullable=False, default=CERTIFICATE_DEFAULTS["is_open"])
+    issue_mode = Column(String(10), nullable=False, default=CERTIFICATE_DEFAULTS["issue_mode"],
+                        server_default=CERTIFICATE_DEFAULTS["issue_mode"])
     # рамка номера, мм от левого верхнего угла; все четыре NULL — номер не печатается
     number_box_x_mm = Column(Float, nullable=True)
     number_box_y_mm = Column(Float, nullable=True)
@@ -346,6 +353,9 @@ class CertificateRecipient(Base):
     full_name = Column(String(300), nullable=False)
     name_key = Column(String(300), nullable=False, index=True)  # normalize_name(full_name)
     phone_digits = Column(String(20), nullable=True)
+    # почта участника из регистрации: связь с учётной записью в кабинете (К-12),
+    # хранится нормализованной (strip().lower())
+    email = Column(String(255), nullable=True, index=True)
     download_count = Column(Integer, nullable=False, default=0)
     number = Column(Integer, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

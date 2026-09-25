@@ -7,11 +7,13 @@ import io
 import re
 import unicodedata
 from dataclasses import dataclass, field
+from collections.abc import Iterable
 from typing import Optional
 
 # Все виды апострофа, которыми пишут узбекскую латиницу (Oʻgʻiloy / O'g'iloy / O’g’iloy / O´g´iloy)
 APOSTROPHES = "ʻʼ'’‘`\u00b4"
 NAME_MAX_LEN = 300  # = String(300) у full_name и name_key
+EMAIL_MAX_LEN = 255  # = String(255) у email
 PHONE_MIN_DIGITS = 9  # сравнение идёт по последним 9 цифрам
 PHONE_MAX_DIGITS = 15  # E.164; больше — скорее два номера в ячейке
 _APOSTROPHE_TABLE = str.maketrans({ch: "'" for ch in APOSTROPHES})
@@ -44,6 +46,21 @@ def clean_phone(s: Optional[str]) -> tuple[Optional[str], Optional[str]]:
     if len(digits) > PHONE_MAX_DIGITS:
         return None, "invalid"
     return digits, None
+
+
+def clean_email(s: Optional[str]) -> tuple[Optional[str], bool]:
+    """Почта для хранения: (нормализованная или None, годна ли) — К-12.
+
+    Пусто → (None, True): почты просто нет. Непустая без «@» или длиннее
+    колонки → (None, False): в админке это 422, в импорте строка остаётся без
+    почты.
+    """
+    value = (s or "").strip().lower()
+    if not value:
+        return None, True
+    if "@" not in value or len(value) > EMAIL_MAX_LEN:
+        return None, False
+    return value, True
 
 
 def phones_match(stored: str, entered: str) -> bool:
@@ -96,6 +113,7 @@ LAST_HEADERS = {"фамилия", "lastname"}
 FIRST_HEADERS = {"имя", "firstname"}
 PATRONYMIC_HEADERS = {"отчество", "patronymic"}
 PHONE_HEADERS = {"телефон", "phone", "tel"}
+EMAIL_HEADERS = {"email", "почта", "элпочта", "электроннаяпочта"}
 DELIMITERS = ",;\t"
 
 
@@ -112,6 +130,7 @@ class ParsedRecipient:
     full_name: str
     name_key: str
     phone_digits: Optional[str]
+    email: Optional[str] = None
 
 
 @dataclass
@@ -163,6 +182,39 @@ def _cell(row: list[str], index: Optional[int]) -> str:
     return row[index]
 
 
+def collect_recipients(raw_rows: Iterable[tuple[str, str, str]]) -> ParsedCsv:
+    """Строки «(Ф.И.О., телефон, почта)» → получатели со счётчиками брака.
+
+    Общий сборщик для CSV и импорта из регистраций (К-12): дубль считается по
+    имени и телефону, почта на это не влияет.
+    """
+    result = ParsedCsv()
+    seen: set[tuple[str, Optional[str]]] = set()
+    for raw_name, raw_phone, raw_email in raw_rows:
+        full_name = " ".join((raw_name or "").split())
+        if not full_name:
+            result.empty_rows += 1
+            continue
+        key = normalize_name(full_name)
+        if len(full_name) > NAME_MAX_LEN or len(key) > NAME_MAX_LEN:
+            result.too_long_names += 1
+            continue
+        phone, problem = clean_phone(raw_phone)
+        if problem == "short":
+            result.short_phones += 1
+        elif problem == "invalid":
+            result.invalid_phones += 1
+        if (key, phone) in seen:
+            result.duplicates_in_file += 1
+            continue
+        seen.add((key, phone))
+        email, _ = clean_email(raw_email)  # кривая почта — просто без почты
+        result.rows.append(
+            ParsedRecipient(full_name=full_name, name_key=key, phone_digits=phone, email=email)
+        )
+    return result
+
+
 def parse_recipients_csv(data: bytes) -> ParsedCsv:
     text = _decode(data)
     reader = csv.reader(io.StringIO(text), delimiter=_detect_delimiter(text))
@@ -176,30 +228,16 @@ def parse_recipients_csv(data: bytes) -> ParsedCsv:
     if name_i is None and (last_i is None or first_i is None):
         raise NoNameColumn(columns)
     phone_i = _find(keys, PHONE_HEADERS)
+    email_i = _find(keys, EMAIL_HEADERS)
 
-    result = ParsedCsv(columns=columns)
-    seen: set[tuple[str, Optional[str]]] = set()
-    for row in reader:
-        if name_i is not None:
-            raw_name = _cell(row, name_i)
-        else:
-            raw_name = " ".join(_cell(row, i) for i in (last_i, first_i, patronymic_i))
-        full_name = " ".join(raw_name.split())
-        if not full_name:
-            result.empty_rows += 1
-            continue
-        key = normalize_name(full_name)
-        if len(full_name) > NAME_MAX_LEN or len(key) > NAME_MAX_LEN:
-            result.too_long_names += 1
-            continue
-        phone, problem = clean_phone(_cell(row, phone_i))
-        if problem == "short":
-            result.short_phones += 1
-        elif problem == "invalid":
-            result.invalid_phones += 1
-        if (key, phone) in seen:
-            result.duplicates_in_file += 1
-            continue
-        seen.add((key, phone))
-        result.rows.append(ParsedRecipient(full_name=full_name, name_key=key, phone_digits=phone))
+    def _rows():
+        for row in reader:
+            if name_i is not None:
+                raw_name = _cell(row, name_i)
+            else:
+                raw_name = " ".join(_cell(row, i) for i in (last_i, first_i, patronymic_i))
+            yield raw_name, _cell(row, phone_i), _cell(row, email_i)
+
+    result = collect_recipients(_rows())
+    result.columns = columns
     return result

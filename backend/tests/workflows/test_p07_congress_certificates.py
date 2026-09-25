@@ -80,12 +80,12 @@ async def test_p07(journey, client):
 
     # --- open_issuing --------------------------------------------------------
     async def _open():
-        settings = await client.put(f"{BASE}/congresses/{congress_id}/certificate-settings", json={"is_open": True})
+        settings = await client.put(f"{BASE}/congresses/{congress_id}/certificate-settings", json={"issue_mode": "open"})
         assert settings.status_code == 200, f"[open_issuing] {settings.status_code}: {settings.text}"
         return await client.get(f"{BASE}/congresses/{congress_id}/certificates/status")
 
     status = await j.step("open_issuing", _open)
-    assert status.json() == {"open": True}, f"[open_issuing] статус {status.json()}"
+    assert status.json() == {"open": True, "opens_on": None}, f"[open_issuing] статус {status.json()}"
 
     # --- suggest -------------------------------------------------------------
     suggested = await j.step(

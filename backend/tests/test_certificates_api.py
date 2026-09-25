@@ -4,6 +4,7 @@
 """
 import io
 import re
+from datetime import date
 from urllib.parse import quote
 
 import pytest
@@ -54,7 +55,11 @@ async def _add(client, congress_id, full_name, phone=None):
 
 
 async def _open(client, congress_id, is_open=True):
-    response = await client.put(f"{BASE}/congresses/{congress_id}/certificate-settings", json={"is_open": is_open})
+    """Выдача открыта/закрыта вручную — режим 'open'/'closed' (К-12)."""
+    response = await client.put(
+        f"{BASE}/congresses/{congress_id}/certificate-settings",
+        json={"issue_mode": "open" if is_open else "closed"},
+    )
     assert response.status_code == 200, response.text
     return response.json()
 
@@ -92,18 +97,90 @@ async def _suggest(client, congress_id, q, headers=None):
 
 async def test_status_closed_without_template(client, congress):
     response = await client.get(f"{BASE}/congresses/{congress.id}/certificates/status")
-    assert response.json() == {"open": False}
+    assert response.json() == {"open": False, "opens_on": None}
     await _open(client, congress.id)  # открыто, но шаблона нет
-    assert (await client.get(f"{BASE}/congresses/{congress.id}/certificates/status")).json() == {"open": False}
+    assert (await client.get(f"{BASE}/congresses/{congress.id}/certificates/status")).json() == {"open": False, "opens_on": None}
 
 
 async def test_status_open(client, ready):
     congress_id, *_ = ready
-    assert (await client.get(f"{BASE}/congresses/{congress_id}/certificates/status")).json() == {"open": True}
+    assert (await client.get(f"{BASE}/congresses/{congress_id}/certificates/status")).json() == {"open": True, "opens_on": None}
 
 
 async def test_status_unknown_congress(client):
-    assert (await client.get(f"{BASE}/congresses/999/certificates/status")).json() == {"open": False}
+    assert (await client.get(f"{BASE}/congresses/999/certificates/status")).json() == {"open": False, "opens_on": None}
+
+
+# ==================== автооткрытие выдачи (К-12) ====================
+
+async def _set_end(client, congress_id, iso):
+    response = await client.put(f"{BASE}/congresses/{congress_id}", json={"date_end": iso})
+    assert response.status_code == 200, response.text
+
+
+async def _status(client, congress_id):
+    return (await client.get(f"{BASE}/congresses/{congress_id}/certificates/status")).json()
+
+
+@pytest.fixture
+def today(monkeypatch):
+    """Подменяем «сегодня» — дата в Ташкенте приходит из одного места."""
+    def _set(value):
+        monkeypatch.setattr(cert_api, "_today", lambda: value)
+
+    return _set
+
+
+async def test_auto_opens_the_day_after_the_end(client, ready, today):
+    congress_id, *_ = ready
+    await _set_end(client, congress_id, "2026-09-25T18:00:00")
+    await client.put(f"{BASE}/congresses/{congress_id}/certificate-settings", json={"issue_mode": "auto"})
+
+    today(date(2026, 9, 25))
+    assert await _status(client, congress_id) == {"open": False, "opens_on": "2026-09-26"}
+    assert (await _suggest(client, congress_id, "шодиева")).json() == []
+
+    today(date(2026, 9, 26))
+    assert await _status(client, congress_id) == {"open": True, "opens_on": None}
+    assert (await _suggest(client, congress_id, "шодиева")).json() != []
+
+
+async def test_auto_without_date_end_stays_closed(client, ready, today):
+    congress_id, _, without_phone = ready
+    await client.put(f"{BASE}/congresses/{congress_id}/certificate-settings", json={"issue_mode": "auto"})
+    today(date(2030, 1, 1))
+    assert await _status(client, congress_id) == {"open": False, "opens_on": None}
+    assert (await _issue(client, congress_id, without_phone)).status_code == 404
+
+
+async def test_manual_modes_ignore_dates(client, ready, today):
+    congress_id, _, without_phone = ready
+    await _set_end(client, congress_id, "2030-01-01T18:00:00")
+    today(date(2026, 9, 26))
+    await _open(client, congress_id)  # open — открыто, хотя конгресс ещё не кончился
+    assert await _status(client, congress_id) == {"open": True, "opens_on": None}
+    assert (await _issue(client, congress_id, without_phone)).status_code == 200
+
+    await _set_end(client, congress_id, "2026-09-25T18:00:00")
+    await _open(client, congress_id, False)  # closed — закрыто, хотя конгресс кончился
+    assert await _status(client, congress_id) == {"open": False, "opens_on": None}
+
+
+async def test_settings_report_open_and_opens_on(client, ready, today):
+    congress_id, *_ = ready
+    await _set_end(client, congress_id, "2026-09-25T18:00:00")
+    today(date(2026, 9, 24))
+    body = (await client.put(f"{BASE}/congresses/{congress_id}/certificate-settings",
+                             json={"issue_mode": "auto"})).json()
+    assert (body["issue_mode"], body["open"], body["opens_on"]) == ("auto", False, "2026-09-26")
+    body = (await client.get(f"{BASE}/congresses/{congress_id}/certificate-settings")).json()
+    assert (body["open"], body["opens_on"]) == (False, "2026-09-26")
+
+
+async def test_settings_bad_issue_mode_is_422(client, congress):
+    url = f"{BASE}/congresses/{congress.id}/certificate-settings"
+    assert (await client.put(url, json={"issue_mode": "whenever"})).status_code == 422
+    assert (await client.put(url, json={"issue_mode": None})).json()["issue_mode"] == "auto"
 
 
 # ==================== suggest ====================
@@ -362,7 +439,7 @@ async def test_admin_routes_require_token(client, congress):
     app.dependency_overrides.pop(get_current_admin_user, None)
     calls = [
         client.get(f"{BASE}/congresses/{congress.id}/certificate-settings"),
-        client.put(f"{BASE}/congresses/{congress.id}/certificate-settings", json={"is_open": True}),
+        client.put(f"{BASE}/congresses/{congress.id}/certificate-settings", json={"issue_mode": "open"}),
         client.post(f"{BASE}/congresses/{congress.id}/certificate-template", files={"file": ("a.pdf", TEMPLATE)}),
         client.post(f"{BASE}/congresses/{congress.id}/certificate-preview", json={"name": "X"}),
         client.get(f"{BASE}/congresses/{congress.id}/certificate-recipients"),
@@ -371,6 +448,7 @@ async def test_admin_routes_require_token(client, congress):
         client.delete(f"{BASE}/certificate-recipients/1"),
         client.post(f"{BASE}/certificate-recipients/1/reset"),
         client.post(f"{BASE}/congresses/{congress.id}/certificate-recipients/import", files={"file": ("a.csv", b"x")}),
+        client.post(f"{BASE}/congresses/{congress.id}/certificate-recipients/import-registrations", data={"mode": "append"}),
     ]
     for call in calls:
         response = await call
@@ -385,7 +463,9 @@ async def test_settings_defaults_without_row(client, congress):
     body = response.json()
     assert body["congress_id"] == congress.id
     assert body["has_template"] is False and body["pdf_filename"] is None
-    assert (body["font_max_pt"], body["font_min_pt"], body["text_color"], body["is_open"]) == (40, 16, "#1B3A7A", False)
+    assert (body["font_max_pt"], body["font_min_pt"], body["text_color"]) == (40, 16, "#1B3A7A")
+    # по умолчанию выдача открывается сама после конгресса; бланка нет — пока закрыта
+    assert (body["issue_mode"], body["open"], body["opens_on"]) == ("auto", False, None)
     # под бланк организаторов (A4 альбомный): линия под «of participation» и «No. ____»
     assert [body[k] for k in ("box_x_mm", "box_y_mm", "box_w_mm", "box_h_mm")] == DEFAULT_NAME_BOX
     assert [body[k] for k in NUMBER_BOX_KEYS] == DEFAULT_NUMBER_BOX

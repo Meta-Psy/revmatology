@@ -422,7 +422,20 @@
     "closed": "Certificates are not available yet",
     "noMatches": "No matches found",
     "link": "Get certificate",
-    "error": "Could not get the certificate. Please try again later."
+    "error": "Could not get the certificate. Please try again later.",
+    "opensOn": "Certificates open on {{date}}",
+    "accountHint": "Have an account? Your certificate is available in your profile"
+  },
+  "profile": {
+    "title": "My profile",
+    "myCertificates": "My certificates",
+    "certificateNumber": "No. {{number}}",
+    "downloadsLeft": "Downloads left: {{left}} of {{max}}",
+    "availableFrom": "Available from {{date}}",
+    "notOpen": "Certificates are not available yet",
+    "empty": "Certificates are linked to the email given when registering for the congress. If you registered with a different email, find yourself by full name on the congress page.",
+    "loadError": "Could not load your certificates. Please try again later.",
+    "unavailable": "The certificate is not available right now. Please refresh the page."
   },
   "common": {
     "loading": "Loading...",
