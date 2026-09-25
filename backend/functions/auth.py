@@ -5,11 +5,11 @@ from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 
 from config import settings
 from database import get_db, User
 from database.models import UserRole
+from functions.crud import get_user_by_email
 from schemas import TokenData
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -53,11 +53,17 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
 
-    result = await db.execute(select(User).where(User.email == token_data.email))
-    user = result.scalar_one_or_none()
+    # тем же поиском, что и вход: токен мог быть выписан на почту в другом регистре
+    user = await get_user_by_email(db, token_data.email)
 
     if user is None:
         raise credentials_exception
+    if not user.is_active:
+        # токен настоящий, но запись отключена: кабинет отдаёт персональные данные
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Inactive user"
+        )
     return user
 
 
