@@ -167,7 +167,13 @@ def test_fresh_install_upgrade_does_not_fail(monkeypatch, tmp_path):
 
 
 def test_migrated_schema_differs_from_create_all_only_by_is_open(monkeypatch, tmp_path):
-    """Схемы сходятся с точностью до колонки, которую уберёт 007."""
+    """На ревизии 006 схемы сходятся с точностью до одной колонки — is_open.
+
+    Сторож расхождения, заведённого нарочно: is_open живёт лишь между двумя
+    выкатками. Что после 007 схемы сходятся полностью, проверяет
+    test_migration_007.test_migrated_schema_matches_create_all — здесь ревизия
+    зафиксирована на 006, иначе тест проверял бы уже не эту миграцию.
+    """
     migrated_url = f"sqlite+aiosqlite:///{(tmp_path / 'migrated.db').as_posix()}"
     fresh_url = f"sqlite+aiosqlite:///{(tmp_path / 'fresh.db').as_posix()}"
 
